@@ -1,0 +1,232 @@
+# OrthoFlow AI — K8s Local Deployment
+# Namespace: orthoflow (completely isolated from melanin-tech)
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orthoflow
+  labels:
+    project: orthoflow-ai
+    client: orthodontic-dental
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orthoflow-config
+  namespace: orthoflow
+data:
+  LLM_PROVIDER: "ollama"
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "mistral"
+  S3_ENDPOINT: "http://minio:9000"
+  S3_BUCKET: "invoices"
+  REDIS_URL: "redis://redis:6379/0"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: orthoflow-secrets
+  namespace: orthoflow
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://orthoflow:changeme@postgres:5432/orthoflow"
+  S3_ACCESS_KEY: "orthoflow"
+  S3_SECRET_KEY: "changeme123"
+  JWT_SECRET: "change-this-in-production"
+---
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: orthoflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          env:
+            - name: POSTGRES_USER
+              value: orthoflow
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orthoflow-secrets
+                  key: S3_SECRET_KEY
+            - name: POSTGRES_DB
+              value: orthoflow
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: orthoflow
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+---
+# ── Redis ─────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: orthoflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: orthoflow
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+---
+# ── MinIO (S3-compatible) ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: orthoflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          command: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: orthoflow-secrets
+                  key: S3_ACCESS_KEY
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orthoflow-secrets
+                  key: S3_SECRET_KEY
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: orthoflow
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+    - name: console
+      port: 9001
+---
+# ── Ollama (LLM) ─────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: orthoflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: orthoflow
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+---
+# ── Backend API ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: orthoflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: orthoflow-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: orthoflow-config
+            - secretRef:
+                name: orthoflow-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: orthoflow
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
