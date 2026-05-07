@@ -91,6 +91,40 @@ Worker (async pipeline)
 - **Deploy** — Watchtower (auto-pull from GHCR)
 - **IaC** — Terraform (AWS migration scaffold)
 
+## How the AI Learns Your Practice
+
+OrthoFlow's AI isn't generic — it's trained on orthodontic-specific terminology and adapts to how your office works.
+
+### Orthodontic Vocabulary Recognition
+
+The AI understands that:
+- "Damon Q2 .022 Upper 5-5" = brackets (supplies category)
+- "NiTi .016 x .022 Lower" = archwire (supplies)
+- "Essix ACE .040" = retainer material (lab)
+- "CBCT scan fee" = imaging (equipment/services)
+- "Clearinghouse monthly" = insurance-related fee
+
+It recognizes invoice formats from the top orthodontic vendors (Ormco, 3M Unitek, Henry Schein, Patterson Dental, American Orthodontics, Rocky Mountain Orthodontics) and knows how to parse their specific line item structures.
+
+### Practice-Specific Learning
+
+Over time, OrthoFlow learns YOUR office's preferences:
+- **Custom GL mappings** — if you code "lab retainers" to account 5200 instead of 5100, the AI remembers
+- **Approval patterns** — learns which vendors the doctor always approves vs. which need review
+- **Vendor nicknames** — if your team calls Henry Schein "HS" on internal notes, the AI maps it correctly
+- **Seasonal patterns** — knows you order more brackets in September (back-to-school rush) and flags unusual volumes
+
+### How It Gets Smarter
+
+1. **Day 1** — AI uses the base orthodontic vendor catalog (200+ item taxonomy)
+2. **Week 1–4** — every approve/reject/edit teaches the model your preferences
+3. **Month 2+** — confidence scores rise above 95%, fewer items need manual review
+4. **Month 6+** — the AI has a complete picture of your practice's spending patterns, vendor relationships, and coding preferences
+
+This learned data is YOUR data — it stays in your isolated environment and never trains other clients' models.
+
+---
+
 ## HIPAA Compliance
 
 - Healthcare MCP (HMCP) extension for patient identity segregation
