@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, FileText } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle, FileText } from 'lucide-react'
 import { api } from '../lib/api'
+import Tooltip from '../components/Tooltip'
 
 interface InvoiceDetail {
   id: string
@@ -59,44 +60,54 @@ export default function InvoiceDetail() {
   }
 
   if (!invoice) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
+    return <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] text-gray-400 text-sm">Loading...</div>
   }
 
   const canAct = ['coded', 'review'].includes(invoice.status)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
-            <ArrowLeft size={20} />
+    <div className="min-h-screen bg-[#f5f5f7]">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+          <button onClick={() => navigate('/')} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors">
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">{invoice.vendor_name}</h1>
-            <p className="text-sm text-gray-500">Invoice {invoice.invoice_number || '—'}</p>
+            <h1 className="text-base font-semibold text-gray-900">{invoice.vendor_name}</h1>
+            <p className="text-xs text-gray-500">Invoice {invoice.invoice_number || '—'}</p>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {/* Summary Card */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        {/* Summary */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p className="text-sm text-gray-500">Amount</p>
-              <p className="text-2xl font-bold text-gray-900">${invoice.total_amount.toLocaleString()}</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs text-gray-500">Amount Due</p>
+                <Tooltip content="Total amount on this invoice"><HelpCircle size={11} className="text-gray-300" /></Tooltip>
+              </div>
+              <p className="text-2xl font-semibold text-gray-900">${invoice.total_amount.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Status</p>
-              <p className="text-lg font-semibold capitalize">{invoice.status}</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs text-gray-500">Status</p>
+                <Tooltip content="Current stage in the approval workflow"><HelpCircle size={11} className="text-gray-300" /></Tooltip>
+              </div>
+              <p className="text-lg font-medium capitalize text-gray-800">{invoice.status}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Invoice Date</p>
-              <p className="text-lg font-medium">{invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : '—'}</p>
+              <p className="text-xs text-gray-500 mb-1">Invoice Date</p>
+              <p className="text-lg font-medium text-gray-800">{invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : '—'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">AI Confidence</p>
-              <p className="text-lg font-medium">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs text-gray-500">AI Confidence</p>
+                <Tooltip content="How confident the AI is in its classification. Above 90% is high confidence."><HelpCircle size={11} className="text-gray-300" /></Tooltip>
+              </div>
+              <p className="text-lg font-medium text-gray-800">
                 {invoice.confidence_score ? `${Math.round(invoice.confidence_score * 100)}%` : '—'}
               </p>
             </div>
@@ -105,63 +116,84 @@ export default function InvoiceDetail() {
 
         {/* Line Items */}
         {lineItems.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-800">Line Items (AI Classified)</h2>
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <h2 className="font-medium text-gray-800 text-sm">Line Items</h2>
+              <Tooltip content="These items were automatically extracted and classified by AI. Review for accuracy before approving.">
+                <HelpCircle size={13} className="text-gray-400 cursor-help" />
+              </Tooltip>
             </div>
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {lineItems.map((item, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-6 py-3 text-sm text-gray-800">{item.description}</td>
-                    <td className="px-6 py-3">
-                      <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full font-medium capitalize">
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-sm text-gray-600 text-right">{item.quantity || '—'}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600 text-right">{item.unit_price ? `$${item.unit_price}` : '—'}</td>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-800 text-right">${item.total.toLocaleString()}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50/50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">
+                      <div className="flex items-center gap-1">
+                        Category
+                        <Tooltip content="AI-assigned expense category (supplies, lab, equipment, etc.)"><HelpCircle size={10} className="text-gray-300" /></Tooltip>
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Qty</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Unit Price</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {lineItems.map((item, i) => (
+                    <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-3.5 text-sm text-gray-800">{item.description}</td>
+                      <td className="px-6 py-3.5">
+                        <span className="inline-block px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full font-medium capitalize">
+                          {item.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 text-sm text-gray-600 text-right">{item.quantity || '—'}</td>
+                      <td className="px-6 py-3.5 text-sm text-gray-600 text-right">{item.unit_price ? `$${item.unit_price}` : '—'}</td>
+                      <td className="px-6 py-3.5 text-sm font-medium text-gray-800 text-right">${item.total.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
         {/* Actions */}
         {canAct && (
-          <div className="flex gap-4">
-            <button
-              onClick={() => handleAction('approve')}
-              disabled={acting}
-              className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <CheckCircle size={18} /> Approve
-            </button>
-            <button
-              onClick={() => handleAction('reject')}
-              disabled={acting}
-              className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <XCircle size={18} /> Reject
-            </button>
+          <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="font-medium text-gray-800 text-sm">Take Action</h3>
+              <Tooltip content="Approve to sync this invoice to QuickBooks, or reject to discard it.">
+                <HelpCircle size={13} className="text-gray-400 cursor-help" />
+              </Tooltip>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleAction('approve')}
+                disabled={acting}
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 text-sm shadow-sm"
+              >
+                <CheckCircle size={16} /> Approve & Sync
+              </button>
+              <button
+                onClick={() => handleAction('reject')}
+                disabled={acting}
+                className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-red-600 font-medium rounded-xl transition-colors disabled:opacity-50 text-sm border border-gray-200"
+              >
+                <XCircle size={16} /> Reject
+              </button>
+            </div>
           </div>
         )}
 
         {invoice.status === 'approved' && (
-          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <CheckCircle className="text-green-600" size={24} />
-            <p className="text-green-800 font-medium">This invoice has been approved and will sync to QuickBooks.</p>
+          <div className="flex items-center gap-3 p-5 bg-emerald-50 border border-emerald-200 rounded-2xl">
+            <CheckCircle className="text-emerald-600 flex-shrink-0" size={20} />
+            <div>
+              <p className="text-emerald-800 font-medium text-sm">Invoice Approved</p>
+              <p className="text-emerald-600 text-xs mt-0.5">This invoice will sync to QuickBooks automatically.</p>
+            </div>
           </div>
         )}
       </main>

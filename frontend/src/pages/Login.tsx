@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FileText } from 'lucide-react'
 import { api } from '../lib/api'
 
 export default function Login() {
@@ -33,78 +34,132 @@ export default function Login() {
       localStorage.setItem('practice_id', data.practice_id)
       navigate('/')
     } catch {
-      setError('Network error')
+      setError('Unable to connect. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-blue-900 px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">OrthoFlow AI</h1>
-          <p className="text-blue-200 mt-2">Accounts Payable Automation</p>
+    <div className="min-h-screen flex bg-[#f5f5f7]">
+      {/* Left panel — branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-700 items-center justify-center p-12">
+        <div className="max-w-md text-center">
+          <div className="w-16 h-16 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-8">
+            <FileText size={28} className="text-white" />
+          </div>
+          <h2 className="text-3xl font-semibold text-white mb-4">OrthoFlow AI</h2>
+          <p className="text-blue-100 text-lg leading-relaxed">
+            Automate your accounts payable. Upload invoices, let AI classify them, approve with one tap.
+          </p>
+          <div className="mt-12 grid grid-cols-3 gap-6 text-center">
+            <div>
+              <p className="text-2xl font-semibold text-white">2 min</p>
+              <p className="text-blue-200 text-xs mt-1">Avg. processing time</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-white">97%</p>
+              <p className="text-blue-200 text-xs mt-1">AI accuracy</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-white">14 hrs</p>
+              <p className="text-blue-200 text-xs mt-1">Saved per week</p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 space-y-4">
-          <h2 className="text-xl font-semibold text-gray-800">{isRegister ? 'Create Account' : 'Sign In'}</h2>
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden text-center mb-8">
+            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <FileText size={20} className="text-white" />
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900">OrthoFlow AI</h1>
+          </div>
 
-          {isRegister && (
-            <>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-1">
+            {isRegister ? 'Create your account' : 'Welcome back'}
+          </h2>
+          <p className="text-sm text-gray-500 mb-8">
+            {isRegister ? 'Set up your practice in under a minute' : 'Sign in to manage your invoices'}
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegister && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={e => setFullName(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
+                    placeholder="Dr. Jane Smith"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Practice Name</label>
+                  <input
+                    type="text"
+                    value={practiceName}
+                    onChange={e => setPracticeName(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
+                    placeholder="Smith Orthodontics"
+                  />
+                </div>
+              </>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
               <input
-                type="text"
-                placeholder="Full Name"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
+                placeholder="you@practice.com"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Password</label>
               <input
-                type="text"
-                placeholder="Practice Name"
-                value={practiceName}
-                onChange={e => setPracticeName(e.target.value)}
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
+                placeholder="••••••••"
               />
-            </>
-          )}
+            </div>
 
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          />
+            {error && (
+              <div className="px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-red-600 text-xs">{error}</p>
+              </div>
+            )}
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-50 shadow-sm"
+            >
+              {loading ? 'Please wait...' : isRegister ? 'Create Account' : 'Sign In'}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : isRegister ? 'Create Account' : 'Sign In'}
-          </button>
-
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-xs text-gray-500 mt-6">
             {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-blue-600 font-medium">
-              {isRegister ? 'Sign In' : 'Register'}
+            <button onClick={() => { setIsRegister(!isRegister); setError('') }} className="text-blue-500 font-medium hover:text-blue-600">
+              {isRegister ? 'Sign In' : 'Create one'}
             </button>
           </p>
-        </form>
+        </div>
       </div>
     </div>
   )

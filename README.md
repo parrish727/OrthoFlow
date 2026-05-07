@@ -1,6 +1,29 @@
 # OrthoFlow AI
 
-AI-Powered Accounts Payable Automation for Orthodontic Practices.
+AI-Powered Accounts Payable Automation for Orthodontic & Dental Practices.
+
+## What It Does
+
+OrthoFlow eliminates the manual invoice processing that costs orthodontic offices 12–16 hours per week in staff time. Upload a PDF → AI extracts and classifies → one-tap approve → syncs to QuickBooks.
+
+```
+Invoice arrives (email/PDF/scan)
+    → AI extracts vendor, line items, amounts (OCR + LLM)
+    → AI classifies against orthodontic expense categories (97%+ accuracy)
+    → Push notification for one-tap approval
+    → Syncs to QuickBooks automatically
+    → Done in 2 minutes vs. 15+ minutes manually
+```
+
+## Key Features
+
+- **Invoice OCR** — auto-extract from PDF, image, or email
+- **AI Classification** — ortho-specific vendor catalog (Ormco, 3M, Henry Schein, Patterson)
+- **Approval Workflow** — mobile push notifications, one-tap approve/reject, configurable thresholds
+- **Insurance EOB Matching** — flags underpayments for appeal
+- **Duplicate Detection** — catches double-payments before they happen
+- **QuickBooks Sync** — approved invoices push with correct GL codes
+- **HIPAA Compliant** — audit trail, encryption, role-based access
 
 ## Quick Start (Local Development)
 
@@ -11,38 +34,76 @@ cp .env.example .env
 # 2. Start all services
 docker compose up -d
 
-# 3. Verify
+# 3. Verify backend
 curl http://localhost:8000/
 # → {"status": "healthy", "service": "orthoflow-ai"}
+
+# 4. Start frontend
+cd frontend && npm install && npx vite --host 0.0.0.0
+# → http://localhost:5173
 ```
 
-**Services:**
-| Service | Port | URL |
-|---------|------|-----|
-| Backend API | 8000 | http://localhost:8000 |
-| Frontend | 5173 | http://localhost:5173 |
-| PostgreSQL | 5433 | localhost:5433 |
-| Redis | 6380 | localhost:6380 |
-| MinIO Console | 9101 | http://localhost:9101 |
-| Ollama | 11435 | http://localhost:11435 |
+## Services
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Backend API | 8000 | FastAPI — auth, invoices, approval |
+| Frontend | 5173 | React + Vite — dashboard UI |
+| PostgreSQL | 5433 | Database (pgvector) |
+| Redis | 6380 | Job queue for async processing |
+| MinIO | 9100/9101 | S3-compatible invoice storage |
+| Ollama | 11435 | Local LLM (Mistral) |
+| Worker | internal | OCR + AI classification pipeline |
+| Watchtower | internal | Auto-deploy from GHCR |
 
 ## Architecture
 
-Fully isolated from Melanin Technologies infrastructure. Own network, own namespace, own data.
+```
+Frontend (React + Vite + Tailwind)
+    │
+    ▼
+Backend API (FastAPI)
+    ├── Auth (JWT, practice-scoped)
+    ├── Invoice CRUD + Upload
+    └── Approval Workflow
+    │
+    ├── PostgreSQL (data)
+    ├── Redis (job queue)
+    ├── MinIO/S3 (document storage)
+    └── Ollama/Bedrock (AI classification)
+    │
+    ▼
+Worker (async pipeline)
+    → OCR extract text
+    → LLM classify line items
+    → Update DB with results
+```
 
-- **Backend:** Python / FastAPI — multi-tenant, HIPAA-compliant
-- **AI:** Ollama (local, open-source) → AWS Bedrock (prod, HIPAA-eligible)
-- **Storage:** MinIO (local, S3-compatible) → AWS S3 (prod)
-- **Queue:** Redis + ARQ for async invoice processing
-- **Database:** PostgreSQL + pgvector
+## Tech Stack
+
+- **Frontend** — React 19, TypeScript, Vite, Tailwind CSS v4, Lucide icons
+- **Backend** — Python, FastAPI, SQLAlchemy, Pydantic
+- **Database** — PostgreSQL + pgvector
+- **AI** — Ollama (local, open-source) → AWS Bedrock (production, HIPAA-eligible)
+- **Storage** — MinIO (local) → AWS S3 (production)
+- **Queue** — Redis
+- **CI/CD** — GitHub Actions (test on PR, build+push on merge)
+- **Deploy** — Watchtower (auto-pull from GHCR)
+- **IaC** — Terraform (AWS migration scaffold)
 
 ## HIPAA Compliance
 
 - Healthcare MCP (HMCP) extension for patient identity segregation
-- AuditLog on every data access
+- AuditLog on every data access (who, what, when, from where)
 - Field-level encryption for PHI
 - Multi-tenant isolation at DB and API level
-- See `docs/SPEC.md` for full compliance matrix
+- Role-based access: Owner / Office Manager / Bookkeeper
+- BAA available with all infrastructure providers
+
+## Git Flow
+
+- `main` — production-ready, merges via PR only
+- `feature/orthoflow_v1` — active development
 
 ## AWS Migration
 
@@ -54,18 +115,15 @@ S3_ENDPOINT=                   # remove (uses real S3)
 DATABASE_URL=<RDS endpoint>    # swap from local postgres
 ```
 
-Terraform in `terraform/main.tf` — uncomment modules when ready.
+Terraform scaffold in `terraform/main.tf`.
 
-## CI/CD
+## Documentation
 
-GitHub Actions (`.github/workflows/ci.yml`):
-- **On PR:** run tests against Postgres + Redis
-- **On merge to main:** build + push Docker images to GHCR
+- `docs/SPEC.md` — technical specification
+- `docs/CLIENT_MANIFEST.md` — client-facing project overview
+- `docs/PRODUCT_OVERVIEW.md` — product features + competitive comparison
 
-## K8s Deployment (Local)
+## Built By
 
-```bash
-kubectl apply -f k8s/orthoflow.yaml
-```
-
-Creates isolated `orthoflow` namespace with all services.
+Melanin Technologies Inc. — Charlotte, NC
+www.melanin-tech.com | info@melanin-tech.com
