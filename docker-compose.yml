@@ -81,6 +81,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ghcr.io/parrish727/orthoflow/backend:latest
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file: .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-orthoflow}
@@ -103,6 +106,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ghcr.io/parrish727/orthoflow/backend:latest
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     command: ["python", "-m", "app.workers.main"]
     env_file: .env
     environment:
@@ -117,6 +123,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ── Auto-Deploy (Watchtower) ─────────────────────────────────────────────────
+  watchtower:
+    image: containrrr/watchtower:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/config.json:ro
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+    networks:
+      - orthoflow
     restart: unless-stopped
 
   # ── Frontend ────────────────────────────────────────────────────────────────
