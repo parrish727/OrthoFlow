@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     PLAID_SECRET: str = ""
     PLAID_ENVIRONMENT: str = "sandbox"  # sandbox | production
 
+    # Twilio (SMS fallback)
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest
