@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Link2, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
+import { api } from '../lib/api'
 
 const integrations = [
-  { name: 'QuickBooks Online', status: 'connected', description: 'Approved invoices sync as Bills automatically', icon: '📗' },
+  { name: 'QuickBooks Online', status: 'available', description: 'Sync approved invoices as Bills automatically', icon: '📗' },
   { name: 'Dentrix', status: 'available', description: 'Sync patient data and treatment plans', icon: '🦷' },
   { name: 'Email Forwarding', status: 'connected', description: 'invoices@yourpractice.orthoflow.ai', icon: '📧' },
   { name: 'Plaid (ACH Payments)', status: 'available', description: 'Pay vendors directly from OrthoFlow', icon: '🏦' },
@@ -98,7 +99,18 @@ export default function SettingsPage() {
                     <CheckCircle size={12} /> Connected
                   </span>
                 ) : (
-                  <button className="px-4 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200">
+                  <button
+                    onClick={async () => {
+                      if (i.name === 'QuickBooks Online') {
+                        const res = await api.getInvoices().then(() => fetch('https://api.orthoflowsolutions.com/api/v1/integrations/quickbooks/connect', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }))
+                        if (res.ok) {
+                          const data = await res.json()
+                          window.location.href = data.auth_url
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                  >
                     Connect
                   </button>
                 )}
