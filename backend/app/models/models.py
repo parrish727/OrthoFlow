@@ -37,6 +37,9 @@ class Practice(Base):
     name: Mapped[str] = mapped_column(String(255))
     npi: Mapped[str | None] = mapped_column(String(20))  # National Provider Identifier
     address: Mapped[str | None] = mapped_column(Text)
+    tier: Mapped[str] = mapped_column(String(20), default="standard")  # standard | enterprise
+    logo_url: Mapped[str | None] = mapped_column(String(512))
+    primary_color: Mapped[str | None] = mapped_column(String(7))  # hex color
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="practice")

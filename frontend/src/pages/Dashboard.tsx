@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, CheckCircle, Clock, AlertCircle, LogOut, HelpCircle, TrendingUp, DollarSign, Inbox } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Clock, AlertCircle, LogOut, HelpCircle, DollarSign, Inbox, ChevronDown, LayoutDashboard, Receipt, BarChart3, Settings, User } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 
@@ -29,6 +29,18 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const navigate = useNavigate()
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   const loadInvoices = useCallback(async () => {
     const res = await api.getInvoices()
@@ -77,12 +89,30 @@ export default function Dashboard() {
               <p className="text-xs text-gray-500">Accounts Payable</p>
             </div>
           </div>
-          <button
-            onClick={() => { localStorage.clear(); navigate('/login') }}
-            className="flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm transition-colors"
-          >
-            <LogOut size={16} /> Sign Out
-          </button>
+
+          {/* Navigation Dropdown */}
+          <div className="flex items-center gap-4">
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
+                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
+                  <DropdownItem icon={Receipt} label="Invoices" description="View all invoices" onClick={() => { setMenuOpen(false); navigate('/invoices') }} />
+                  <DropdownItem icon={BarChart3} label="Analytics" description="Spend reports & trends" onClick={() => { setMenuOpen(false); navigate('/analytics') }} />
+                  <DropdownItem icon={Settings} label="Settings" description="Practice & integrations" onClick={() => { setMenuOpen(false); navigate('/settings') }} />
+                  <div className="border-t border-gray-100 my-2" />
+                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
+                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
@@ -205,5 +235,17 @@ function StatCard({ icon: Icon, label, value, color = 'text-gray-900', tooltip }
       <p className={`text-2xl font-semibold ${color} tracking-tight`}>{value}</p>
       <p className="text-xs text-gray-500 mt-1">{label}</p>
     </div>
+  )
+}
+
+function DropdownItem({ icon: Icon, label, description, onClick }: { icon: typeof Clock; label: string; description: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
+      <Icon size={16} className="text-gray-400 flex-shrink-0" />
+      <div>
+        <p className="text-sm font-medium text-gray-700">{label}</p>
+        {description && <p className="text-xs text-gray-400">{description}</p>}
+      </div>
+    </button>
   )
 }
