@@ -116,6 +116,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./ml:/app/ml:ro
     networks:
       - orthoflow
     depends_on:
