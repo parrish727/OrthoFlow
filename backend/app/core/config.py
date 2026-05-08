@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     QBO_REDIRECT_URI: str = "https://api.orthoflowsolutions.com/api/v1/integrations/quickbooks/callback"
     QBO_ENVIRONMENT: str = "sandbox"  # sandbox | production
 
+    # Plaid
+    PLAID_CLIENT_ID: str = ""
+    PLAID_SECRET: str = ""
+    PLAID_ENVIRONMENT: str = "sandbox"  # sandbox | production
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest

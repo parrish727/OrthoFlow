@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import invoices, auth, practices, health
-from app.api.routes import quickbooks
+from app.api.routes import quickbooks, notifications, payments
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -32,3 +32,5 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(practices.router, prefix="/api/v1/practices", tags=["practices"])
 app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
 app.include_router(quickbooks.router, prefix="/api/v1/integrations/quickbooks", tags=["quickbooks"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
+app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"])
