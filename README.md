@@ -125,6 +125,18 @@ This learned data is YOUR data — it stays in your isolated environment and nev
 
 ---
 
+## v2 Features
+
+| Feature | Description |
+|---------|-------------|
+| **Push Notifications** | Web Push + mobile notifications for invoice approvals, payment confirmations, and system alerts |
+| **SMS OTP MFA** | Multi-factor authentication via Twilio SMS one-time passwords for enhanced account security |
+| **Plaid ACH Payments** | Direct bank-to-bank payments via Plaid — pay vendors without leaving OrthoFlow |
+| **Custom LLM Fine-tuning** | Practice-specific model fine-tuning on your invoice history for 99%+ classification accuracy |
+| **QuickBooks Integration** | Bi-directional sync — approved invoices push to QuickBooks, chart of accounts pulls in automatically |
+
+---
+
 ## HIPAA Compliance
 
 - Healthcare MCP (HMCP) extension for patient identity segregation

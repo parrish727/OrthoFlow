@@ -12,9 +12,12 @@ AI-powered accounts payable automation for orthodontic practices. Processes vend
                        │ HTTPS
 ┌──────────────────────▼──────────────────────────────────────────┐
 │  FastAPI Backend (app/main.py)                                   │
-│  ├── /api/v1/auth       — JWT authentication                    │
+│  ├── /api/v1/auth       — JWT authentication + SMS OTP MFA       │
 │  ├── /api/v1/practices  — multi-tenant practice management      │
 │  ├── /api/v1/invoices   — upload, list, approve, reject         │
+│  ├── /api/v1/notifications — web push subscription & delivery   │
+│  ├── /api/v1/payments   — Plaid ACH bank payments               │
+│  ├── /api/v1/integrations — QuickBooks OAuth + sync             │
 │  └── /health            — readiness/liveness probes             │
 └──────┬──────────┬──────────┬──────────┬─────────────────────────┘
        │          │          │          │
@@ -118,6 +121,26 @@ If compliance requires a fully private model:
 | GET | `/api/v1/invoices/{id}` | Get invoice detail |
 | POST | `/api/v1/invoices/{id}/approve` | Approve invoice |
 | POST | `/api/v1/invoices/{id}/reject` | Reject invoice |
+
+## API Endpoints (v2)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/auth/verify-otp` | Verify SMS OTP code for MFA |
+| POST | `/api/v1/notifications/subscribe` | Register device for push notifications |
+| DELETE | `/api/v1/notifications/subscribe` | Unsubscribe from push notifications |
+| GET | `/api/v1/notifications` | List notifications for current user |
+| PUT | `/api/v1/notifications/{id}/read` | Mark notification as read |
+| POST | `/api/v1/notifications/send` | Send push notification (internal/admin) |
+| POST | `/api/v1/payments/link-account` | Link bank account via Plaid |
+| GET | `/api/v1/payments/accounts` | List linked payment accounts |
+| POST | `/api/v1/payments/initiate` | Initiate ACH payment to vendor |
+| GET | `/api/v1/payments/{id}/status` | Check payment status |
+| GET | `/api/v1/payments` | List payment history |
+| POST | `/api/v1/integrations/quickbooks/connect` | OAuth connect to QuickBooks |
+| GET | `/api/v1/integrations/quickbooks/status` | Check QuickBooks connection status |
+| POST | `/api/v1/integrations/quickbooks/sync` | Trigger manual sync to QuickBooks |
+| GET | `/api/v1/integrations/quickbooks/accounts` | Pull chart of accounts from QuickBooks |
 
 ## File Structure
 ```
