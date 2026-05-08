@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Shield, Users, HelpCircle } from 'lucide-react'
+import { ArrowLeft, Shield, Users, HelpCircle, Bell } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 
 const teamMembers = [
@@ -16,6 +17,8 @@ const roleDescriptions: Record<string, string> = {
 
 export default function Account() {
   const navigate = useNavigate()
+  const [smsEnabled, setSmsEnabled] = useState(false)
+  const [smsPhone, setSmsPhone] = useState('')
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -91,6 +94,52 @@ export default function Account() {
                 </Tooltip>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Notification Preferences */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell size={16} className="text-gray-400" />
+            <h3 className="text-sm font-medium text-gray-800">Notification Preferences</h3>
+            <Tooltip content="Choose how you want to be notified when invoices need your attention.">
+              <HelpCircle size={13} className="text-gray-400" />
+            </Tooltip>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm text-gray-700">Push Notifications</p>
+                <p className="text-xs text-gray-400">Receive alerts in your browser or phone</p>
+              </div>
+              <button className="px-4 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">Enabled</button>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm text-gray-700">SMS Notifications</p>
+                <p className="text-xs text-gray-400">Get text messages as a backup when push isn't available</p>
+              </div>
+              {smsEnabled ? (
+                <button onClick={() => setSmsEnabled(false)} className="px-4 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">Enabled</button>
+              ) : (
+                <button onClick={() => setSmsEnabled(true)} className="px-4 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">Enable</button>
+              )}
+            </div>
+            {smsEnabled && (
+              <div className="pl-0 pt-2">
+                <label className="block text-xs text-gray-500 mb-1">Phone Number for SMS</label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={smsPhone}
+                    onChange={e => setSmsPhone(e.target.value)}
+                    placeholder="(704) 555-0123"
+                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                  />
+                  <button className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-xl transition-colors">Save</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
