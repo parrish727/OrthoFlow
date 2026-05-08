@@ -1,21 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, CheckCircle, Clock, AlertCircle, Search, Filter } from 'lucide-react'
+import { ArrowLeft, FileText, CheckCircle, Clock, AlertCircle, Search, Filter, HelpCircle } from 'lucide-react'
+import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
-import { HelpCircle } from 'lucide-react'
 
-const demoInvoices = [
-  { id: '1', vendor: 'Ormco Corporation', number: 'INV-2026-4521', amount: 2450, status: 'approved', date: '2026-05-05', category: 'Supplies' },
-  { id: '2', vendor: 'Henry Schein Dental', number: 'INV-2026-8834', amount: 1280, status: 'coded', date: '2026-05-06', category: 'Supplies' },
-  { id: '3', vendor: 'Precision Dental Lab', number: 'PL-0892', amount: 3200, status: 'approved', date: '2026-05-04', category: 'Lab' },
-  { id: '4', vendor: 'Patterson Dental', number: 'PD-112233', amount: 890, status: 'review', date: '2026-05-07', category: 'Equipment' },
-  { id: '5', vendor: 'DentalXChange', number: 'DX-2026-05', amount: 149, status: 'paid', date: '2026-05-01', category: 'Insurance' },
-  { id: '6', vendor: 'American Orthodontics', number: 'AO-77412', amount: 1750, status: 'approved', date: '2026-05-03', category: 'Supplies' },
-  { id: '7', vendor: 'Rocky Mountain Ortho', number: 'RMO-5543', amount: 620, status: 'pending', date: '2026-05-07', category: 'Supplies' },
-  { id: '8', vendor: '3M Unitek', number: '3M-2026-1192', amount: 3100, status: 'approved', date: '2026-05-02', category: 'Supplies' },
-  { id: '9', vendor: 'CLT Office Cleaning', number: 'CLT-MAY26', amount: 450, status: 'paid', date: '2026-05-01', category: 'Services' },
-  { id: '10', vendor: 'Carestream Dental', number: 'CS-REP-441', amount: 1800, status: 'review', date: '2026-05-06', category: 'Equipment' },
-]
+interface Invoice {
+  id: string
+  vendor_name: string
+  invoice_number: string | null
+  total_amount: number
+  status: string
+  confidence_score: number | null
+  created_at: string
+}
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: typeof Clock; label: string }> = {
   pending: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, label: 'Pending' },
@@ -24,16 +21,29 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: typeof Cl
   review: { color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: AlertCircle, label: 'Needs Review' },
   approved: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle, label: 'Approved' },
   paid: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle, label: 'Paid' },
+  rejected: { color: 'text-red-700', bg: 'bg-red-50 border-red-200', icon: AlertCircle, label: 'Rejected' },
 }
 
 export default function Invoices() {
   const navigate = useNavigate()
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
 
-  const filtered = demoInvoices.filter(i => {
+  useEffect(() => {
+    api.getInvoices().then(async res => {
+      if (res.ok) {
+        const data = await res.json()
+        setInvoices(data.invoices)
+      }
+      setLoading(false)
+    })
+  }, [])
+
+  const filtered = invoices.filter(i => {
     if (filter !== 'all' && i.status !== filter) return false
-    if (search && !i.vendor.toLowerCase().includes(search.toLowerCase()) && !i.number.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !i.vendor_name.toLowerCase().includes(search.toLowerCase()) && !(i.invoice_number || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -46,7 +56,7 @@ export default function Invoices() {
           </button>
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Invoices</h1>
-            <p className="text-xs text-gray-500">All invoices across your practice</p>
+            <p className="text-xs text-gray-500">All invoices for your practice</p>
           </div>
         </div>
       </header>
@@ -87,47 +97,57 @@ export default function Invoices() {
                 <HelpCircle size={13} className="text-gray-400" />
               </Tooltip>
             </div>
-            <p className="text-sm font-medium text-gray-600">
-              Total: ${filtered.reduce((s, i) => s + i.amount, 0).toLocaleString()}
-            </p>
+            {filtered.length > 0 && (
+              <p className="text-sm font-medium text-gray-600">
+                Total: ${filtered.reduce((s, i) => s + i.total_amount, 0).toLocaleString()}
+              </p>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Vendor</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Invoice #</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Date</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(invoice => {
-                  const config = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.pending
-                  const Icon = config.icon
-                  return (
-                    <tr key={invoice.id} onClick={() => navigate(`/invoice/${invoice.id}`)} className="hover:bg-gray-50/50 cursor-pointer transition-colors">
-                      <td className="px-6 py-3.5 text-sm font-medium text-gray-800">{invoice.vendor}</td>
-                      <td className="px-6 py-3.5 text-sm text-gray-500">{invoice.number}</td>
-                      <td className="px-6 py-3.5">
-                        <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">{invoice.category}</span>
-                      </td>
-                      <td className="px-6 py-3.5 text-sm text-gray-500">{new Date(invoice.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-3.5 text-sm font-semibold text-gray-800 text-right">${invoice.amount.toLocaleString()}</td>
-                      <td className="px-6 py-3.5 text-right">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.bg} ${config.color}`}>
-                          <Icon size={11} /> {config.label}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {loading ? (
+            <div className="px-6 py-12 text-center text-gray-400 text-sm">Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="text-gray-300" size={28} />
+              </div>
+              <p className="text-gray-500 font-medium">No invoices found</p>
+              <p className="text-gray-400 text-sm mt-1">Upload invoices from the Dashboard to get started</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50/50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Vendor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Invoice #</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Date</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map(invoice => {
+                    const config = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.pending
+                    const Icon = config.icon
+                    return (
+                      <tr key={invoice.id} onClick={() => navigate(`/invoice/${invoice.id}`)} className="hover:bg-gray-50/50 cursor-pointer transition-colors">
+                        <td className="px-6 py-3.5 text-sm font-medium text-gray-800">{invoice.vendor_name}</td>
+                        <td className="px-6 py-3.5 text-sm text-gray-500">{invoice.invoice_number || '—'}</td>
+                        <td className="px-6 py-3.5 text-sm text-gray-500">{new Date(invoice.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-3.5 text-sm font-semibold text-gray-800 text-right">${invoice.total_amount.toLocaleString()}</td>
+                        <td className="px-6 py-3.5 text-right">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.bg} ${config.color}`}>
+                            <Icon size={11} /> {config.label}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
     </div>
