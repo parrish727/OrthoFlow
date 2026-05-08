@@ -22,7 +22,7 @@ export const api = {
     request('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (data: { email: string; password: string; full_name: string; practice_name: string }) =>
     request('/api/v1/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  getInvoices: () => request('/api/v1/invoices'),
+  getInvoices: () => request('/api/v1/invoices/'),
   getInvoice: (id: string) => request(`/api/v1/invoices/${id}`),
   uploadInvoice: (file: File) => {
     const form = new FormData()
