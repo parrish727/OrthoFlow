@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "https://app.orthoflowsolutions.com"]
 
+    # QuickBooks Online
+    QBO_CLIENT_ID: str = ""
+    QBO_CLIENT_SECRET: str = ""
+    QBO_REDIRECT_URI: str = "https://api.orthoflowsolutions.com/api/v1/integrations/quickbooks/callback"
+    QBO_ENVIRONMENT: str = "sandbox"  # sandbox | production
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest
