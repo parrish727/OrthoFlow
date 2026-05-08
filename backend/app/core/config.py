@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     JWT_EXPIRY_HOURS: int = 24
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "https://app.orthoflowsolutions.com"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "https://app.orthoflowsolutions.com"]
 
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
