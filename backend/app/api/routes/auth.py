@@ -108,3 +108,46 @@ async def verify_login_otp(body: VerifyOTPRequest, db: AsyncSession = Depends(ge
 @router.get("/me")
 async def me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+class ResetRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetConfirm(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+
+@router.post("/reset-request")
+async def request_reset(body: ResetRequest, db: AsyncSession = Depends(get_db)):
+    """Send a password reset code via SMS (if phone set) or mark for manual reset."""
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Don't reveal if email exists
+        return {"message": "If an account exists, a reset code has been sent"}
+
+    from app.services.notifications import get_sms_phone
+    phone = get_sms_phone(str(user.id))
+    if phone:
+        await send_otp(str(user.id), phone)
+
+    return {"message": "If an account exists, a reset code has been sent"}
+
+
+@router.post("/reset-confirm")
+async def confirm_reset(body: ResetConfirm, db: AsyncSession = Depends(get_db)):
+    """Verify reset code and set new password."""
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid request")
+
+    if not verify_otp(str(user.id), body.code):
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+
+    user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+    return {"message": "Password reset successful"}
