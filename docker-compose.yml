@@ -64,6 +64,15 @@ services:
       - orthoflow
     restart: unless-stopped
 
+  # ── Virus Scanning (ClamAV) ──────────────────────────────────────────────────
+  clamav:
+    image: clamav/clamav:stable
+    ports:
+      - "3310:3310"
+    networks:
+      - orthoflow
+    restart: unless-stopped
+
   # ── AI / LLM (open-source, local) ──────────────────────────────────────────
   ollama:
     image: ollama/ollama:latest

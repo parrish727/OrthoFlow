@@ -10,6 +10,7 @@ from app.core.auth import get_current_user
 from app.models.models import Invoice, InvoiceStatus
 from app.services.storage import upload_file
 from app.services.queue import enqueue_invoice
+from app.services.scanner import scan_file
 
 router = APIRouter()
 
@@ -34,8 +35,13 @@ async def upload_invoice(
     invoice_id = uuid4()
     s3_key = f"{current_user['practice_id']}/{invoice_id}/{file.filename}"
 
-    # Upload to S3/MinIO
+    # Read and scan file for malware
     content = await file.read()
+    scan_result = await scan_file(content, file.filename or "upload")
+    if not scan_result["clean"]:
+        raise HTTPException(status_code=400, detail=f"File rejected: {scan_result['reason']}")
+
+    # Upload to S3/MinIO
     await upload_file(s3_key, content, file.content_type or "application/pdf")
 
     # Create invoice record
