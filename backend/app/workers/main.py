@@ -34,7 +34,16 @@ Given the raw text of a vendor invoice, extract and classify:
    - quantity: number of units
    - unit_price: price per unit
    - total: line total
-   - category: one of [supplies, lab, equipment, services, software, rent, utilities, insurance, other]
+   - category: classify using THESE EXACT RULES:
+
+CATEGORY RULES (follow strictly):
+- "supplies" = brackets, archwires, elastics, bonding materials, bands, wires, ligatures, adhesives, power chain, gloves, sterilization pouches, composites, impression materials, disposables, PPE
+- "lab" = retainers, expanders, space maintainers, appliances (Herbst, Nance, Schwartz, Hawley), custom lab work, rush lab fees
+- "equipment" = x-ray machines, autoclaves, sandblasters, trimmers, computers, monitors, scanners (iTero), dental chairs, curing lights, ultrasonic scalers
+- "invisalign" = any Invisalign product (comprehensive, lite, express, first, refinements, Vivera retainers)
+- "insurance" = clearinghouse fees, credentialing services
+- "services" = IT support, cleaning, consulting, maintenance contracts
+- "software" = practice management software, subscriptions
 
 Return ONLY valid JSON. No explanation."""
 
