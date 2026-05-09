@@ -19,7 +19,7 @@ async def complete(prompt: str, system: str = "", max_tokens: int = 4096) -> str
 
 
 async def _ollama(prompt: str, system: str, max_tokens: int) -> str:
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         resp = await client.post(
             f"{settings.OLLAMA_URL}/api/generate",
             json={
