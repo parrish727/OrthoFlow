@@ -137,26 +137,24 @@ async def worker_loop():
 async def _ensure_model():
     """Create the orthoflow-classify model in Ollama if it doesn't exist."""
     import httpx as _httpx
+    client = _httpx.AsyncClient(timeout=300)
     try:
-        # Check if model exists
-        r = await _httpx.AsyncClient().post(
-            f"{settings.OLLAMA_URL}/api/show",
-            json={"name": "orthoflow-classify"},
-            timeout=10,
-        )
+        r = await client.post(f"{settings.OLLAMA_URL}/api/show", json={"name": "orthoflow-classify"})
         if r.status_code == 200:
             log.info("✅ orthoflow-classify model ready")
+            await client.aclose()
             return
     except Exception:
         pass
 
-    # Create it from training data
     log.info("Creating orthoflow-classify model...")
     try:
         import os
-        training_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ml", "training_data", "ortho_catalog.json")
+        training_path = "/app/ml/training_data/ortho_catalog.json"
         if not os.path.exists(training_path):
-            training_path = "/app/ml/training_data/ortho_catalog.json"
+            log.warning("⚠️ Training data not found, skipping model creation")
+            await client.aclose()
+            return
 
         with open(training_path) as f:
             data = json.load(f)
@@ -166,19 +164,16 @@ async def _ensure_model():
             examples += f'\nMESSAGE user {item["input"]}\nMESSAGE assistant {json.dumps(item["output"])}'
 
         modelfile = f"""FROM {settings.OLLAMA_MODEL}
-SYSTEM You are an orthodontic accounts payable specialist. Classify invoice line items into categories. Respond with JSON only: {{"category": "...", "subcategory": "...", "vendor_type": "..."}}
+SYSTEM You are an orthodontic accounts payable specialist. Classify invoice line items into categories. Respond with JSON only.
 PARAMETER temperature 0.1
 {examples}
 """
-        async with _httpx.AsyncClient() as client:
-            await client.post(
-                f"{settings.OLLAMA_URL}/api/create",
-                json={"name": "orthoflow-classify", "modelfile": modelfile},
-                timeout=300,
-            )
+        await client.post(f"{settings.OLLAMA_URL}/api/create", json={"name": "orthoflow-classify", "modelfile": modelfile})
         log.info("✅ orthoflow-classify model created")
     except Exception as e:
-        log.warning(f"⚠️ Could not create custom model, using base: {e}")
+        log.warning(f"⚠️ Could not create custom model: {e}")
+    finally:
+        await client.aclose()
 
 
 if __name__ == "__main__":
