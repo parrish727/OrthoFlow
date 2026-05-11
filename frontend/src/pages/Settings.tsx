@@ -31,6 +31,30 @@ export default function SettingsPage() {
         {/* Practice Info */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-4">Practice Information</h3>
+          <div className="mb-4">
+            <label className="block text-xs text-gray-500 mb-2">Practice Logo</label>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
+                <span className="text-gray-400 text-xs">Logo</span>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const form = new FormData()
+                  form.append('file', file)
+                  await fetch('https://api.orthoflowsolutions.com/api/v1/practices/logo', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    body: form,
+                  })
+                }}
+                className="text-sm text-gray-500"
+              />
+            </div>
+          </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Practice Name</label>

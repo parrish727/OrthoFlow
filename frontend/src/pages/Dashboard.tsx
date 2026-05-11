@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [practiceName, setPracticeName] = useState('OrthoFlow')
+  const [practiceLogo, setPracticeLogo] = useState('')
   const navigate = useNavigate()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -55,7 +56,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow') }
+      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
     })
   }, [])
 
@@ -88,9 +89,13 @@ export default function Dashboard() {
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <FileText size={16} className="text-white" />
-            </div>
+            {practiceLogo ? (
+              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
+            ) : (
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <FileText size={16} className="text-white" />
+              </div>
+            )}
             <div>
               <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
               <p className="text-xs text-gray-500">Accounts Payable</p>
