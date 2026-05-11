@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.models import Invoice, InvoiceStatus
-from app.services.storage import upload_file
+from app.services.storage import upload_file, get_presigned_url
 from app.services.queue import enqueue_invoice
 from app.services.scanner import scan_file
 
@@ -161,3 +161,26 @@ async def reject_invoice(
     invoice.status = InvoiceStatus.rejected
     await db.commit()
     return {"id": str(invoice.id), "status": "rejected"}
+
+
+@router.get("/{invoice_id}/document")
+async def get_document_url(
+    invoice_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a download URL for the original uploaded document."""
+    result = await db.execute(
+        select(Invoice).where(
+            Invoice.id == invoice_id,
+            Invoice.practice_id == current_user["practice_id"],
+        )
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if not invoice.s3_key:
+        raise HTTPException(status_code=404, detail="No document attached")
+
+    url = await get_presigned_url(invoice.s3_key)
+    return {"url": url, "filename": invoice.s3_key.split("/")[-1]}

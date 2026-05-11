@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, HelpCircle, FileText } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle, FileText, Download, Eye } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 
@@ -110,6 +110,41 @@ export default function InvoiceDetail() {
               <p className="text-lg font-medium text-gray-800">
                 {invoice.confidence_score ? `${Math.round(invoice.confidence_score * 100)}%` : '—'}
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Original Document */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <FileText size={18} className="text-gray-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800">Original Document</p>
+                <p className="text-xs text-gray-400">Uploaded invoice file</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const res = await fetch(`https://api.orthoflowsolutions.com/api/v1/invoices/${id}/document`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                  if (res.ok) { const data = await res.json(); window.open(data.url, '_blank') }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
+              >
+                <Eye size={14} /> View
+              </button>
+              <button
+                onClick={async () => {
+                  const res = await fetch(`https://api.orthoflowsolutions.com/api/v1/invoices/${id}/document`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                  if (res.ok) { const data = await res.json(); const a = document.createElement('a'); a.href = data.url; a.download = data.filename; a.click() }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+              >
+                <Download size={14} /> Download
+              </button>
             </div>
           </div>
         </div>
