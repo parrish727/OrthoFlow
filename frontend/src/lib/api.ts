@@ -24,6 +24,7 @@ export const api = {
     request('/api/v1/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getInvoices: () => request('/api/v1/invoices/'),
   getInvoice: (id: string) => request(`/api/v1/invoices/${id}`),
+  getPractice: () => request('/api/v1/practices/me'),
   uploadInvoice: (file: File) => {
     const form = new FormData()
     form.append('file', file)

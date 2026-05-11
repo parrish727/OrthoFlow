@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [practiceName, setPracticeName] = useState('OrthoFlow')
   const navigate = useNavigate()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -51,6 +52,12 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { loadInvoices() }, [loadInvoices])
+
+  useEffect(() => {
+    api.getPractice().then(async res => {
+      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow') }
+    })
+  }, [])
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
@@ -85,7 +92,7 @@ export default function Dashboard() {
               <FileText size={16} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">OrthoFlow</h1>
+              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
               <p className="text-xs text-gray-500">Accounts Payable</p>
             </div>
           </div>
