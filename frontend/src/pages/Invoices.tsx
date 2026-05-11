@@ -30,6 +30,7 @@ export default function Invoices() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'date' | 'vendor' | 'amount'>('date')
 
   useEffect(() => {
     api.getInvoices().then(async res => {
@@ -45,6 +46,11 @@ export default function Invoices() {
     if (filter !== 'all' && i.status !== filter) return false
     if (search && !i.vendor_name.toLowerCase().includes(search.toLowerCase()) && !(i.invoice_number || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
+  }).sort((a, b) => {
+    if (sortBy === 'date') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    if (sortBy === 'vendor') return a.vendor_name.localeCompare(b.vendor_name)
+    if (sortBy === 'amount') return b.total_amount - a.total_amount
+    return 0
   })
 
   return (
@@ -85,6 +91,15 @@ export default function Invoices() {
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as 'date' | 'vendor' | 'amount')}
+              className="ml-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-white text-gray-600 border border-gray-200"
+            >
+              <option value="date">Sort: Newest</option>
+              <option value="vendor">Sort: Vendor A-Z</option>
+              <option value="amount">Sort: Highest $</option>
+            </select>
           </div>
         </div>
 
