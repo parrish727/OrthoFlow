@@ -31,6 +31,7 @@ export default function Invoices() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'vendor' | 'amount'>('date')
+  const [view, setView] = useState<'invoices' | 'documents'>('invoices')
 
   useEffect(() => {
     api.getInvoices().then(async res => {
@@ -68,6 +69,46 @@ export default function Invoices() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Tab Switcher */}
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+          <button onClick={() => setView('invoices')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${view === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Invoices</button>
+          <button onClick={() => setView('documents')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${view === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Documents</button>
+        </div>
+
+        {view === 'documents' ? (
+          /* Documents View — clean file list */
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-medium text-gray-800">Uploaded Files</h3>
+            </div>
+            {loading ? (
+              <div className="px-6 py-12 text-center text-gray-400 text-sm">Loading...</div>
+            ) : invoices.filter(i => i.invoice_number).length === 0 ? (
+              <div className="px-6 py-12 text-center text-gray-400 text-sm">No documents uploaded yet</div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {[...invoices].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(inv => (
+                  <div key={inv.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <FileText size={16} className="text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{inv.vendor_name} — {inv.invoice_number || 'Processing'}</p>
+                        <p className="text-xs text-gray-400">{new Date(inv.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/invoice/${inv.id}`)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      View
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
         {/* Search + Filter */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
@@ -164,6 +205,8 @@ export default function Invoices() {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
     </div>
   )
