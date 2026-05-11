@@ -7,7 +7,7 @@ import Tooltip from '../components/Tooltip'
 // AI-generated insights for demo
 const aiInsights = [
   { type: 'anomaly', icon: AlertTriangle, color: 'text-amber-600 bg-amber-50 border-amber-200', title: 'Spend Anomaly Detected', body: 'Ormco Corporation spend is 23% higher than your 3-month average. Last month: $1,950 → This month: $2,450. Review recent orders for accuracy.' },
-  { type: 'savings', icon: DollarSign, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', title: 'Missed Early-Pay Discount', body: 'You missed $340 in early-pay discounts this month across 3 vendors. Enabling auto-pay for invoices under $500 would capture these savings.' },
+  { type: 'optimization', icon: DollarSign, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', title: 'Supply Reorder Optimization', body: 'Based on your usage patterns, you order Damon brackets every 3 weeks but consume them in 4. Shifting to monthly orders reduces inventory waste by 25% and frees up $1,200 in working capital. Charlotte-area practices averaging 15% lower supply costs with bulk quarterly ordering.' },
   { type: 'duplicate', icon: ShieldCheck, color: 'text-blue-600 bg-blue-50 border-blue-200', title: '2 Potential Duplicates Caught', body: 'Henry Schein invoice HS-8834 ($1,280) appears similar to HS-8801 ($1,280) from last week. Same vendor, same amount — flagged for review.' },
   { type: 'comparison', icon: Lightbulb, color: 'text-violet-600 bg-violet-50 border-violet-200', title: 'Vendor Price Comparison', body: 'Patterson Dental charges 12% more than Henry Schein for equivalent sterilization supplies. Switching could save ~$180/month.' },
 ]
