@@ -80,7 +80,7 @@ export default function InvoiceDetail() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Summary */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">

@@ -3,4 +3,11 @@
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal scroll on mobile */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
 }

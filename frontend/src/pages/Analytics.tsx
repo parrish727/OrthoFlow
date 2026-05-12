@@ -70,7 +70,7 @@ export default function Analytics() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {loading ? (
           <div className="text-center text-gray-400 py-12 text-sm">Loading...</div>
         ) : (

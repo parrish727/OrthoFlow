@@ -27,7 +27,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Practice Info */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-4">Practice Information</h3>

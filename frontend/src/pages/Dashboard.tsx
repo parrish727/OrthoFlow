@@ -87,7 +87,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#f5f5f7]">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {practiceLogo ? (
               <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
@@ -128,14 +128,14 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Welcome + Stats */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-gray-900 mb-1">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}</h2>
           <p className="text-gray-500 text-sm">Here's your accounts payable overview</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
           <StatCard icon={Inbox} label="Total Invoices" value={stats.total} tooltip="All invoices submitted to OrthoFlow" />
           <StatCard icon={Clock} label="Awaiting Action" value={stats.pending} color="text-amber-600" tooltip="Invoices that need your review or are being processed by AI" />
           <StatCard icon={CheckCircle} label="Approved" value={stats.approved} color="text-emerald-600" tooltip="Invoices you've approved — these sync to QuickBooks" />
@@ -201,7 +201,7 @@ export default function Dashboard() {
                   <div
                     key={invoice.id}
                     onClick={() => navigate(`/invoice/${invoice.id}`)}
-                    className="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors group"
+                    className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-gray-50/50 cursor-pointer transition-colors group"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gray-50 group-hover:bg-white rounded-xl flex items-center justify-center transition-colors">

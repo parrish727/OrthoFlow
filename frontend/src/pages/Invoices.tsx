@@ -68,7 +68,7 @@ export default function Invoices() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Tab Switcher */}
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
           <button onClick={() => setView('invoices')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${view === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Invoices</button>
@@ -110,7 +110,7 @@ export default function Invoices() {
         ) : (
         <>
         {/* Search + Filter */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="flex flex-col gap-3 mb-6">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
