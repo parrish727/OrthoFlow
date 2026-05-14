@@ -45,6 +45,19 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt "pytest>=8.0" "pytest-asyncio>=0.23,<1.0" httpx
 
+      - name: NPM Security Audit
+        working-directory: frontend
+        run: |
+          npm install
+          npm audit --audit-level=critical || true
+          echo "Checking for known malicious packages..."
+          for pkg in event-stream flatmap-stream node-ipc peacenotwar loadsh crossenv babelcli; do
+            if grep -q "\"$pkg\"" package-lock.json 2>/dev/null; then
+              echo "❌ MALICIOUS PACKAGE: $pkg" && exit 1
+            fi
+          done
+          echo "✅ No malicious packages found"
+
       - name: Run tests
         working-directory: backend
         env:
