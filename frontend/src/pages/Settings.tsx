@@ -5,7 +5,8 @@ import { api } from '../lib/api'
 
 const integrations = [
   { name: 'QuickBooks Online', status: 'available', description: 'Sync approved invoices as Bills automatically', icon: '📗' },
-  { name: 'Dentrix', status: 'available', description: 'Sync patient data and treatment plans', icon: '🦷' },
+  { name: 'Ortho2', status: 'available', description: 'Auto-sync patients, appointments, and insurance claims', icon: '🦷' },
+  { name: 'Dentrix / Eaglesoft', status: 'available', description: 'Import patient data via CSV or XML export', icon: '📂' },
   { name: 'Email Forwarding', status: 'connected', description: 'invoices@yourpractice.orthoflow.ai', icon: '📧' },
   { name: 'Plaid (ACH Payments)', status: 'available', description: 'Pay vendors directly from OrthoFlow', icon: '🏦' },
 ]
