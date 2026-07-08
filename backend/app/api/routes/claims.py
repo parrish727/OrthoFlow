@@ -7,17 +7,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import SessionLocal
+from app.core.database import get_db
+from app.core.auth import get_current_user
 from app.models.claims import InsuranceClaim, PriorAuthorization, PracticePayerConfig
 from app.services.cdt_codes import validate_claim_codes, get_code_info, ORTHO_CDT_CODES
 from app.services.medicaid_rules import validate_claim_against_state, get_supported_states, get_state_rules
 
 router = APIRouter()
-
-
-async def get_db():
-    async with SessionLocal() as session:
-        yield session
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -51,13 +47,15 @@ class ClaimCreate(BaseModel):
 # ── Payer Config Endpoints ────────────────────────────────────────────────────
 
 @router.get("/payers")
-async def list_payers(practice_id: UUID, db: AsyncSession = Depends(get_db)):
+async def list_payers(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    practice_id = user["practice_id"]
     result = await db.execute(select(PracticePayerConfig).where(PracticePayerConfig.practice_id == practice_id))
     return {"payers": [row.__dict__ for row in result.scalars().all()]}
 
 
 @router.post("/payers")
-async def create_payer(practice_id: UUID, body: PayerConfigCreate, db: AsyncSession = Depends(get_db)):
+async def create_payer(body: PayerConfigCreate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    practice_id = user["practice_id"]
     config = PracticePayerConfig(practice_id=practice_id, **body.model_dump())
     db.add(config)
     await db.commit()
@@ -66,8 +64,8 @@ async def create_payer(practice_id: UUID, body: PayerConfigCreate, db: AsyncSess
 
 
 @router.delete("/payers/{payer_config_id}")
-async def delete_payer(payer_config_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PracticePayerConfig).where(PracticePayerConfig.id == payer_config_id))
+async def delete_payer(payer_config_id: UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    result = await db.execute(select(PracticePayerConfig).where(PracticePayerConfig.id == payer_config_id, PracticePayerConfig.practice_id == user["practice_id"]))
     config = result.scalar_one_or_none()
     if not config:
         raise HTTPException(404, "Payer config not found")
@@ -79,7 +77,8 @@ async def delete_payer(payer_config_id: UUID, db: AsyncSession = Depends(get_db)
 # ── Claims Endpoints ──────────────────────────────────────────────────────────
 
 @router.get("/claims")
-async def list_claims(practice_id: UUID, status: str | None = None, db: AsyncSession = Depends(get_db)):
+async def list_claims(status: str | None = None, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    practice_id = user["practice_id"]
     q = select(InsuranceClaim).where(InsuranceClaim.practice_id == practice_id)
     if status:
         q = q.where(InsuranceClaim.status == status)
@@ -88,7 +87,8 @@ async def list_claims(practice_id: UUID, status: str | None = None, db: AsyncSes
 
 
 @router.post("/claims")
-async def create_claim(practice_id: UUID, body: ClaimCreate, db: AsyncSession = Depends(get_db)):
+async def create_claim(body: ClaimCreate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    practice_id = user["practice_id"]
     # Validate CDT codes
     code_results = validate_claim_codes(body.cdt_codes)
     errors = [r.errors for r in code_results if not r.valid]
