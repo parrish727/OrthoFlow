@@ -1,40 +1,49 @@
-"""MFA service — SMS OTP for login verification."""
+"""MFA service — SMS OTP for login verification. Uses database storage (not in-memory)."""
 import random
-import time
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.models import OtpCode
 from app.services.notifications import send_sms
 
-# OTP store: {user_id: {"code": "123456", "expires": timestamp, "phone": "+1..."}}
-_otp_store: dict[str, dict] = {}
-
-OTP_EXPIRY_SECONDS = 300  # 5 minutes
+OTP_EXPIRY_MINUTES = 5
 
 
-def generate_otp(user_id: str, phone: str) -> str:
-    """Generate a 6-digit OTP and store it."""
+async def send_otp(db: AsyncSession, user_id: str, phone: str) -> None:
+    """Generate and send OTP via SMS. Stores in database."""
     code = str(random.randint(100000, 999999))
-    _otp_store[user_id] = {
-        "code": code,
-        "expires": time.time() + OTP_EXPIRY_SECONDS,
-        "phone": phone,
-    }
-    return code
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
+
+    otp = OtpCode(
+        user_id=user_id,
+        code=code,
+        phone=phone,
+        expires_at=expires_at,
+    )
+    db.add(otp)
+    await db.commit()
+
+    await send_sms(phone, f"Your OrthoFlow verification code is: {code}. Expires in {OTP_EXPIRY_MINUTES} minutes.")
 
 
-async def send_otp(user_id: str, phone: str):
-    """Generate and send OTP via SMS."""
-    code = generate_otp(user_id, phone)
-    await send_sms(phone, f"Your OrthoFlow verification code is: {code}. Expires in 5 minutes.")
-
-
-def verify_otp(user_id: str, code: str) -> bool:
-    """Verify an OTP code. Returns True if valid."""
-    entry = _otp_store.get(user_id)
-    if not entry:
+async def verify_otp(db: AsyncSession, user_id: str, code: str) -> bool:
+    """Verify an OTP code. Returns True if valid. Marks as used."""
+    result = await db.execute(
+        select(OtpCode).where(
+            and_(
+                OtpCode.user_id == user_id,
+                OtpCode.code == code,
+                OtpCode.used == False,
+                OtpCode.expires_at > datetime.now(timezone.utc),
+            )
+        ).order_by(OtpCode.created_at.desc()).limit(1)
+    )
+    otp = result.scalar_one_or_none()
+    if not otp:
         return False
-    if time.time() > entry["expires"]:
-        _otp_store.pop(user_id, None)
-        return False
-    if entry["code"] != code:
-        return False
-    _otp_store.pop(user_id, None)  # One-time use
+
+    # Mark as used (one-time)
+    otp.used = True
+    await db.commit()
     return True

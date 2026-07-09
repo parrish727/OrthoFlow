@@ -81,9 +81,10 @@ async def process_invoice(invoice_id: str):
                 invoice.invoice_number = coded.get("invoice_number")
                 invoice.total_amount = float(coded.get("total_amount", 0))
                 invoice.coded_json = json.dumps(coded)
-                invoice.confidence_score = 0.92  # TODO: implement real confidence scoring
-                invoice.status = InvoiceStatus.coded
-                log.info(f"✅ Invoice {invoice_id} coded: {invoice.vendor_name} ${invoice.total_amount}")
+                # Confidence from LLM response, or calculate from field completeness
+                invoice.confidence_score = _calculate_confidence(coded)
+                invoice.status = InvoiceStatus.coded if invoice.confidence_score >= 0.7 else InvoiceStatus.review
+                log.info(f"✅ Invoice {invoice_id} coded: {invoice.vendor_name} ${invoice.total_amount} (confidence: {invoice.confidence_score:.2f})")
             else:
                 invoice.status = InvoiceStatus.review
                 invoice.confidence_score = 0.0
@@ -183,6 +184,43 @@ PARAMETER temperature 0.1
         log.warning(f"⚠️ Could not create custom model: {e}")
     finally:
         await client.aclose()
+
+
+def _calculate_confidence(coded: dict) -> float:
+    """Calculate classification confidence based on field completeness and LLM response quality.
+
+    Score 0.0 to 1.0 based on:
+    - Vendor name present and not "Unknown" (+0.2)
+    - Total amount > 0 (+0.2)
+    - Invoice number present (+0.1)
+    - Line items present with categories (+0.3)
+    - LLM-provided confidence if available (+0.2)
+    """
+    score = 0.0
+
+    if coded.get("vendor_name") and coded["vendor_name"] != "Unknown":
+        score += 0.2
+    if coded.get("total_amount") and float(coded["total_amount"]) > 0:
+        score += 0.2
+    if coded.get("invoice_number"):
+        score += 0.1
+
+    line_items = coded.get("line_items", [])
+    if line_items:
+        categorized = sum(1 for item in line_items if item.get("category"))
+        if categorized == len(line_items):
+            score += 0.3
+        elif categorized > 0:
+            score += 0.15
+
+    # Use LLM-provided confidence if available
+    llm_confidence = coded.get("confidence")
+    if llm_confidence and isinstance(llm_confidence, (int, float)):
+        score += min(float(llm_confidence), 1.0) * 0.2
+    else:
+        score += 0.1  # Partial credit for successful parse
+
+    return min(round(score, 3), 1.0)
 
 
 if __name__ == "__main__":
