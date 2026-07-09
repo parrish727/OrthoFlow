@@ -12,3 +12,8 @@ CVE-2025-70559
 CVE-2026-48818
 CVE-2026-54283
 CVE-2025-62727
+
+# pyasn1 CVE — python-jose pins pyasn1<0.5.0, cannot upgrade independently.
+# DoS via unbounded recursion — mitigated by request size limits at nginx.
+# Review date: 2026-07-09
+CVE-2026-30922
