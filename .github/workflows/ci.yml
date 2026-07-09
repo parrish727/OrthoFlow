@@ -119,3 +119,49 @@ jobs:
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+
+      # Post-build: trigger QA via deploy webhook
+      - name: Trigger QA Pipeline
+        if: success()
+        run: |
+          curl -sf -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}/webhook/deploy" \
+            -H "Content-Type: application/json" \
+            -d '{"project":"orthoflow-ai","source":"github-actions","ref":"${{ github.sha }}"}' || true
+
+  # ── Notify on Failure — alerts DevOps/SRE agents via orchestrator ──────────
+  notify-failure:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Notify Slack + Trigger Auto-Fix
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_CI_WEBHOOK }}
+          ORCHESTRATOR_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        run: |
+          # Determine which job failed
+          FAILED_JOB="unknown"
+          if [ "${{ needs.test.result }}" = "failure" ]; then
+            FAILED_JOB="test"
+          elif [ "${{ needs.build.result }}" = "failure" ]; then
+            FAILED_JOB="build (likely Trivy vulnerability scan)"
+          fi
+
+          # Post to Slack
+          curl -sf -X POST "$SLACK_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"🔴 *CI Pipeline FAILED* — OrthoFlow\n*Job:* ${FAILED_JOB}\n*Commit:* \`${{ github.sha }}\`\n*Message:* ${{ github.event.head_commit.message }}\n*Author:* ${{ github.actor }}\n\nDevOps/SRE agents: review and auto-fix if possible.\"
+            }" || echo "Slack webhook not configured"
+
+          # Trigger orchestrator to route to DevOps agent for auto-fix
+          curl -sf -X POST "${ORCHESTRATOR_URL}/webhook/deploy" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"project\": \"orthoflow-ai\",
+              \"source\": \"ci-failure\",
+              \"ref\": \"${{ github.sha }}\",
+              \"failure_job\": \"${FAILED_JOB}\",
+              \"failure_type\": \"pipeline\",
+              \"commit_message\": \"${{ github.event.head_commit.message }}\"
+            }" || echo "Orchestrator webhook not configured"
