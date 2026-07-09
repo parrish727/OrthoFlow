@@ -1,0 +1,7 @@
+# libexpat CVEs in Alpine base image — requires base image update from upstream.
+# These are in the system XML parser library, not in our application code.
+# Mitigated: frontend container only serves static files via nginx, does not parse XML.
+# Review date: 2026-07-09
+CVE-2026-56131
+CVE-2026-56407
+CVE-2026-56408

@@ -120,6 +120,7 @@ jobs:
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          trivyignores: frontend/.trivyignore
 
       # Post-build: trigger QA via deploy webhook
       - name: Trigger QA Pipeline
