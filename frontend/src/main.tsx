@@ -24,6 +24,10 @@ import Imaging from './pages/Imaging'
 import ImagingAlerts from './pages/ImagingAlerts'
 import AIInsights from './pages/AIInsights'
 import AITools from './pages/AITools'
+import PatientPortal from './pages/PatientPortal'
+import Reports from './pages/Reports'
+import Migration from './pages/Migration'
+import PortalAdmin from './pages/PortalAdmin'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -56,6 +60,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/imaging/alerts" element={<PrivateRoute><ImagingAlerts /></PrivateRoute>} />
         <Route path="/ai-insights" element={<PrivateRoute><AIInsights /></PrivateRoute>} />
         <Route path="/ai-tools" element={<PrivateRoute><AITools /></PrivateRoute>} />
+        <Route path="/portal" element={<PatientPortal />} />
+        <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
+        <Route path="/migration" element={<PrivateRoute><Migration /></PrivateRoute>} />
+        <Route path="/portal-admin" element={<PrivateRoute><PortalAdmin /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

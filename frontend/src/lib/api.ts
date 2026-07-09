@@ -163,4 +163,55 @@ export const api = {
     request(`/api/v1/ai/referrals/imaging-reasoning/${patientId}`, { method: 'POST' }),
   aiNextVisit: (patientId: string) =>
     request(`/api/v1/ai/intelligence/next-visit/${patientId}`, { method: 'POST' }),
+
+  // Patient Portal — patient-facing
+  portalDashboard: () => request('/api/v1/portal/dashboard'),
+  portalAppointments: () => request('/api/v1/portal/appointments'),
+  portalMessages: () => request('/api/v1/portal/messages'),
+  portalSendMessage: (data: { subject: string; body: string }) =>
+    request('/api/v1/portal/messages', { method: 'POST', body: JSON.stringify(data) }),
+  portalForms: () => request('/api/v1/portal/forms'),
+  portalSubmitForm: (formId: string, data: Record<string, string>) =>
+    request(`/api/v1/portal/forms/${formId}/submit`, { method: 'POST', body: JSON.stringify(data) }),
+  portalTreatmentProgress: () => request('/api/v1/portal/treatment-progress'),
+
+  // Reports — financial
+  reportsProduction: (params: Record<string, string>) => {
+    const q = new URLSearchParams(params)
+    return request(`/api/v1/reports/production?${q.toString()}`)
+  },
+  reportsCollections: (params: Record<string, string>) => {
+    const q = new URLSearchParams(params)
+    return request(`/api/v1/reports/collections?${q.toString()}`)
+  },
+  reportsArAging: (params: Record<string, string>) => {
+    const q = new URLSearchParams(params)
+    return request(`/api/v1/reports/ar-aging?${q.toString()}`)
+  },
+  reportsProviderProductivity: (params: Record<string, string>) => {
+    const q = new URLSearchParams(params)
+    return request(`/api/v1/reports/provider-productivity?${q.toString()}`)
+  },
+
+  // Migration — patient data import
+  migrationSystems: () => request('/api/v1/migration/systems'),
+  migrationUpload: (formData: FormData) =>
+    request('/api/v1/migration/upload', { method: 'POST', body: formData }),
+  migrationValidate: (jobId: string) =>
+    request(`/api/v1/migration/validate/${jobId}`, { method: 'POST' }),
+  migrationMapping: (jobId: string, mappings: { source_column: string; target_field: string }[]) =>
+    request(`/api/v1/migration/mapping/${jobId}`, { method: 'PATCH', body: JSON.stringify({ mappings }) }),
+  migrationExecute: (jobId: string) =>
+    request(`/api/v1/migration/execute/${jobId}`, { method: 'POST' }),
+  migrationJobStatus: (jobId: string) =>
+    request(`/api/v1/migration/jobs/${jobId}`),
+
+  // Portal Admin — staff management
+  portalAdminAccounts: () => request('/api/v1/portal/admin/accounts'),
+  portalAdminInvite: (patientId: string) =>
+    request(`/api/v1/portal/admin/invite/${patientId}`, { method: 'POST' }),
+  portalAdminMessages: () => request('/api/v1/portal/admin/messages'),
+  portalAdminReply: (patientId: string, data: { body: string; subject: string }) =>
+    request(`/api/v1/portal/admin/messages/${patientId}`, { method: 'POST', body: JSON.stringify(data) }),
+  portalAdminSubmissions: () => request('/api/v1/portal/admin/submissions'),
 }

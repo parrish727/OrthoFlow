@@ -46,3 +46,12 @@ from app.models.imaging import (  # noqa: F401
     PatientImage,
     ImagingAlert,
 )
+
+from app.models.portal import (  # noqa: F401
+    PortalAccount,
+    PortalForm,
+    PortalFormSubmission,
+    PortalMessage,
+    ReportSnapshot,
+    MigrationJob,
+)
