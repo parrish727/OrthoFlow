@@ -45,7 +45,7 @@ class RoleChangeRequest(BaseModel):
 
 @router.get("/")
 async def list_staff(
-    user: dict = Depends(require_role("owner", "office_manager")),
+    user: dict = Depends(require_role("owner", "doctor", "office_manager")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List all staff members for the practice."""
@@ -83,7 +83,7 @@ async def list_staff(
 @router.post("/invite", status_code=status.HTTP_201_CREATED)
 async def invite_staff(
     payload: InviteRequest,
-    user: dict = Depends(require_role("owner", "office_manager")),
+    user: dict = Depends(require_role("owner", "doctor", "office_manager")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Invite a new staff member by email. Token expires in 7 days."""
@@ -228,7 +228,7 @@ async def accept_invite(
 async def change_role(
     user_id: str,
     payload: RoleChangeRequest,
-    user: dict = Depends(require_role("owner")),
+    user: dict = Depends(require_role("owner", "doctor")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Change a staff member's role. Owner only."""
@@ -277,7 +277,7 @@ async def change_role(
 @router.patch("/{user_id}/deactivate")
 async def deactivate_staff(
     user_id: str,
-    user: dict = Depends(require_role("owner", "office_manager")),
+    user: dict = Depends(require_role("owner", "doctor", "office_manager")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Deactivate a staff member."""
@@ -318,7 +318,7 @@ async def deactivate_staff(
 
 @router.get("/invites")
 async def list_invites(
-    user: dict = Depends(require_role("owner", "office_manager")),
+    user: dict = Depends(require_role("owner", "doctor", "office_manager")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List pending invites for the practice."""
@@ -347,7 +347,7 @@ async def list_invites(
 @router.delete("/invites/{invite_id}", status_code=status.HTTP_200_OK)
 async def revoke_invite(
     invite_id: str,
-    user: dict = Depends(require_role("owner", "office_manager")),
+    user: dict = Depends(require_role("owner", "doctor", "office_manager")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Revoke a pending invite."""
