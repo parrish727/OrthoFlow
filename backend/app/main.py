@@ -5,6 +5,10 @@ from app.api.routes import invoices, auth, practices, health
 from app.api.routes import quickbooks, notifications, payments, pms, spend
 from app.api.routes import clinical
 from app.api.routes import ai_assistant
+from app.api.routes import finance as finance_routes
+from app.api.routes import eligibility
+from app.api.routes import claims_workflow
+from app.api.routes import ai_claims
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -40,3 +44,7 @@ app.include_router(pms.router, prefix="/api/v1/pms", tags=["pms"])
 app.include_router(spend.router, prefix="/api/v1/spend", tags=["spend"])
 app.include_router(clinical.router, tags=["clinical"])
 app.include_router(ai_assistant.router, tags=["ai-assistant"])
+app.include_router(finance_routes.router, tags=["finance"])
+app.include_router(eligibility.router, tags=["eligibility"])
+app.include_router(claims_workflow.router, tags=["claims-workflow"])
+app.include_router(ai_claims.router, tags=["ai-claims"])

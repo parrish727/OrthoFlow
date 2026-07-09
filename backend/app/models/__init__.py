@@ -26,3 +26,10 @@ try:
     )
 except ImportError:
     pass
+
+from app.models.finance import (  # noqa: F401
+    InsuranceSubscriber,
+    PatientLedgerEntry,
+    ClaimLineItem,
+    PaymentPosting,
+)
