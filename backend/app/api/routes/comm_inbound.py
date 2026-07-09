@@ -244,7 +244,7 @@ async def receive_inbound_sms(
         body=message_body,
         status="received",
         external_id=twilio_sid,
-        metadata={"intent": intent, "raw_body": message_body},
+        metadata_={"intent": intent, "raw_body": message_body},
     )
     db.add(msg_log)
 

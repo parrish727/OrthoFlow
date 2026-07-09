@@ -96,7 +96,7 @@ class MessageLog(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reply_body: Mapped[str | None] = mapped_column(Text)
-    metadata: Mapped[dict | None] = mapped_column(JSONB)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (

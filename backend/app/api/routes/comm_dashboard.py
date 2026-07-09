@@ -74,7 +74,7 @@ def _message_to_dict(msg: MessageLog) -> dict:
         "delivered_at": msg.delivered_at.isoformat() if msg.delivered_at else None,
         "replied_at": msg.replied_at.isoformat() if msg.replied_at else None,
         "reply_body": msg.reply_body,
-        "metadata": msg.metadata,
+        "metadata": msg.metadata_,
         "created_at": msg.created_at.isoformat(),
     }
 
