@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
@@ -6,6 +6,7 @@ import {
   ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu,
 } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
 
 interface NavItem {
   to: string
@@ -35,12 +36,56 @@ const BOTTOM_ITEMS: NavItem[] = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner',
+  doctor: 'Doctor',
+  office_manager: 'Office Manager',
+  dental_assistant: 'Dental Assistant',
+  front_desk: 'Front Desk',
+  bookkeeper: 'Bookkeeper',
+}
+
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  owner: 'bg-teal-100 text-teal-700',
+  doctor: 'bg-blue-100 text-blue-700',
+  office_manager: 'bg-violet-100 text-violet-700',
+  dental_assistant: 'bg-amber-100 text-amber-700',
+  front_desk: 'bg-emerald-100 text-emerald-700',
+  bookkeeper: 'bg-gray-100 text-gray-700',
+}
+
+// Nav labels visible per role
+const ROLE_NAV_ALLOWED: Record<string, string[]> = {
+  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'AI Insights', 'AI Tools'],
+  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Messages', 'Payments', 'Portal'],
+  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Ledger', 'Insurance', 'Claims', 'Payments', 'Messages', 'Reports', 'AI Insights', 'Portal', 'Alerts'],
+  // doctor and owner get everything — no filter needed
+}
+
+function filterNavForRole(items: NavItem[], role: string): NavItem[] {
+  if (!role || role === 'owner' || role === 'doctor') return items
+  const allowed = ROLE_NAV_ALLOWED[role]
+  if (!allowed) return items
+  return items.filter(item => allowed.includes(item.label))
+}
+
+function filterBottomForRole(items: NavItem[], role: string): NavItem[] {
+  if (!role || role === 'owner' || role === 'doctor') return items
+  const allowed = ROLE_NAV_ALLOWED[role]
+  if (!allowed) return items
+  return items.filter(item => allowed.includes(item.label) || item.label === 'Settings')
+}
+
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [practiceName, setPracticeName] = useState('OrthoFlow')
   const [practiceLogo, setPracticeLogo] = useState('')
   const navigate = useNavigate()
+  const { role } = useAuth()
+
+  const filteredNav = useMemo(() => filterNavForRole(NAV_ITEMS, role), [role])
+  const filteredBottom = useMemo(() => filterBottomForRole(BOTTOM_ITEMS, role), [role])
 
   useEffect(() => {
     api.getPractice().then(async res => {
@@ -75,15 +120,22 @@ export default function AppLayout() {
             </div>
           )}
           {!collapsed && (
-            <span className="text-sm font-bold text-gray-900 truncate">{practiceName}</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-gray-900 truncate">{practiceName}</span>
+              {role && (
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full w-fit ${ROLE_BADGE_COLORS[role] || 'bg-gray-100 text-gray-600'}`}>
+                  {ROLE_LABELS[role] || role}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
         {/* Nav Items */}
         <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item, i) => {
+          {filteredNav.map((item, i) => {
             // Section divider
-            const prevSection = i > 0 ? NAV_ITEMS[i - 1].section : null
+            const prevSection = i > 0 ? filteredNav[i - 1].section : null
             const showDivider = item.section !== prevSection && i > 0
 
             return (
@@ -97,7 +149,7 @@ export default function AppLayout() {
 
         {/* Bottom Items */}
         <div className="border-t border-gray-100 py-3 px-2 space-y-0.5">
-          {BOTTOM_ITEMS.map(item => (
+          {filteredBottom.map(item => (
             <SidebarLink key={item.to} item={item} collapsed={collapsed} />
           ))}
           <button
@@ -133,11 +185,11 @@ export default function AppLayout() {
               <span className="text-sm font-bold text-gray-900">{practiceName}</span>
             </div>
             <nav className="py-3 px-2 space-y-0.5">
-              {NAV_ITEMS.map(item => (
+              {filteredNav.map(item => (
                 <SidebarLink key={item.to} item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
               ))}
               <div className="my-2 mx-2 border-t border-gray-100" />
-              {BOTTOM_ITEMS.map(item => (
+              {filteredBottom.map(item => (
                 <SidebarLink key={item.to} item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
               ))}
             </nav>

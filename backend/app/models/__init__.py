@@ -54,4 +54,5 @@ from app.models.portal import (  # noqa: F401
     PortalMessage,
     ReportSnapshot,
     MigrationJob,
+    TeamInvite,
 )

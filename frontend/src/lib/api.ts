@@ -214,4 +214,18 @@ export const api = {
   portalAdminReply: (patientId: string, data: { body: string; subject: string }) =>
     request(`/api/v1/portal/admin/messages/${patientId}`, { method: 'POST', body: JSON.stringify(data) }),
   portalAdminSubmissions: () => request('/api/v1/portal/admin/submissions'),
+
+  // Team Management — RBAC
+  getTeam: () => request('/api/v1/team/'),
+  inviteStaff: (data: { email: string; role: string }) =>
+    request('/api/v1/team/invite', { method: 'POST', body: JSON.stringify(data) }),
+  acceptInvite: (data: { token: string; full_name: string; password: string }) =>
+    request('/api/v1/team/accept-invite', { method: 'POST', body: JSON.stringify(data) }),
+  changeRole: (userId: string, role: string) =>
+    request(`/api/v1/team/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  deactivateStaff: (userId: string) =>
+    request(`/api/v1/team/${userId}/deactivate`, { method: 'PATCH' }),
+  getInvites: () => request('/api/v1/team/invites'),
+  revokeInvite: (inviteId: string) =>
+    request(`/api/v1/team/invites/${inviteId}`, { method: 'DELETE' }),
 }

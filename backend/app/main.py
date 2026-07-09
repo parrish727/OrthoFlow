@@ -13,6 +13,7 @@ from app.api.routes import comm_preferences, comm_templates, comm_scheduler, com
 from app.api.routes import imaging, imaging_alerts, imaging_ingest
 from app.api.routes import ai_intelligence, ai_denial_patterns, ai_referrals, ai_timeline
 from app.api.routes import portal, portal_admin, reports, migration
+from app.api.routes import team
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -66,5 +67,6 @@ app.include_router(ai_referrals.router, tags=["ai-intelligence"])
 app.include_router(ai_timeline.router, tags=["ai-intelligence"])
 app.include_router(portal.router, tags=["patient-portal"])
 app.include_router(portal_admin.router, tags=["patient-portal-admin"])
+app.include_router(team.router, tags=["team"])
 app.include_router(reports.router, tags=["reports"])
 app.include_router(migration.router, tags=["migration"])

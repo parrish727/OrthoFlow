@@ -35,6 +35,7 @@ import AITools from './pages/AITools'
 import Reports from './pages/Reports'
 import Migration from './pages/Migration'
 import PortalAdmin from './pages/PortalAdmin'
+import Team from './pages/Team'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -75,6 +76,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/reports" element={<Reports />} />
           <Route path="/migration" element={<Migration />} />
           <Route path="/portal-admin" element={<PortalAdmin />} />
+          <Route path="/team" element={<Team />} />
         </Route>
       </Routes>
     </BrowserRouter>
