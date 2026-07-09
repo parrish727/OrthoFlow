@@ -1,6 +1,14 @@
-# pdfminer.six CVEs — cannot upgrade independently because pdfplumber pins it.
-# Accepted risk: pdfminer processes trusted invoice PDFs uploaded by authenticated users
-# only (never untrusted external input). Will upgrade when pdfplumber releases a fix.
+# pdfminer.six CVEs — pdfplumber pins the version, cannot upgrade independently.
+# Risk: pdfminer processes trusted invoice PDFs uploaded by authenticated users only.
 # Review date: 2026-07-09
 CVE-2025-64512
 CVE-2025-70559
+
+# starlette CVEs requiring starlette ≥1.0 — FastAPI 0.x depends on starlette 0.4x.
+# FastAPI has not yet released a 1.0 that uses starlette 1.x.
+# These CVEs relate to SSRF via UNC paths (Windows-only, not applicable to our Linux
+# containers) and DoS via form limits (mitigated by nginx rate limiting upstream).
+# Review date: 2026-07-09
+CVE-2026-48818
+CVE-2026-54283
+CVE-2025-62727
