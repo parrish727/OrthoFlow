@@ -64,8 +64,8 @@ class Patient(Base):
     phone: Mapped[str | None] = mapped_column(String(20))
     phone_secondary: Mapped[str | None] = mapped_column(String(20))
     address: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[PatientStatus] = mapped_column(SAEnum(PatientStatus), default=PatientStatus.active)
-    treatment_phase: Mapped[TreatmentPhase] = mapped_column(SAEnum(TreatmentPhase), default=TreatmentPhase.consultation)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    treatment_phase: Mapped[str] = mapped_column(String(20), default="consultation")
     referring_doctor: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)  # General patient notes (non-clinical)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -134,7 +134,7 @@ class Appointment(Base):
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
-    status: Mapped[AppointmentStatus] = mapped_column(SAEnum(AppointmentStatus), default=AppointmentStatus.scheduled)
+    status: Mapped[str] = mapped_column(String(20), default="scheduled")
     appointment_type: Mapped[str | None] = mapped_column(String(100))  # e.g. "Adjustment", "Bonding", "Consultation"
     procedure_codes: Mapped[str | None] = mapped_column(Text)  # comma-separated CDT codes
     notes: Mapped[str | None] = mapped_column(Text)  # appointment-specific notes

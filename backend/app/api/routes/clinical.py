@@ -263,7 +263,7 @@ async def get_schedule(
         select(Appointment).where(
             Appointment.practice_id == practice_id,
             Appointment.appointment_date == schedule_date,
-            Appointment.status != AppointmentStatus.cancelled,
+            Appointment.status != "cancelled",
         ).order_by(Appointment.start_time)
     )
     appointments = result.scalars().all()
@@ -393,7 +393,7 @@ async def cancel_appointment(
     appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(404, "Appointment not found")
-    appt.status = AppointmentStatus.cancelled
+    appt.status = "cancelled"
     appt.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await audit_log(db, user["practice_id"], user["user_id"], "appointment.cancel", "appointment", str(appt_id))
