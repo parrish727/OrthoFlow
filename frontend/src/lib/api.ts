@@ -145,4 +145,22 @@ export const api = {
     request(`/api/v1/imaging/alerts/${id}/dismiss`, { method: 'PATCH' }),
   completeAlert: (id: string) =>
     request(`/api/v1/imaging/alerts/${id}/complete`, { method: 'PATCH' }),
+
+  // AI Intelligence — Phase 5
+  aiBatchInsights: (data: { patient_ids: string[] }) =>
+    request('/api/v1/ai/intelligence/batch-insights', { method: 'POST', body: JSON.stringify(data) }),
+  aiTimelinePredict: (patientId: string) =>
+    request(`/api/v1/ai/timeline/predict/${patientId}`, { method: 'POST' }),
+  aiDenialPatterns: () =>
+    request('/api/v1/ai/denial-patterns/analyze'),
+  aiBenchmarks: () =>
+    request('/api/v1/ai/timeline/benchmarks'),
+  aiSummarize: (patientId: string) =>
+    request(`/api/v1/ai/intelligence/summarize/${patientId}`, { method: 'POST' }),
+  aiReferralLetter: (data: { patient_id: string; referral_to: { name: string; specialty: string; address: string }; reason: string }) =>
+    request('/api/v1/ai/referrals/generate-letter', { method: 'POST', body: JSON.stringify(data) }),
+  aiImagingReasoning: (patientId: string) =>
+    request(`/api/v1/ai/referrals/imaging-reasoning/${patientId}`, { method: 'POST' }),
+  aiNextVisit: (patientId: string) =>
+    request(`/api/v1/ai/intelligence/next-visit/${patientId}`, { method: 'POST' }),
 }

@@ -4,6 +4,7 @@ import {
   Bell, ChevronDown, Users, LayoutDashboard, CalendarDays, BookOpen,
   Shield, FileText, Banknote, User, LogOut, AlertTriangle, CheckCircle,
   XCircle, RefreshCw, MessageSquare, MessagesSquare, Camera, Loader2,
+  Sparkles, Wrench,
 } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -149,6 +150,8 @@ export default function ImagingAlerts() {
                   <DropdownItem icon={MessagesSquare} label="Messages" description="Delivery log" onClick={() => { setMenuOpen(false); navigate('/messages') }} />
                   <DropdownItem icon={Camera} label="Imaging" description="Patient images" onClick={() => { setMenuOpen(false); navigate('/imaging') }} />
                   <DropdownItem icon={Bell} label="Imaging Alerts" description="Overdue imaging" onClick={() => { setMenuOpen(false); navigate('/imaging/alerts') }} />
+                  <DropdownItem icon={Sparkles} label="AI Insights" description="Intelligence dashboard" onClick={() => { setMenuOpen(false); navigate('/ai-insights') }} />
+                  <DropdownItem icon={Wrench} label="AI Tools" description="Referrals & summaries" onClick={() => { setMenuOpen(false); navigate('/ai-tools') }} />
                   <div className="border-t border-gray-100 my-2" />
                   <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
                   <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />

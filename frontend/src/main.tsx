@@ -22,6 +22,8 @@ import Communications from './pages/Communications'
 import MessageLog from './pages/MessageLog'
 import Imaging from './pages/Imaging'
 import ImagingAlerts from './pages/ImagingAlerts'
+import AIInsights from './pages/AIInsights'
+import AITools from './pages/AITools'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -52,6 +54,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/messages" element={<PrivateRoute><MessageLog /></PrivateRoute>} />
         <Route path="/imaging" element={<PrivateRoute><Imaging /></PrivateRoute>} />
         <Route path="/imaging/alerts" element={<PrivateRoute><ImagingAlerts /></PrivateRoute>} />
+        <Route path="/ai-insights" element={<PrivateRoute><AIInsights /></PrivateRoute>} />
+        <Route path="/ai-tools" element={<PrivateRoute><AITools /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

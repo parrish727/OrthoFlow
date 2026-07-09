@@ -11,6 +11,7 @@ from app.api.routes import claims_workflow
 from app.api.routes import ai_claims
 from app.api.routes import comm_preferences, comm_templates, comm_scheduler, comm_inbound, comm_dashboard
 from app.api.routes import imaging, imaging_alerts, imaging_ingest
+from app.api.routes import ai_intelligence, ai_denial_patterns, ai_referrals, ai_timeline
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -58,3 +59,7 @@ app.include_router(comm_dashboard.router, tags=["communications"])
 app.include_router(imaging.router, tags=["imaging"])
 app.include_router(imaging_alerts.router, tags=["imaging"])
 app.include_router(imaging_ingest.router, tags=["imaging"])
+app.include_router(ai_intelligence.router, tags=["ai-intelligence"])
+app.include_router(ai_denial_patterns.router, tags=["ai-intelligence"])
+app.include_router(ai_referrals.router, tags=["ai-intelligence"])
+app.include_router(ai_timeline.router, tags=["ai-intelligence"])
