@@ -9,6 +9,7 @@ from app.api.routes import finance as finance_routes
 from app.api.routes import eligibility
 from app.api.routes import claims_workflow
 from app.api.routes import ai_claims
+from app.api.routes import comm_preferences, comm_templates, comm_scheduler, comm_inbound, comm_dashboard
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -48,3 +49,8 @@ app.include_router(finance_routes.router, tags=["finance"])
 app.include_router(eligibility.router, tags=["eligibility"])
 app.include_router(claims_workflow.router, tags=["claims-workflow"])
 app.include_router(ai_claims.router, tags=["ai-claims"])
+app.include_router(comm_preferences.router, tags=["communications"])
+app.include_router(comm_templates.router, tags=["communications"])
+app.include_router(comm_scheduler.router, tags=["communications"])
+app.include_router(comm_inbound.router, tags=["communications"])
+app.include_router(comm_dashboard.router, tags=["communications"])

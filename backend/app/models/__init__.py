@@ -33,3 +33,10 @@ from app.models.finance import (  # noqa: F401
     ClaimLineItem,
     PaymentPosting,
 )
+
+from app.models.communications import (  # noqa: F401
+    CommunicationPreference,
+    MessageTemplate,
+    MessageLog,
+    ScheduledMessage,
+)

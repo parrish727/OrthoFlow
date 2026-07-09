@@ -100,4 +100,20 @@ export const api = {
 
   // Generic request (for flexibility)
   request: (path: string, options?: RequestInit) => request(path, options),
+
+  // Communications — Phase 3
+  getTemplates: () => request('/api/v1/communications/templates'),
+  createTemplate: (data: { name: string; channel: string; body: string }) =>
+    request('/api/v1/communications/templates', { method: 'POST', body: JSON.stringify(data) }),
+  sendMessage: (data: { patient_id: string; template_id?: string; channel: string; custom_body?: string }) =>
+    request('/api/v1/communications/reminders/send-now', { method: 'POST', body: JSON.stringify(data) }),
+  getScheduledMessages: () => request('/api/v1/communications/reminders/scheduled'),
+  cancelScheduledMessage: (id: string) =>
+    request(`/api/v1/communications/reminders/scheduled/${id}`, { method: 'DELETE' }),
+  getMessageLog: (params?: Record<string, string>) => {
+    const q = new URLSearchParams()
+    if (params) Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v) })
+    return request(`/api/v1/communications/messages?${q.toString()}`)
+  },
+  getMessageStats: () => request('/api/v1/communications/messages/stats'),
 }
