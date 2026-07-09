@@ -11,7 +11,7 @@ import hashlib
 import hmac
 from datetime import datetime, timezone
 
-import structlog
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,7 @@ from app.models.communications import (
     MessageLog,
 )
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/communications/inbound", tags=["communication-inbound"])
 

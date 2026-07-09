@@ -6,7 +6,7 @@ for delivery confirmation tracking.
 from datetime import datetime, timezone
 from uuid import UUID
 
-import structlog
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.communications import MessageLog
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/communications/messages", tags=["communication-messages"])
 

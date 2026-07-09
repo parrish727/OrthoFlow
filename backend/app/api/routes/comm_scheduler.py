@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import httpx
-import structlog
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
@@ -27,7 +27,7 @@ from app.models.communications import (
 )
 from app.models.models import Practice
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/communications/reminders", tags=["communication-reminders"])
 
