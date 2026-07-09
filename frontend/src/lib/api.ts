@@ -116,4 +116,33 @@ export const api = {
     return request(`/api/v1/communications/messages?${q.toString()}`)
   },
   getMessageStats: () => request('/api/v1/communications/messages/stats'),
+
+  // Imaging — Phase 4a
+  uploadImage: (formData: FormData) =>
+    request('/api/v1/imaging/upload', { method: 'POST', body: formData }),
+  getPatientImages: (patientId: string, params?: { image_type?: string; start_date?: string; end_date?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.image_type) q.set('image_type', params.image_type)
+    if (params?.start_date) q.set('start_date', params.start_date)
+    if (params?.end_date) q.set('end_date', params.end_date)
+    return request(`/api/v1/imaging/patients/${patientId}?${q.toString()}`)
+  },
+  getImageViewUrl: async (imageId: string): Promise<string> => {
+    const res = await request(`/api/v1/imaging/view/${imageId}`)
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  },
+  deleteImage: (imageId: string) =>
+    request(`/api/v1/imaging/${imageId}`, { method: 'DELETE' }),
+  getImagingAlerts: (params?: { status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    return request(`/api/v1/imaging/alerts?${q.toString()}`)
+  },
+  generateImagingAlerts: () =>
+    request('/api/v1/imaging/alerts/generate', { method: 'POST' }),
+  dismissAlert: (id: string) =>
+    request(`/api/v1/imaging/alerts/${id}/dismiss`, { method: 'PATCH' }),
+  completeAlert: (id: string) =>
+    request(`/api/v1/imaging/alerts/${id}/complete`, { method: 'PATCH' }),
 }

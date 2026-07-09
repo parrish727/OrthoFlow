@@ -40,3 +40,9 @@ from app.models.communications import (  # noqa: F401
     MessageLog,
     ScheduledMessage,
 )
+
+from app.models.imaging import (  # noqa: F401
+    ImagingSeries,
+    PatientImage,
+    ImagingAlert,
+)

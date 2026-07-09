@@ -10,6 +10,7 @@ from app.api.routes import eligibility
 from app.api.routes import claims_workflow
 from app.api.routes import ai_claims
 from app.api.routes import comm_preferences, comm_templates, comm_scheduler, comm_inbound, comm_dashboard
+from app.api.routes import imaging, imaging_alerts, imaging_ingest
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -54,3 +55,6 @@ app.include_router(comm_templates.router, tags=["communications"])
 app.include_router(comm_scheduler.router, tags=["communications"])
 app.include_router(comm_inbound.router, tags=["communications"])
 app.include_router(comm_dashboard.router, tags=["communications"])
+app.include_router(imaging.router, tags=["imaging"])
+app.include_router(imaging_alerts.router, tags=["imaging"])
+app.include_router(imaging_ingest.router, tags=["imaging"])

@@ -20,6 +20,8 @@ import Claims from './pages/Claims'
 import Payments from './pages/Payments'
 import Communications from './pages/Communications'
 import MessageLog from './pages/MessageLog'
+import Imaging from './pages/Imaging'
+import ImagingAlerts from './pages/ImagingAlerts'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -48,6 +50,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/payments" element={<PrivateRoute><Payments /></PrivateRoute>} />
         <Route path="/communications" element={<PrivateRoute><Communications /></PrivateRoute>} />
         <Route path="/messages" element={<PrivateRoute><MessageLog /></PrivateRoute>} />
+        <Route path="/imaging" element={<PrivateRoute><Imaging /></PrivateRoute>} />
+        <Route path="/imaging/alerts" element={<PrivateRoute><ImagingAlerts /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
