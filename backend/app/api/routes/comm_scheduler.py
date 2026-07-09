@@ -85,7 +85,17 @@ def _resolve_template_variables(
 
 
 async def _send_sms(to: str, body: str) -> dict:
-    """Send SMS via Twilio REST API using httpx."""
+    """Send SMS via Twilio REST API using httpx.
+
+    DISABLED: SMS is disabled until TCPA consent workflow is approved by legal.
+    All communications default to email only. Re-enable by setting
+    SMS_ENABLED=true in environment variables after legal sign-off.
+    """
+    import os
+    if os.environ.get("SMS_ENABLED", "false").lower() != "true":
+        logger.info("sms_disabled_pending_legal_review", to=to)
+        return {"status": "blocked", "error": "SMS disabled pending TCPA legal review. Email only."}
+
     if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
         logger.warning("twilio_not_configured", to=to)
         return {"status": "failed", "error": "Twilio not configured"}
