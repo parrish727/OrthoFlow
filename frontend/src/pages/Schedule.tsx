@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, ChevronDown, Users, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, CalendarDays, GripVertical } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, ChevronDown, Users, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, CalendarDays, GripVertical, Clipboard } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -445,14 +445,57 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
           </div>
 
           {expanded && (
-            <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-1 text-xs text-gray-500">
-              <p><span className="font-medium">Duration:</span> {appointment.duration_minutes} min</p>
-              {appointment.notes && <p><span className="font-medium">Notes:</span> {appointment.notes}</p>}
-              {daDropHover && <p className="text-violet-600 font-medium">Drop DA here to assign</p>}
-            </div>
+            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} />
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function ExpandedCardDetail({ appointment, daDropHover }: { appointment: Appointment; daDropHover: boolean }) {
+  const [prepBrief, setPrepBrief] = useState<{ today_expected: string; prep_items: string[] } | null>(null)
+  const [loadingPrep, setLoadingPrep] = useState(false)
+
+  async function handleLoadPrep(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (prepBrief || loadingPrep) return
+    setLoadingPrep(true)
+    const res = await api.aiPrepBrief(appointment.id)
+    if (res.ok) {
+      const data = await res.json()
+      setPrepBrief({ today_expected: data.today_expected, prep_items: data.prep_items })
+    }
+    setLoadingPrep(false)
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-2 text-xs text-gray-500">
+      <p><span className="font-medium">Duration:</span> {appointment.duration_minutes} min</p>
+      {appointment.notes && <p><span className="font-medium">Notes:</span> {appointment.notes}</p>}
+      {daDropHover && <p className="text-violet-600 font-medium">Drop DA here to assign</p>}
+
+      {/* Prep Brief */}
+      {!prepBrief ? (
+        <button
+          onClick={handleLoadPrep}
+          disabled={loadingPrep}
+          className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md transition-colors disabled:opacity-50"
+        >
+          <Clipboard size={11} />
+          {loadingPrep ? 'Loading...' : 'Prep Brief'}
+        </button>
+      ) : (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 space-y-1">
+          <p className="text-indigo-700 font-medium flex items-center gap-1"><Clipboard size={11} /> Prep Brief</p>
+          <p className="text-indigo-600">{prepBrief.today_expected}</p>
+          {prepBrief.prep_items.length > 0 && (
+            <ul className="text-indigo-500 ml-3 list-disc">
+              {prepBrief.prep_items.map((item, i) => <li key={i}>{item}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
