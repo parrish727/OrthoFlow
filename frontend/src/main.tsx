@@ -14,6 +14,10 @@ import Terms from './pages/Terms'
 import Schedule from './pages/Schedule'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
+import Ledger from './pages/Ledger'
+import Insurance from './pages/Insurance'
+import Claims from './pages/Claims'
+import Payments from './pages/Payments'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -36,6 +40,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/schedule" element={<PrivateRoute><Schedule /></PrivateRoute>} />
         <Route path="/patients" element={<PrivateRoute><Patients /></PrivateRoute>} />
         <Route path="/patients/:id" element={<PrivateRoute><PatientDetail /></PrivateRoute>} />
+        <Route path="/ledger" element={<PrivateRoute><Ledger /></PrivateRoute>} />
+        <Route path="/insurance" element={<PrivateRoute><Insurance /></PrivateRoute>} />
+        <Route path="/claims" element={<PrivateRoute><Claims /></PrivateRoute>} />
+        <Route path="/payments" element={<PrivateRoute><Payments /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

@@ -69,4 +69,35 @@ export const api = {
     request('/api/v1/ai/notes/assist', { method: 'POST', body: JSON.stringify(data) }),
   aiPrepBrief: (appointmentId: string) =>
     request('/api/v1/ai/appointments/prep', { method: 'POST', body: JSON.stringify({ appointment_id: appointmentId }) }),
+
+  // Finance & Insurance — Phase 2
+  getLedger: (patientId: string) => request(`/api/v1/finance/ledger/${patientId}`),
+  getLedgerSummary: (patientId: string) => request(`/api/v1/finance/ledger/${patientId}/summary`),
+  postLedgerEntry: (data: Record<string, unknown>) =>
+    request('/api/v1/finance/ledger', { method: 'POST', body: JSON.stringify(data) }),
+  getInsurancePlans: (patientId: string) => request(`/api/v1/finance/insurance/${patientId}`),
+  addInsurancePlan: (data: Record<string, unknown>) =>
+    request('/api/v1/finance/insurance', { method: 'POST', body: JSON.stringify(data) }),
+  checkEligibility: (data: Record<string, unknown>) =>
+    request('/api/v1/eligibility/check', { method: 'POST', body: JSON.stringify(data) }),
+  getClaims: (params?: { status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    return request(`/api/v1/claims/?${q.toString()}`)
+  },
+  getClaim: (id: string) => request(`/api/v1/claims/${id}`),
+  submitClaim: (id: string) => request(`/api/v1/claims/${id}/submit`, { method: 'PATCH' }),
+  aiDenialReview: (data: Record<string, unknown>) =>
+    request('/api/v1/ai/claims/denial-review', { method: 'POST', body: JSON.stringify(data) }),
+  getPaymentPostings: () => request('/api/v1/payments/postings'),
+  createPaymentPosting: (data: Record<string, unknown>) =>
+    request('/api/v1/payments/postings', { method: 'POST', body: JSON.stringify(data) }),
+  importEra: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request('/api/v1/payments/era/import', { method: 'POST', body: form })
+  },
+
+  // Generic request (for flexibility)
+  request: (path: string, options?: RequestInit) => request(path, options),
 }
