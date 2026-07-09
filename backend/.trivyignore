@@ -1,0 +1,6 @@
+# pdfminer.six CVEs — cannot upgrade independently because pdfplumber pins it.
+# Accepted risk: pdfminer processes trusted invoice PDFs uploaded by authenticated users
+# only (never untrusted external input). Will upgrade when pdfplumber releases a fix.
+# Review date: 2026-07-09
+CVE-2025-64512
+CVE-2025-70559

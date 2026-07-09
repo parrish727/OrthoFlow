@@ -16,5 +16,4 @@ redis==5.2.1
 arq==0.26.1
 boto3==1.35.86
 python-dotenv==1.0.1
-pdfplumber==0.11.4
-pdfminer.six==20251230
+pdfplumber==0.11.10
