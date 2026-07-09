@@ -1,44 +1,24 @@
 # OrthoFlow AI
 
-AI-Powered Accounts Payable Automation for Orthodontic & Dental Practices.
+AI-powered practice management and accounts payable automation for orthodontic & dental practices.
 
-## What It Does
+## Modules
 
-OrthoFlow eliminates the manual invoice processing that costs orthodontic offices 12–16 hours per week in staff time. Upload a PDF → AI extracts and classifies → one-tap approve → syncs to QuickBooks.
+| Phase | Module | Key Features |
+|-------|--------|--------------|
+| — | AP Automation | Invoice OCR, AI classification (97%+ accuracy), approval workflow, QuickBooks sync, duplicate detection |
+| 1 | Scheduling & Patient Charts | Multi-chair schedule, DA drag-and-drop, tooth chart, AI clinical notes |
+| 2 | Finance & Insurance | Patient ledger, insurance plans, eligibility verification, claims workflow (HIPAA 837D), AI denial detection + appeal writing, payment posting + ERA |
+| 3 | Patient Communications | Automated reminders (email active), two-way texting (SMS disabled pending legal review), TCPA consent management, message templates, delivery dashboard |
+| 4a | Imaging Suite | Web upload, MinIO cloud storage, in-chart viewer, overdue imaging alerts, edge appliance architecture (for Phase 4b on-premise capture) |
 
-```
-Invoice arrives (email/PDF/scan)
-    → AI extracts vendor, line items, amounts (OCR + LLM)
-    → AI classifies against orthodontic expense categories (97%+ accuracy)
-    → Push notification for one-tap approval
-    → Syncs to QuickBooks automatically
-    → Done in 2 minutes vs. 15+ minutes manually
-```
-
-## Key Features
-
-- **Invoice OCR** — auto-extract from PDF, image, or email
-- **AI Classification** — ortho-specific vendor catalog (Ormco, 3M, Henry Schein, Patterson)
-- **Approval Workflow** — mobile push notifications, one-tap approve/reject, configurable thresholds
-- **Insurance EOB Matching** — flags underpayments for appeal
-- **Duplicate Detection** — catches double-payments before they happen
-- **QuickBooks Sync** — approved invoices push with correct GL codes
-- **HIPAA Compliant** — audit trail, encryption, role-based access
-
-## Quick Start (Local Development)
+## Quick Start
 
 ```bash
-# 1. Copy environment
 cp .env.example .env
-
-# 2. Start all services
 docker compose up -d
-
-# 3. Verify backend
-curl http://localhost:8000/
-# → {"status": "healthy", "service": "orthoflow-ai"}
-
-# 4. Start frontend
+curl http://localhost:8000/health
+# → {"status": "healthy"}
 cd frontend && npm install && npx vite --host 0.0.0.0
 # → http://localhost:5173
 ```
@@ -47,127 +27,110 @@ cd frontend && npm install && npx vite --host 0.0.0.0
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| Backend API | 8000 | FastAPI — auth, invoices, approval |
-| Frontend | 5173 | React + Vite — dashboard UI |
-| PostgreSQL | 5433 | Database (pgvector) |
-| Redis | 6380 | Job queue for async processing |
-| MinIO | 9100/9101 | S3-compatible invoice storage |
-| Ollama | 11435 | Local LLM (Mistral) |
-| Worker | internal | OCR + AI classification pipeline |
-| Watchtower | internal | Auto-deploy from GHCR |
+| Backend API | 8000 | FastAPI — auth, invoices, scheduling, claims, comms, imaging |
+| Frontend | 5173 | React 19 + Vite — SPA dashboard |
+| PostgreSQL | 5433 | Database (pgvector for semantic features) |
+| Redis | 6380 | Job queue, caching, pub/sub |
+| MinIO | 9100/9101 | Object storage (invoices, images, documents) |
+| Ollama | 11435 | Local embeddings (nomic-embed-text), classification |
+| Worker | internal | Async pipeline (OCR, AI classification, claim generation) |
+| Watchtower | internal | Auto-deploy from GHCR on merge to main |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript (strict), Vite, Tailwind CSS, Framer Motion, Lucide icons |
+| Backend | Python 3.11+, FastAPI, SQLAlchemy, Pydantic, httpx |
+| Database | PostgreSQL 16 + pgvector |
+| AI (production) | Anthropic Claude (via Darius orchestration) |
+| AI (local) | Ollama — nomic-embed-text (embeddings), custom classification models |
+| Storage | MinIO (encryption at rest enabled) |
+| Queue/Cache | Redis |
+| CI/CD | GitHub Actions (lint → test → build → push to GHCR) |
+| Deploy | Watchtower auto-pull from GHCR, Docker Compose |
+| Container Scanning | Trivy (in CI pipeline) |
 
 ## Architecture
 
 ```
-Frontend (React + Vite + Tailwind)
+Frontend (React 19 + Vite + Tailwind)
     │
     ▼
 Backend API (FastAPI)
-    ├── Auth (JWT, practice-scoped)
-    ├── Invoice CRUD + Upload
-    └── Approval Workflow
+    ├── Auth (JWT, practice-scoped, SMS OTP MFA for admin)
+    ├── Scheduling (multi-chair, DA assignment)
+    ├── Patient Charts (tooth chart, AI clinical notes)
+    ├── Finance (ledger, insurance, claims, ERA)
+    ├── Communications (reminders, templates, delivery tracking)
+    ├── Imaging (upload, viewer, alerts)
+    └── AP Automation (OCR, classification, approval, QuickBooks sync)
     │
-    ├── PostgreSQL (data)
-    ├── Redis (job queue)
-    ├── MinIO/S3 (document storage)
-    └── Ollama/Bedrock (AI classification)
+    ├── PostgreSQL (relational data + pgvector)
+    ├── Redis (job queue + cache)
+    ├── MinIO (documents, images, invoices)
+    └── Ollama / Claude (AI classification, denial detection, notes)
     │
     ▼
-Worker (async pipeline)
-    → OCR extract text
-    → LLM classify line items
-    → Update DB with results
+Worker (async pipelines)
+    → OCR text extraction
+    → LLM invoice classification
+    → Claim generation (HIPAA 837D)
+    → Denial detection + appeal drafting
+    → Reminder scheduling + delivery
 ```
 
-## Tech Stack
+## Security & Compliance
 
-- **Frontend** — React 19, TypeScript, Vite, Tailwind CSS v4, Lucide icons
-- **Backend** — Python, FastAPI, SQLAlchemy, Pydantic
-- **Database** — PostgreSQL + pgvector
-- **AI** — Ollama (local, open-source) → AWS Bedrock (production, HIPAA-eligible)
-- **Storage** — MinIO (local) → AWS S3 (production)
-- **Queue** — Redis
-- **CI/CD** — GitHub Actions (test on PR, build+push on merge)
-- **Deploy** — Watchtower (auto-pull from GHCR)
-- **IaC** — Terraform (AWS migration scaffold)
+| Control | Implementation |
+|---------|----------------|
+| Authentication | JWT (1hr expiry) + SMS OTP MFA, practice-scoped claims |
+| Authorization | RBAC — Owner / Office Manager / Bookkeeper |
+| Data Isolation | All queries filtered by practice_id from JWT |
+| Encryption (transit) | TLS 1.2+ enforced, HSTS |
+| Encryption (rest) | pgcrypto (DB), MinIO server-side encryption (objects) |
+| Audit Trail | Every data access logged (who, what, when, IP) |
+| File Scanning | ClamAV on all uploads |
+| Container Scanning | Trivy in GitHub Actions CI |
+| PHI Protection | No patient data in logs or error messages |
+| HIPAA Compliance | Full §164.312 controls implemented |
+| Network | nginx reverse proxy only, Cloudflare DDoS, fail2ban |
 
-## How the AI Learns Your Practice
+## Deployment
 
-OrthoFlow's AI isn't generic — it's trained on orthodontic-specific terminology and adapts to how your office works.
+| Environment | Method |
+|-------------|--------|
+| Production | Merge to `main` → GitHub Actions → GHCR → Watchtower auto-deploy |
+| Self-hosted | Docker Compose on Mac Pro, docker_agent-net bridge |
+| Domain | app.orthoflowsolutions.com (frontend), api.orthoflowsolutions.com (backend) |
 
-### Orthodontic Vocabulary Recognition
+## Environment Variables
 
-The AI understands that:
-- "Damon Q2 .022 Upper 5-5" = brackets (supplies category)
-- "NiTi .016 x .022 Lower" = archwire (supplies)
-- "Essix ACE .040" = retainer material (lab)
-- "CBCT scan fee" = imaging (equipment/services)
-- "Clearinghouse monthly" = insurance-related fee
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL connection (asyncpg) |
+| `REDIS_URL` | Redis connection |
+| `MINIO_ENDPOINT` | MinIO host:port |
+| `ANTHROPIC_API_KEY` | Claude API (production inference) |
+| `OLLAMA_URL` | Local Ollama instance |
+| `TWILIO_*` | SMS OTP + patient messaging credentials |
+| `QUICKBOOKS_*` | QuickBooks OAuth + sync credentials |
 
-It recognizes invoice formats from the top orthodontic vendors (Ormco, 3M Unitek, Henry Schein, Patterson Dental, American Orthodontics, Rocky Mountain Orthodontics) and knows how to parse their specific line item structures.
-
-### Practice-Specific Learning
-
-Over time, OrthoFlow learns YOUR office's preferences:
-- **Custom GL mappings** — if you code "lab retainers" to account 5200 instead of 5100, the AI remembers
-- **Approval patterns** — learns which vendors the doctor always approves vs. which need review
-- **Vendor nicknames** — if your team calls Henry Schein "HS" on internal notes, the AI maps it correctly
-- **Seasonal patterns** — knows you order more brackets in September (back-to-school rush) and flags unusual volumes
-
-### How It Gets Smarter
-
-1. **Day 1** — AI uses the base orthodontic vendor catalog (200+ item taxonomy)
-2. **Week 1–4** — every approve/reject/edit teaches the model your preferences
-3. **Month 2+** — confidence scores rise above 95%, fewer items need manual review
-4. **Month 6+** — the AI has a complete picture of your practice's spending patterns, vendor relationships, and coding preferences
-
-This learned data is YOUR data — it stays in your isolated environment and never trains other clients' models.
-
----
-
-## v2 Features
-
-| Feature | Description |
-|---------|-------------|
-| **Push Notifications** | Web Push + mobile notifications for invoice approvals, payment confirmations, and system alerts |
-| **SMS OTP MFA** | Multi-factor authentication via Twilio SMS one-time passwords for enhanced account security |
-| **Plaid ACH Payments** | Direct bank-to-bank payments via Plaid — pay vendors without leaving OrthoFlow |
-| **Custom LLM Fine-tuning** | Practice-specific model fine-tuning on your invoice history for 99%+ classification accuracy |
-| **QuickBooks Integration** | Bi-directional sync — approved invoices push to QuickBooks, chart of accounts pulls in automatically |
-
----
-
-## HIPAA Compliance
-
-- Healthcare MCP (HMCP) extension for patient identity segregation
-- AuditLog on every data access (who, what, when, from where)
-- Field-level encryption for PHI
-- Multi-tenant isolation at DB and API level
-- Role-based access: Owner / Office Manager / Bookkeeper
-- BAA available with all infrastructure providers
-
-## Git Flow
-
-- `main` — production-ready, merges via PR only
-- `feature/orthoflow_v1` — active development
-
-## AWS Migration
-
-Zero application code changes. Only environment variables:
-
-```bash
-LLM_PROVIDER=bedrock          # swap from ollama
-S3_ENDPOINT=                   # remove (uses real S3)
-DATABASE_URL=<RDS endpoint>    # swap from local postgres
-```
-
-Terraform scaffold in `terraform/main.tf`.
+All secrets via `.env` (gitignored). Never committed to source.
 
 ## Documentation
 
-- `docs/SPEC.md` — technical specification
-- `docs/CLIENT_MANIFEST.md` — client-facing project overview
-- `docs/PRODUCT_OVERVIEW.md` — product features + competitive comparison
+| Doc | Path |
+|-----|------|
+| Technical Spec | `docs/SPEC.md` |
+| Medicare/Medicaid | `docs/MEDICARE_MEDICAID_SPEC.md` |
+| TCPA Consent Workflow | `docs/TCPA_CONSENT_WORKFLOW.md` |
+| Clearinghouse Guide | `docs/CLEARINGHOUSE_GUIDE.md` |
+
+## Git Flow
+
+- `main` — production (merges via PR only, no force push)
+- Feature branches → PR → CI passes → merge → auto-deploy
 
 ## Built By
 
