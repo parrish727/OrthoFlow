@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, ChevronDown, Users, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, CalendarDays, GripVertical, Clipboard } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -71,29 +71,10 @@ export default function Schedule() {
   const [das, setDas] = useState<DA[]>([])
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
+const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
   const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
   const loadSchedule = useCallback(async () => {
     setLoading(true)
     const [schedRes, dasRes] = await Promise.all([
@@ -171,51 +152,7 @@ export default function Schedule() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <CalendarDays size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Schedule Board</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={Receipt} label="Invoices" description="View all invoices" onClick={() => { setMenuOpen(false); navigate('/invoices') }} />
-                  <DropdownItem icon={BarChart3} label="Analytics" description="Spend reports & trends" onClick={() => { setMenuOpen(false); navigate('/analytics') }} />
-                  <DropdownItem icon={Settings} label="Settings" description="Practice & integrations" onClick={() => { setMenuOpen(false); navigate('/settings') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <>
         {/* Date Navigation */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -373,8 +310,7 @@ export default function Schedule() {
         ) : (
           <div className="text-center py-12 text-gray-400">Failed to load schedule</div>
         )}
-      </main>
-    </div>
+          </>
   )
 }
 
@@ -497,17 +433,5 @@ function ExpandedCardDetail({ appointment, daDropHover }: { appointment: Appoint
         </div>
       )}
     </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: typeof Clock; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
   )
 }

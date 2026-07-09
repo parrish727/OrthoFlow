@@ -1,11 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  Bell, ChevronDown, Users, LayoutDashboard, CalendarDays, BookOpen,
-  Shield, FileText, Banknote, User, LogOut, AlertTriangle, CheckCircle,
-  XCircle, RefreshCw, MessageSquare, MessagesSquare, Camera, Loader2,
-  Sparkles, Wrench,
-} from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Users, FileText, AlertTriangle, CheckCircle, XCircle, RefreshCw, Camera, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface ImagingAlert {
@@ -51,26 +45,6 @@ export default function ImagingAlerts() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState<'pending' | 'dismissed' | 'all'>('pending')
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
   const loadAlerts = useCallback(async () => {
     setLoading(true)
     const statusParam = activeTab === 'all' ? undefined : activeTab
@@ -115,54 +89,7 @@ export default function ImagingAlerts() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <Bell size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Imaging Alerts</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={BookOpen} label="Ledger" description="Patient financials" onClick={() => { setMenuOpen(false); navigate('/ledger') }} />
-                  <DropdownItem icon={Shield} label="Insurance" description="Plans & eligibility" onClick={() => { setMenuOpen(false); navigate('/insurance') }} />
-                  <DropdownItem icon={FileText} label="Claims" description="Claims management" onClick={() => { setMenuOpen(false); navigate('/claims') }} />
-                  <DropdownItem icon={Banknote} label="Payments" description="Payment posting" onClick={() => { setMenuOpen(false); navigate('/payments') }} />
-                  <DropdownItem icon={MessageSquare} label="Communications" description="Templates & send" onClick={() => { setMenuOpen(false); navigate('/communications') }} />
-                  <DropdownItem icon={MessagesSquare} label="Messages" description="Delivery log" onClick={() => { setMenuOpen(false); navigate('/messages') }} />
-                  <DropdownItem icon={Camera} label="Imaging" description="Patient images" onClick={() => { setMenuOpen(false); navigate('/imaging') }} />
-                  <DropdownItem icon={Bell} label="Imaging Alerts" description="Overdue imaging" onClick={() => { setMenuOpen(false); navigate('/imaging/alerts') }} />
-                  <DropdownItem icon={Sparkles} label="AI Insights" description="Intelligence dashboard" onClick={() => { setMenuOpen(false); navigate('/ai-insights') }} />
-                  <DropdownItem icon={Wrench} label="AI Tools" description="Referrals & summaries" onClick={() => { setMenuOpen(false); navigate('/ai-tools') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900">Imaging Alerts</h2>
@@ -171,7 +98,7 @@ export default function ImagingAlerts() {
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
           >
             {generating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             Generate Alerts
@@ -206,7 +133,7 @@ export default function ImagingAlerts() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -265,8 +192,8 @@ export default function ImagingAlerts() {
                           >
                             <CheckCircle size={13} /> Mark Complete
                           </button>
-                        </>
-                      )}
+                            </>
+  )}
                       {alert.status === 'dismissed' && (
                         <span className="text-xs text-gray-400 italic">Dismissed</span>
                       )}
@@ -280,19 +207,6 @@ export default function ImagingAlerts() {
             </div>
           )}
         </div>
-      </main>
-    </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
+          </>
   )
 }

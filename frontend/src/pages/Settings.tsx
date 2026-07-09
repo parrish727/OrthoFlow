@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Link2, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import { api } from '../lib/api'
@@ -12,23 +11,8 @@ const integrations = [
 ]
 
 export default function SettingsPage() {
-  const navigate = useNavigate()
-
-  return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Settings</h1>
-            <p className="text-xs text-gray-500">Practice configuration & integrations</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+return (
+    <>
         {/* Practice Info */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-4">Practice Information</h3>
@@ -74,7 +58,7 @@ export default function SettingsPage() {
               <input type="text" defaultValue="(704) 555-0123" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
           </div>
-          <button className="mt-4 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-xl transition-colors">Save Changes</button>
+          <button className="mt-4 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-xl transition-colors">Save Changes</button>
         </div>
 
         {/* Approval Thresholds */}
@@ -143,7 +127,6 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-      </main>
-    </div>
+          </>
   )
 }

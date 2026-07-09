@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Shield, Users, HelpCircle, Bell } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 
@@ -16,25 +15,11 @@ const roleDescriptions: Record<string, string> = {
 }
 
 export default function Account() {
-  const navigate = useNavigate()
-  const [smsEnabled, setSmsEnabled] = useState(false)
+const [smsEnabled, setSmsEnabled] = useState(false)
   const [smsPhone, setSmsPhone] = useState('')
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Account</h1>
-            <p className="text-xs text-gray-500">Profile & team management</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {/* Profile */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-4">Your Profile</h3>
@@ -58,7 +43,7 @@ export default function Account() {
               <input type="email" defaultValue="jane@smithortho.com" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
             </div>
           </div>
-          <button className="mt-4 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-xl transition-colors">Update Profile</button>
+          <button className="mt-4 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-xl transition-colors">Update Profile</button>
         </div>
 
         {/* Team */}
@@ -136,7 +121,7 @@ export default function Account() {
                     placeholder="(704) 555-0123"
                     className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
                   />
-                  <button className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-xl transition-colors">Save</button>
+                  <button className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-xl transition-colors">Save</button>
                 </div>
               </div>
             )}
@@ -173,7 +158,6 @@ export default function Account() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+          </>
   )
 }

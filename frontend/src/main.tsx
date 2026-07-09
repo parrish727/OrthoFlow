@@ -2,18 +2,26 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
+
+// Layout
+import AppLayout from './components/AppLayout'
+
+// Public pages
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import InvoiceDetail from './pages/InvoiceDetail'
-import Invoices from './pages/Invoices'
-import Analytics from './pages/Analytics'
-import SettingsPage from './pages/Settings'
-import Account from './pages/Account'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
+import PatientPortal from './pages/PatientPortal'
+
+// App pages (inside layout)
+import Dashboard from './pages/Dashboard'
 import Schedule from './pages/Schedule'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
+import Invoices from './pages/Invoices'
+import InvoiceDetail from './pages/InvoiceDetail'
+import Analytics from './pages/Analytics'
+import SettingsPage from './pages/Settings'
+import Account from './pages/Account'
 import Ledger from './pages/Ledger'
 import Insurance from './pages/Insurance'
 import Claims from './pages/Claims'
@@ -24,7 +32,6 @@ import Imaging from './pages/Imaging'
 import ImagingAlerts from './pages/ImagingAlerts'
 import AIInsights from './pages/AIInsights'
 import AITools from './pages/AITools'
-import PatientPortal from './pages/PatientPortal'
 import Reports from './pages/Reports'
 import Migration from './pages/Migration'
 import PortalAdmin from './pages/PortalAdmin'
@@ -38,32 +45,37 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* Public routes (no layout) */}
         <Route path="/login" element={<Login />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
-        <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-        <Route path="/invoice/:id" element={<PrivateRoute><InvoiceDetail /></PrivateRoute>} />
-        <Route path="/invoices" element={<PrivateRoute><Invoices /></PrivateRoute>} />
-        <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
-        <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-        <Route path="/account" element={<PrivateRoute><Account /></PrivateRoute>} />
-        <Route path="/schedule" element={<PrivateRoute><Schedule /></PrivateRoute>} />
-        <Route path="/patients" element={<PrivateRoute><Patients /></PrivateRoute>} />
-        <Route path="/patients/:id" element={<PrivateRoute><PatientDetail /></PrivateRoute>} />
-        <Route path="/ledger" element={<PrivateRoute><Ledger /></PrivateRoute>} />
-        <Route path="/insurance" element={<PrivateRoute><Insurance /></PrivateRoute>} />
-        <Route path="/claims" element={<PrivateRoute><Claims /></PrivateRoute>} />
-        <Route path="/payments" element={<PrivateRoute><Payments /></PrivateRoute>} />
-        <Route path="/communications" element={<PrivateRoute><Communications /></PrivateRoute>} />
-        <Route path="/messages" element={<PrivateRoute><MessageLog /></PrivateRoute>} />
-        <Route path="/imaging" element={<PrivateRoute><Imaging /></PrivateRoute>} />
-        <Route path="/imaging/alerts" element={<PrivateRoute><ImagingAlerts /></PrivateRoute>} />
-        <Route path="/ai-insights" element={<PrivateRoute><AIInsights /></PrivateRoute>} />
-        <Route path="/ai-tools" element={<PrivateRoute><AITools /></PrivateRoute>} />
         <Route path="/portal" element={<PatientPortal />} />
-        <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
-        <Route path="/migration" element={<PrivateRoute><Migration /></PrivateRoute>} />
-        <Route path="/portal-admin" element={<PrivateRoute><PortalAdmin /></PrivateRoute>} />
+
+        {/* App routes (inside shared layout with sidebar) */}
+        <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
+          <Route index element={<Dashboard />} />
+          <Route path="/schedule" element={<Schedule />} />
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/patients/:id" element={<PatientDetail />} />
+          <Route path="/invoices" element={<Invoices />} />
+          <Route path="/invoice/:id" element={<InvoiceDetail />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/ledger" element={<Ledger />} />
+          <Route path="/insurance" element={<Insurance />} />
+          <Route path="/claims" element={<Claims />} />
+          <Route path="/payments" element={<Payments />} />
+          <Route path="/communications" element={<Communications />} />
+          <Route path="/messages" element={<MessageLog />} />
+          <Route path="/imaging" element={<Imaging />} />
+          <Route path="/imaging/alerts" element={<ImagingAlerts />} />
+          <Route path="/ai-insights" element={<AIInsights />} />
+          <Route path="/ai-tools" element={<AITools />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/migration" element={<Migration />} />
+          <Route path="/portal-admin" element={<PortalAdmin />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

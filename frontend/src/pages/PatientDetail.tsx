@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Users, Edit2, Save, X, Clock, FileText, CalendarDays, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -63,26 +63,7 @@ export default function PatientDetail() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
   const loadPatient = useCallback(async () => {
     if (!id) return
     setLoading(true)
@@ -131,7 +112,7 @@ export default function PatientDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="animate-pulse text-gray-400">Loading patient...</div>
       </div>
     )
@@ -139,7 +120,7 @@ export default function PatientDetail() {
 
   if (!patient) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="text-gray-500">Patient not found</div>
       </div>
     )
@@ -148,51 +129,7 @@ export default function PatientDetail() {
   const phase = patient.treatment_phase ? PHASE_CONFIG[patient.treatment_phase] : null
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <Users size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Patient Record</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={Receipt} label="Invoices" description="View all invoices" onClick={() => { setMenuOpen(false); navigate('/invoices') }} />
-                  <DropdownItem icon={BarChart3} label="Analytics" description="Spend reports & trends" onClick={() => { setMenuOpen(false); navigate('/analytics') }} />
-                  <DropdownItem icon={Settings} label="Settings" description="Practice & integrations" onClick={() => { setMenuOpen(false); navigate('/settings') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {/* Back + Patient Name */}
         <div className="flex items-center gap-3 mb-6">
           <button
@@ -340,8 +277,7 @@ export default function PatientDetail() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+          </>
   )
 }
 
@@ -416,14 +352,14 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save Raw'}
               </button>
             </div>
           )}
-        </>
-      ) : (
+            </>
+  ) : (
         <>
           {/* AI-structured note */}
           <div className="bg-violet-50/50 border border-violet-200 rounded-lg p-3 mb-2">
@@ -477,8 +413,8 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
               Edit raw
             </button>
           </div>
-        </>
-      )}
+            </>
+  )}
     </div>
   )
 }
@@ -519,17 +455,5 @@ function Field({ label, value, editing, onChange, type = 'text', multiline = fal
         className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
       />
     </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: typeof Clock; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
   )
 }

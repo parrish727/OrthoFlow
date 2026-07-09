@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, BarChart3, AlertTriangle, Lightbulb, ShieldCheck, HelpCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
@@ -39,8 +38,7 @@ const forecast = {
 }
 
 export default function Analytics() {
-  const navigate = useNavigate()
-  const [invoices, setInvoices] = useState<{total_amount: number; status: string}[]>([])
+const [invoices, setInvoices] = useState<{total_amount: number; status: string}[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -57,20 +55,7 @@ export default function Analytics() {
   const maxSpend = Math.max(...monthlySpend.map(m => m.amount))
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Analytics & AI Insights</h1>
-            <p className="text-xs text-gray-500">Spend intelligence powered by OrthoFlow AI</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {loading ? (
           <div className="text-center text-gray-400 py-12 text-sm">Loading...</div>
         ) : (
@@ -204,9 +189,8 @@ export default function Analytics() {
                 })}
               </div>
             </div>
+              </>
+  )}
           </>
-        )}
-      </main>
-    </div>
   )
 }

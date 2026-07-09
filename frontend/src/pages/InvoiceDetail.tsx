@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, XCircle, HelpCircle, FileText, Download, Eye } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
@@ -27,8 +27,7 @@ interface LineItem {
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
+const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [acting, setActing] = useState(false)
 
@@ -60,27 +59,13 @@ export default function InvoiceDetail() {
   }
 
   if (!invoice) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] text-gray-400 text-sm">Loading...</div>
+    return <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
   }
 
   const canAct = ['coded', 'review'].includes(invoice.status)
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-base font-semibold text-gray-900">{invoice.vendor_name}</h1>
-            <p className="text-xs text-gray-500">Invoice {invoice.invoice_number || '—'}</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {/* Summary */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -231,7 +216,6 @@ export default function InvoiceDetail() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+          </>
   )
 }

@@ -1,11 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  UserCog, ChevronDown, Users, LayoutDashboard, CalendarDays, BookOpen,
-  Shield, FileText, Banknote, User, LogOut, MessageSquare, MessagesSquare,
-  Camera, Bell, Sparkles, Wrench, BarChart3, ArrowUpRight, Search,
-  Mail, Clock, CheckCircle, XCircle, Send, X, Link2, Loader2,
-} from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Users, FileText, MessageSquare, Search, Mail, Clock, CheckCircle, XCircle, Send, X, Link2, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface PortalAccount {
@@ -46,26 +40,6 @@ export default function PortalAdmin() {
   const [replyTo, setReplyTo] = useState<UnreadMessage | null>(null)
   const [replyBody, setReplyBody] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
   const loadData = useCallback(async () => {
     setLoading(true)
     const [accRes, msgRes, subRes] = await Promise.all([
@@ -114,68 +88,14 @@ export default function PortalAdmin() {
   )
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <FileText size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Portal Administration</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={BookOpen} label="Ledger" description="Patient financials" onClick={() => { setMenuOpen(false); navigate('/ledger') }} />
-                  <DropdownItem icon={Shield} label="Insurance" description="Plans & eligibility" onClick={() => { setMenuOpen(false); navigate('/insurance') }} />
-                  <DropdownItem icon={FileText} label="Claims" description="Claims management" onClick={() => { setMenuOpen(false); navigate('/claims') }} />
-                  <DropdownItem icon={Banknote} label="Payments" description="Payment posting" onClick={() => { setMenuOpen(false); navigate('/payments') }} />
-                  <DropdownItem icon={MessageSquare} label="Communications" description="Templates & send" onClick={() => { setMenuOpen(false); navigate('/communications') }} />
-                  <DropdownItem icon={MessagesSquare} label="Messages" description="Delivery log" onClick={() => { setMenuOpen(false); navigate('/messages') }} />
-                  <DropdownItem icon={Camera} label="Imaging" description="Patient images" onClick={() => { setMenuOpen(false); navigate('/imaging') }} />
-                  <DropdownItem icon={Bell} label="Imaging Alerts" description="Overdue imaging" onClick={() => { setMenuOpen(false); navigate('/imaging/alerts') }} />
-                  <DropdownItem icon={Sparkles} label="AI Insights" description="Intelligence dashboard" onClick={() => { setMenuOpen(false); navigate('/ai-insights') }} />
-                  <DropdownItem icon={Wrench} label="AI Tools" description="Referrals & summaries" onClick={() => { setMenuOpen(false); navigate('/ai-tools') }} />
-                  <DropdownItem icon={BarChart3} label="Reports" description="Financial reports" onClick={() => { setMenuOpen(false); navigate('/reports') }} />
-                  <DropdownItem icon={ArrowUpRight} label="Migration" description="Patient data import" onClick={() => { setMenuOpen(false); navigate('/migration') }} />
-                  <DropdownItem icon={UserCog} label="Portal Admin" description="Patient portal mgmt" onClick={() => { setMenuOpen(false); navigate('/portal-admin') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {/* Portal Accounts */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Portal Accounts</h2>
             <button
               onClick={() => { setShowInviteModal(true); setInviteLink(null) }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <Mail size={14} /> Invite Patient
             </button>
@@ -326,7 +246,6 @@ export default function PortalAdmin() {
             )}
           </div>
         </div>
-      </main>
 
       {/* Invite Patient Modal */}
       {showInviteModal && (
@@ -349,7 +268,7 @@ export default function PortalAdmin() {
                 </div>
                 <button
                   onClick={() => setShowInviteModal(false)}
-                  className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="mt-4 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Done
                 </button>
@@ -436,7 +355,7 @@ export default function PortalAdmin() {
               <button
                 onClick={handleReply}
                 disabled={sendingReply || !replyBody.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
                 <Send size={14} /> {sendingReply ? 'Sending...' : 'Send Reply'}
               </button>
@@ -444,18 +363,6 @@ export default function PortalAdmin() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
+    </>
   )
 }

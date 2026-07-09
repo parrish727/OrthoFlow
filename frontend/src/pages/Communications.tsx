@@ -1,10 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  MessageSquare, ChevronDown, Users, LayoutDashboard, CalendarDays, BookOpen,
-  Shield, FileText, Banknote, User, LogOut, Plus, Edit3, Eye, Send, X,
-  Clock, Mail, Loader2, MessagesSquare, Inbox,
-} from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { MessageSquare, Users, FileText, Plus, Edit3, Eye, Send, X, Clock, Mail, Loader2, Inbox } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Template {
@@ -40,13 +35,7 @@ export default function Communications() {
   const [showSendForm, setShowSendForm] = useState(false)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [sendLoading, setSendLoading] = useState(false)
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Send form state
+// Send form state
   const [sendPatient, setSendPatient] = useState('')
   const [sendTemplate, setSendTemplate] = useState('')
   const [sendChannel, setSendChannel] = useState<'sms' | 'email'>('sms')
@@ -57,21 +46,6 @@ export default function Communications() {
   const [newTemplateChannel, setNewTemplateChannel] = useState<'sms' | 'email'>('sms')
   const [newTemplateBody, setNewTemplateBody] = useState('')
   const [templateFormLoading, setTemplateFormLoading] = useState(false)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
   const loadData = useCallback(async () => {
     setLoading(true)
     const [templatesRes, scheduledRes] = await Promise.all([
@@ -154,54 +128,7 @@ export default function Communications() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <MessageSquare size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Communications</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={BookOpen} label="Ledger" description="Patient financials" onClick={() => { setMenuOpen(false); navigate('/ledger') }} />
-                  <DropdownItem icon={Shield} label="Insurance" description="Plans & eligibility" onClick={() => { setMenuOpen(false); navigate('/insurance') }} />
-                  <DropdownItem icon={FileText} label="Claims" description="Claims management" onClick={() => { setMenuOpen(false); navigate('/claims') }} />
-                  <DropdownItem icon={Banknote} label="Payments" description="Payment posting" onClick={() => { setMenuOpen(false); navigate('/payments') }} />
-                  <DropdownItem icon={MessageSquare} label="Communications" description="Templates & send" onClick={() => { setMenuOpen(false); navigate('/communications') }} />
-                  <DropdownItem icon={MessagesSquare} label="Messages" description="Delivery log" onClick={() => { setMenuOpen(false); navigate('/messages') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         {/* Title */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -210,7 +137,7 @@ export default function Communications() {
           </div>
           <button
             onClick={() => setShowSendForm(!showSendForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
           >
             <Send size={16} /> Send Message
           </button>
@@ -288,7 +215,7 @@ export default function Communications() {
                 <button
                   type="submit"
                   disabled={sendLoading}
-                  className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   {sendLoading ? 'Sending...' : 'Send Now'}
                 </button>
@@ -341,7 +268,7 @@ export default function Communications() {
                   <button type="button" onClick={() => setShowNewTemplate(false)} className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors">
                     Cancel
                   </button>
-                  <button type="submit" disabled={templateFormLoading} className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
+                  <button type="submit" disabled={templateFormLoading} className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
                     {templateFormLoading ? 'Creating...' : 'Create Template'}
                   </button>
                 </div>
@@ -456,7 +383,6 @@ export default function Communications() {
             </div>
           )}
         </div>
-      </main>
 
       {/* Template Preview Modal */}
       {previewTemplate && (
@@ -502,18 +428,6 @@ export default function Communications() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
+    </>
   )
 }

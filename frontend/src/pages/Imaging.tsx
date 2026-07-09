@@ -1,11 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  Image, ChevronDown, Users, LayoutDashboard, CalendarDays, BookOpen,
-  Shield, FileText, Banknote, User, LogOut, Upload, Search, Filter,
-  X, Trash2, Download, Eye, ChevronRight, MessageSquare, MessagesSquare,
-  Camera, Bell,
-} from 'lucide-react'
+import { Image, Users, FileText, Upload, Search, Filter, X, Trash2, Download, Eye, ChevronRight } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface PatientImage {
@@ -75,29 +69,16 @@ export default function Imaging() {
   const [uploadDesc, setUploadDesc] = useState('')
   const [uploadTeeth, setUploadTeeth] = useState('')
   const [expandedSeries, setExpandedSeries] = useState<string[]>([])
-  const [practiceName, setPracticeName] = useState('OrthoFlow')
-  const [practiceLogo, setPracticeLogo] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
-  const patientRef = useRef<HTMLDivElement>(null)
+const patientRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-      if (patientRef.current && !patientRef.current.contains(e.target as Node)) setShowPatientList(false)
+            if (patientRef.current && !patientRef.current.contains(e.target as Node)) setShowPatientList(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
-
-  useEffect(() => {
-    api.getPractice().then(async res => {
-      if (res.ok) { const data = await res.json(); setPracticeName(data.name || 'OrthoFlow'); setPracticeLogo(data.logo_url || '') }
-    })
-  }, [])
-
-  useEffect(() => {
+useEffect(() => {
     if (!patientSearch || patientSearch.length < 2) { setPatients([]); return }
     const timer = setTimeout(async () => {
       const res = await api.getPatients({ search: patientSearch })
@@ -181,52 +162,7 @@ export default function Imaging() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {practiceLogo ? (
-              <img src={practiceLogo} alt="" className="w-8 h-8 rounded-lg object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <Camera size={16} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">{practiceName}</h1>
-              <p className="text-xs text-gray-500">Imaging</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                Menu <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-2 z-50">
-                  <DropdownItem icon={LayoutDashboard} label="Dashboard" description="Overview & upload" onClick={() => { setMenuOpen(false); navigate('/') }} />
-                  <DropdownItem icon={CalendarDays} label="Schedule" description="Daily appointment board" onClick={() => { setMenuOpen(false); navigate('/schedule') }} />
-                  <DropdownItem icon={Users} label="Patients" description="Patient records" onClick={() => { setMenuOpen(false); navigate('/patients') }} />
-                  <DropdownItem icon={BookOpen} label="Ledger" description="Patient financials" onClick={() => { setMenuOpen(false); navigate('/ledger') }} />
-                  <DropdownItem icon={Shield} label="Insurance" description="Plans & eligibility" onClick={() => { setMenuOpen(false); navigate('/insurance') }} />
-                  <DropdownItem icon={FileText} label="Claims" description="Claims management" onClick={() => { setMenuOpen(false); navigate('/claims') }} />
-                  <DropdownItem icon={Banknote} label="Payments" description="Payment posting" onClick={() => { setMenuOpen(false); navigate('/payments') }} />
-                  <DropdownItem icon={MessageSquare} label="Communications" description="Templates & send" onClick={() => { setMenuOpen(false); navigate('/communications') }} />
-                  <DropdownItem icon={MessagesSquare} label="Messages" description="Delivery log" onClick={() => { setMenuOpen(false); navigate('/messages') }} />
-                  <DropdownItem icon={Camera} label="Imaging" description="Patient images" onClick={() => { setMenuOpen(false); navigate('/imaging') }} />
-                  <DropdownItem icon={Bell} label="Imaging Alerts" description="Overdue imaging" onClick={() => { setMenuOpen(false); navigate('/imaging/alerts') }} />
-                  <div className="border-t border-gray-100 my-2" />
-                  <DropdownItem icon={User} label="Account" description="Profile & team" onClick={() => { setMenuOpen(false); navigate('/account') }} />
-                  <DropdownItem icon={LogOut} label="Sign Out" description="" onClick={() => { localStorage.clear(); navigate('/login') }} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900">Imaging</h2>
@@ -324,7 +260,7 @@ export default function Imaging() {
                 <p className="text-gray-700 font-medium text-sm">{uploading ? 'Uploading...' : 'Drop images here'}</p>
                 <p className="text-gray-400 text-xs mt-1 mb-3">DICOM, PNG, JPG, or PDF</p>
                 <input type="file" multiple accept=".dcm,.png,.jpg,.jpeg,.pdf,.tiff" onChange={e => handleUpload(e.target.files)} className="hidden" id="imaging-upload" />
-                <label htmlFor="imaging-upload" className="inline-block px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full cursor-pointer text-sm font-medium transition-colors shadow-sm">
+                <label htmlFor="imaging-upload" className="inline-block px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full cursor-pointer text-sm font-medium transition-colors shadow-sm">
                   Choose Files
                 </label>
               </div>
@@ -416,9 +352,8 @@ export default function Imaging() {
                 </div>
               </div>
             )}
-          </>
-        )}
-      </main>
+              </>
+  )}
 
       {/* Full-screen Image Viewer */}
       {viewingImage && (
@@ -488,18 +423,6 @@ export default function Imaging() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function DropdownItem({ icon: Icon, label, description, onClick }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-      <Icon size={16} className="text-gray-400 flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {description && <p className="text-xs text-gray-400">{description}</p>}
-      </div>
-    </button>
+    </>
   )
 }
