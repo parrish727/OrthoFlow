@@ -58,4 +58,15 @@ export const api = {
   getToothChart: (patientId: string) => request(`/api/v1/patients/${patientId}/tooth-chart`),
   updateToothChart: (patientId: string, data: Record<string, unknown>) =>
     request(`/api/v1/patients/${patientId}/tooth-chart`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Schedule — drag-and-drop
+  getDentalAssistants: () => request('/api/v1/dental-assistants'),
+  updateAppointment: (id: string, data: Record<string, unknown>) =>
+    request(`/api/v1/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // AI Assistant
+  aiNoteAssist: (data: { patient_id: string; raw_input: string; appointment_type?: string }) =>
+    request('/api/v1/ai/notes/assist', { method: 'POST', body: JSON.stringify(data) }),
+  aiPrepBrief: (appointmentId: string) =>
+    request('/api/v1/ai/appointments/prep', { method: 'POST', body: JSON.stringify({ appointment_id: appointmentId }) }),
 }

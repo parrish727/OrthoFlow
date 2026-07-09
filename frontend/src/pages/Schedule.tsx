@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, ChevronDown, Users, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, CalendarDays } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, ChevronDown, Users, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, CalendarDays, GripVertical } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -24,6 +24,13 @@ interface Chair {
   color: string | null
   is_active: boolean
   sort_order: number
+}
+
+interface DA {
+  id: string
+  first_name: string
+  last_name: string
+  color: string | null
 }
 
 interface ScheduleColumn {
@@ -61,12 +68,15 @@ function formatDate(dateStr: string): string {
 
 export default function Schedule() {
   const [schedule, setSchedule] = useState<ScheduleData | null>(null)
+  const [das, setDas] = useState<DA[]>([])
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
   const [practiceName, setPracticeName] = useState('OrthoFlow')
   const [practiceLogo, setPracticeLogo] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
+  const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
   const navigate = useNavigate()
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -86,11 +96,12 @@ export default function Schedule() {
 
   const loadSchedule = useCallback(async () => {
     setLoading(true)
-    const res = await api.getSchedule(selectedDate)
-    if (res.ok) {
-      const data = await res.json()
-      setSchedule(data)
-    }
+    const [schedRes, dasRes] = await Promise.all([
+      api.getSchedule(selectedDate),
+      api.getDentalAssistants(),
+    ])
+    if (schedRes.ok) setSchedule(await schedRes.json())
+    if (dasRes.ok) { const d = await dasRes.json(); setDas(d.dental_assistants || []) }
     setLoading(false)
   }, [selectedDate])
 
@@ -100,6 +111,63 @@ export default function Schedule() {
     const d = new Date(selectedDate + 'T00:00:00')
     d.setDate(d.getDate() + days)
     setSelectedDate(d.toISOString().split('T')[0])
+  }
+
+  // ── Drag-and-Drop: Appointment → Chair Column ──────────────────────────────
+
+  function handleDragStart(e: React.DragEvent, apptId: string, type: 'appointment') {
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: apptId, type }))
+    e.dataTransfer.effectAllowed = 'move'
+    setDraggingAppt(apptId)
+  }
+
+  function handleColumnDragOver(e: React.DragEvent, columnId: string) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverColumn(columnId)
+  }
+
+  function handleColumnDragLeave() {
+    setDragOverColumn(null)
+  }
+
+  async function handleColumnDrop(e: React.DragEvent, targetChairId: string | null) {
+    e.preventDefault()
+    setDragOverColumn(null)
+    setDraggingAppt(null)
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      if (data.type === 'appointment') {
+        await api.updateAppointment(data.id, { chair_id: targetChairId })
+        await loadSchedule()
+      }
+    } catch { /* ignore invalid drops */ }
+  }
+
+  // ── Drag-and-Drop: DA → Appointment Card ───────────────────────────────────
+
+  function handleDADragStart(e: React.DragEvent, daId: string) {
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: daId, type: 'da' }))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  async function handleApptDADrop(e: React.DragEvent, apptId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      if (data.type === 'da') {
+        await api.updateAppointment(apptId, { da_id: data.id })
+        await loadSchedule()
+      }
+    } catch { /* ignore */ }
+  }
+
+  function handleDragEnd() {
+    setDraggingAppt(null)
+    setDragOverColumn(null)
   }
 
   return (
@@ -178,6 +246,26 @@ export default function Schedule() {
           </div>
         </div>
 
+        {/* DA Roster — draggable DA badges */}
+        {das.length > 0 && (
+          <div className="mb-4">
+            <p className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-2">Drag DA to assign</p>
+            <div className="flex flex-wrap gap-2">
+              {das.map(da => (
+                <div
+                  key={da.id}
+                  draggable
+                  onDragStart={e => handleDADragStart(e, da.id)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow select-none"
+                >
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: da.color || '#8B5CF6' }} />
+                  <span className="text-xs font-medium text-gray-700">{da.first_name} {da.last_name[0]}.</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Stats bar */}
         {schedule && (
           <div className="flex items-center gap-4 mb-4 text-sm text-gray-500">
@@ -185,6 +273,7 @@ export default function Schedule() {
             {schedule.unassigned.length > 0 && (
               <span className="text-amber-600 font-medium">{schedule.unassigned.length} unassigned</span>
             )}
+            <span className="text-xs text-gray-400 ml-auto">Drag cards between columns to reassign chairs</span>
           </div>
         )}
 
@@ -204,26 +293,38 @@ export default function Schedule() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {/* Chair Columns */}
             {schedule.columns.map(col => (
-              <div key={col.chair.id} className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div
+                key={col.chair.id}
+                onDragOver={e => handleColumnDragOver(e, col.chair.id)}
+                onDragLeave={handleColumnDragLeave}
+                onDrop={e => handleColumnDrop(e, col.chair.id)}
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+                  dragOverColumn === col.chair.id
+                    ? 'border-blue-400 ring-2 ring-blue-100 scale-[1.01]'
+                    : 'border-gray-200/80'
+                }`}
+              >
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: col.chair.color || '#6366f1' }}
-                  />
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: col.chair.color || '#6366f1' }} />
                   <h3 className="text-sm font-semibold text-gray-800">{col.chair.name}</h3>
                   <span className="text-xs text-gray-400 ml-auto">{col.appointments.length}</span>
                 </div>
                 <div className="p-3 space-y-2 min-h-[200px]">
                   {col.appointments.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-8">No appointments</p>
+                    <p className="text-xs text-gray-400 text-center py-8">Drop appointments here</p>
                   ) : (
                     col.appointments.map(appt => (
                       <AppointmentCard
                         key={appt.id}
                         appointment={appt}
+                        das={das}
                         expanded={expandedAppt === appt.id}
+                        isDragging={draggingAppt === appt.id}
                         onToggle={() => setExpandedAppt(expandedAppt === appt.id ? null : appt.id)}
                         onPatientClick={() => navigate(`/patients/${appt.patient_id}`)}
+                        onDragStart={e => handleDragStart(e, appt.id, 'appointment')}
+                        onDragEnd={handleDragEnd}
+                        onDADrop={e => handleApptDADrop(e, appt.id)}
                       />
                     ))
                   )}
@@ -232,26 +333,42 @@ export default function Schedule() {
             ))}
 
             {/* Unassigned Column */}
-            {schedule.unassigned.length > 0 && (
-              <div className="bg-white rounded-2xl border border-amber-200/80 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-amber-100 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <h3 className="text-sm font-semibold text-amber-800">Unassigned</h3>
-                  <span className="text-xs text-amber-500 ml-auto">{schedule.unassigned.length}</span>
-                </div>
-                <div className="p-3 space-y-2">
-                  {schedule.unassigned.map(appt => (
+            <div
+              onDragOver={e => handleColumnDragOver(e, 'unassigned')}
+              onDragLeave={handleColumnDragLeave}
+              onDrop={e => handleColumnDrop(e, null)}
+              className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+                dragOverColumn === 'unassigned'
+                  ? 'border-amber-400 ring-2 ring-amber-100 scale-[1.01]'
+                  : 'border-amber-200/80'
+              }`}
+            >
+              <div className="px-4 py-3 border-b border-amber-100 flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-800">Unassigned</h3>
+                <span className="text-xs text-amber-500 ml-auto">{schedule.unassigned.length}</span>
+              </div>
+              <div className="p-3 space-y-2 min-h-[200px]">
+                {schedule.unassigned.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-8">Drop here to unassign</p>
+                ) : (
+                  schedule.unassigned.map(appt => (
                     <AppointmentCard
                       key={appt.id}
                       appointment={appt}
+                      das={das}
                       expanded={expandedAppt === appt.id}
+                      isDragging={draggingAppt === appt.id}
                       onToggle={() => setExpandedAppt(expandedAppt === appt.id ? null : appt.id)}
                       onPatientClick={() => navigate(`/patients/${appt.patient_id}`)}
+                      onDragStart={e => handleDragStart(e, appt.id, 'appointment')}
+                      onDragEnd={handleDragEnd}
+                      onDADrop={e => handleApptDADrop(e, appt.id)}
                     />
-                  ))}
-                </div>
+                  ))
+                )}
               </div>
-            )}
+            </div>
           </div>
         ) : (
           <div className="text-center py-12 text-gray-400">Failed to load schedule</div>
@@ -261,49 +378,81 @@ export default function Schedule() {
   )
 }
 
-function AppointmentCard({ appointment, expanded, onToggle, onPatientClick }: {
+function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop }: {
   appointment: Appointment
+  das: DA[]
   expanded: boolean
+  isDragging: boolean
   onToggle: () => void
   onPatientClick: () => void
+  onDragStart: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  onDADrop: (e: React.DragEvent) => void
 }) {
+  const [daDropHover, setDADropHover] = useState(false)
   const statusClass = STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
+  const assignedDA = das.find(d => d.id === appointment.da_id)
 
   return (
     <div
-      className={`border-l-4 rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${statusClass}`}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDADropHover(true) }}
+      onDragLeave={() => setDADropHover(false)}
+      onDrop={e => { setDADropHover(false); onDADrop(e) }}
       onClick={onToggle}
+      className={`border-l-4 rounded-xl p-3 cursor-grab active:cursor-grabbing transition-all ${statusClass} ${
+        isDragging ? 'opacity-40 scale-95' : ''
+      } ${daDropHover ? 'ring-2 ring-violet-300 bg-violet-50/30' : 'hover:shadow-sm'}`}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start gap-2">
+        <GripVertical size={14} className="text-gray-300 mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <button
-            onClick={e => { e.stopPropagation(); onPatientClick() }}
-            className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left"
-          >
-            {appointment.patient_name}
-          </button>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <Clock size={12} className="text-gray-400" />
-            <span className="text-xs text-gray-500">
-              {formatTime(appointment.start_time)} – {formatTime(appointment.end_time)}
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <button
+                onClick={e => { e.stopPropagation(); onPatientClick() }}
+                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left"
+              >
+                {appointment.patient_name}
+              </button>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Clock size={12} className="text-gray-400" />
+                <span className="text-xs text-gray-500">
+                  {formatTime(appointment.start_time)} – {formatTime(appointment.end_time)}
+                </span>
+              </div>
+            </div>
+            <span className="text-[10px] uppercase font-medium text-gray-400 tracking-wide">
+              {appointment.status.replace('_', ' ')}
             </span>
           </div>
+
+          <div className="flex items-center gap-2 mt-1.5">
+            {appointment.appointment_type && (
+              <span className="text-xs text-gray-500">{appointment.appointment_type}</span>
+            )}
+            {assignedDA && (
+              <span className="flex items-center gap-1 text-[10px] text-gray-500 ml-auto">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: assignedDA.color || '#8B5CF6' }} />
+                {assignedDA.first_name}
+              </span>
+            )}
+            {!assignedDA && (
+              <span className="text-[10px] text-amber-500 ml-auto italic">No DA</span>
+            )}
+          </div>
+
+          {expanded && (
+            <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-1 text-xs text-gray-500">
+              <p><span className="font-medium">Duration:</span> {appointment.duration_minutes} min</p>
+              {appointment.notes && <p><span className="font-medium">Notes:</span> {appointment.notes}</p>}
+              {daDropHover && <p className="text-violet-600 font-medium">Drop DA here to assign</p>}
+            </div>
+          )}
         </div>
-        <span className="text-[10px] uppercase font-medium text-gray-400 tracking-wide">
-          {appointment.status.replace('_', ' ')}
-        </span>
       </div>
-
-      {appointment.appointment_type && (
-        <p className="text-xs text-gray-500 mt-1">{appointment.appointment_type}</p>
-      )}
-
-      {expanded && (
-        <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-1 text-xs text-gray-500">
-          <p><span className="font-medium">Duration:</span> {appointment.duration_minutes} min</p>
-          {appointment.notes && <p><span className="font-medium">Notes:</span> {appointment.notes}</p>}
-        </div>
-      )}
     </div>
   )
 }

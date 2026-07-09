@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Users, Edit2, Save, X, Clock, FileText, CalendarDays, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Users, Edit2, Save, X, Clock, FileText, CalendarDays, LayoutDashboard, Receipt, BarChart3, Settings, User, LogOut, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -63,8 +63,6 @@ export default function PatientDetail() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
-  const [newNote, setNewNote] = useState('')
-  const [savingNote, setSavingNote] = useState(false)
   const [practiceName, setPracticeName] = useState('OrthoFlow')
   const [practiceLogo, setPracticeLogo] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -124,18 +122,6 @@ export default function PatientDetail() {
       setPatient(updated)
       setEditing(false)
     }
-  }
-
-  async function handleAddNote() {
-    if (!id || !newNote.trim()) return
-    setSavingNote(true)
-    const res = await api.createNote({ patient_id: id, note_text: newNote.trim() })
-    if (res.ok) {
-      const note = await res.json()
-      setNotes(prev => [note, ...prev])
-      setNewNote('')
-    }
-    setSavingNote(false)
   }
 
   async function handleChartUpdate(data: { teeth_data: Record<string, unknown> }) {
@@ -319,7 +305,7 @@ export default function PatientDetail() {
               </div>
             </div>
 
-            {/* Treatment Notes */}
+            {/* Treatment Notes + AI Assistant */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
                 <FileText size={14} className="text-gray-400" />
@@ -327,25 +313,11 @@ export default function PatientDetail() {
                 <span className="text-xs text-gray-400 ml-auto">{notes.length}</span>
               </div>
 
-              {/* Add Note */}
-              <div className="px-5 py-3 border-b border-gray-50">
-                <textarea
-                  value={newNote}
-                  onChange={e => setNewNote(e.target.value)}
-                  placeholder="Add a note..."
-                  rows={2}
-                  className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                />
-                {newNote.trim() && (
-                  <button
-                    onClick={handleAddNote}
-                    disabled={savingNote}
-                    className="mt-2 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
-                  >
-                    {savingNote ? 'Saving...' : 'Add Note'}
-                  </button>
-                )}
-              </div>
+              {/* Add Note with AI Assist */}
+              <NoteInput
+                patientId={id || ''}
+                onNoteAdded={note => setNotes(prev => [note, ...prev])}
+              />
 
               <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                 {notes.length === 0 ? (
@@ -369,6 +341,144 @@ export default function PatientDetail() {
           </div>
         </div>
       </main>
+    </div>
+  )
+}
+
+function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded: (note: TreatmentNote) => void }) {
+  const [rawInput, setRawInput] = useState('')
+  const [structuredNote, setStructuredNote] = useState('')
+  const [nextVisit, setNextVisit] = useState<string | null>(null)
+  const [flags, setFlags] = useState<string[]>([])
+  const [assisting, setAssisting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<'raw' | 'assisted'>('raw')
+
+  async function handleAIAssist() {
+    if (!rawInput.trim()) return
+    setAssisting(true)
+    const res = await api.aiNoteAssist({ patient_id: patientId, raw_input: rawInput.trim() })
+    if (res.ok) {
+      const data = await res.json()
+      setStructuredNote(data.structured_note)
+      setNextVisit(data.next_visit_suggestion || null)
+      setFlags(data.completeness_flags || [])
+      setMode('assisted')
+    }
+    setAssisting(false)
+  }
+
+  async function handleSave() {
+    const noteText = mode === 'assisted' ? structuredNote : rawInput
+    if (!noteText.trim()) return
+    setSaving(true)
+    const res = await api.createNote({ patient_id: patientId, note_text: noteText.trim() })
+    if (res.ok) {
+      const note = await res.json()
+      onNoteAdded(note)
+      setRawInput('')
+      setStructuredNote('')
+      setNextVisit(null)
+      setFlags([])
+      setMode('raw')
+    }
+    setSaving(false)
+  }
+
+  function handleReset() {
+    setMode('raw')
+    setStructuredNote('')
+    setNextVisit(null)
+    setFlags([])
+  }
+
+  return (
+    <div className="px-5 py-3 border-b border-gray-50">
+      {mode === 'raw' ? (
+        <>
+          <textarea
+            value={rawInput}
+            onChange={e => setRawInput(e.target.value)}
+            placeholder="Type your notes (shorthand OK)... e.g. 'adj upper 18ss, elastics 3/16 med, pt compliant'"
+            rows={3}
+            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+          />
+          {rawInput.trim() && (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={handleAIAssist}
+                disabled={assisting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500 hover:bg-violet-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                <Sparkles size={12} />
+                {assisting ? 'Processing...' : 'AI Assist'}
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Raw'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* AI-structured note */}
+          <div className="bg-violet-50/50 border border-violet-200 rounded-lg p-3 mb-2">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles size={12} className="text-violet-500" />
+              <span className="text-[10px] uppercase font-medium text-violet-600 tracking-wide">AI-Structured Note</span>
+            </div>
+            <textarea
+              value={structuredNote}
+              onChange={e => setStructuredNote(e.target.value)}
+              rows={4}
+              className="w-full text-xs bg-white border border-violet-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
+          </div>
+
+          {/* Next visit suggestion */}
+          {nextVisit && (
+            <div className="flex items-start gap-1.5 mb-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <CalendarDays size={12} className="mt-0.5 flex-shrink-0" />
+              <span><span className="font-medium">Next visit:</span> {nextVisit}</span>
+            </div>
+          )}
+
+          {/* Completeness flags */}
+          {flags.length > 0 && (
+            <div className="flex items-start gap-1.5 mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+              <span><span className="font-medium">Missing info:</span> {flags.join(', ')}</span>
+            </div>
+          )}
+          {flags.length === 0 && (
+            <div className="flex items-center gap-1.5 mb-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              <CheckCircle size={12} />
+              <span>Note is complete</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              <CheckCircle size={12} />
+              {saving ? 'Saving...' : 'Save Note'}
+            </button>
+            <button
+              onClick={handleReset}
+              className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Edit raw
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
