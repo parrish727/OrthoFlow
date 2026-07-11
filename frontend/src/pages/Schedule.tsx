@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -262,6 +262,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
                         onDragStart={e => handleDragStart(e, appt.id, 'appointment')}
                         onDragEnd={handleDragEnd}
                         onDADrop={e => handleApptDADrop(e, appt.id)}
+                        onUpdate={loadSchedule}
                       />
                     ))
                   )}
@@ -301,6 +302,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
                       onDragStart={e => handleDragStart(e, appt.id, 'appointment')}
                       onDragEnd={handleDragEnd}
                       onDADrop={e => handleApptDADrop(e, appt.id)}
+                        onUpdate={loadSchedule}
                     />
                   ))
                 )}
@@ -314,7 +316,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
   )
 }
 
-function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop }: {
+function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop, onUpdate }: {
   appointment: Appointment
   das: DA[]
   expanded: boolean
@@ -324,6 +326,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onDADrop: (e: React.DragEvent) => void
+  onUpdate: () => void
 }) {
   const [daDropHover, setDADropHover] = useState(false)
   const statusClass = STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
@@ -381,7 +384,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
           </div>
 
           {expanded && (
-            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} />
+            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} onUpdate={onUpdate} />
           )}
         </div>
       </div>
@@ -389,9 +392,12 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   )
 }
 
-function ExpandedCardDetail({ appointment, daDropHover }: { appointment: Appointment; daDropHover: boolean }) {
+function ExpandedCardDetail({ appointment, daDropHover, onUpdate }: { appointment: Appointment; daDropHover: boolean; onUpdate: () => void }) {
   const [prepBrief, setPrepBrief] = useState<{ today_expected: string; prep_items: string[] } | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
+  const [showReschedule, setShowReschedule] = useState(false)
+  const [newTime, setNewTime] = useState(appointment.start_time.slice(0, 5))
+  const [saving, setSaving] = useState(false)
 
   async function handleLoadPrep(e: React.MouseEvent) {
     e.stopPropagation()
@@ -405,23 +411,110 @@ function ExpandedCardDetail({ appointment, daDropHover }: { appointment: Appoint
     setLoadingPrep(false)
   }
 
+  async function handleUnassignDA(e: React.MouseEvent) {
+    e.stopPropagation()
+    await api.updateAppointment(appointment.id, { da_id: null })
+    onUpdate()
+  }
+
+  async function handleMarkLate(e: React.MouseEvent) {
+    e.stopPropagation()
+    await api.updateAppointment(appointment.id, { status: 'no_show' })
+    onUpdate()
+  }
+
+  async function handleReschedule(e: React.MouseEvent) {
+    e.stopPropagation()
+    setSaving(true)
+    const [h, m] = newTime.split(':').map(Number)
+    const duration = appointment.duration_minutes
+    const endH = h + Math.floor((m + duration) / 60)
+    const endM = (m + duration) % 60
+    const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`
+    await api.updateAppointment(appointment.id, {
+      start_time: `${newTime}:00`,
+      end_time: endTime,
+      status: 'scheduled',
+    })
+    setSaving(false)
+    setShowReschedule(false)
+    onUpdate()
+  }
+
   return (
     <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-2 text-xs text-gray-500">
       <p><span className="font-medium">Duration:</span> {appointment.duration_minutes} min</p>
       {appointment.notes && <p><span className="font-medium">Notes:</span> {appointment.notes}</p>}
       {daDropHover && <p className="text-violet-600 font-medium">Drop DA here to assign</p>}
 
-      {/* Prep Brief */}
-      {!prepBrief ? (
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-1.5 pt-1">
+        {/* Unassign DA */}
+        {appointment.da_id && (
+          <button
+            onClick={handleUnassignDA}
+            className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md transition-colors"
+          >
+            <UserMinus size={11} />
+            Unassign DA
+          </button>
+        )}
+
+        {/* Mark Late / No Show */}
+        {appointment.status === 'scheduled' && (
+          <button
+            onClick={handleMarkLate}
+            className="flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-md transition-colors"
+          >
+            <AlertCircle size={11} />
+            No Show
+          </button>
+        )}
+
+        {/* Reschedule */}
         <button
-          onClick={handleLoadPrep}
-          disabled={loadingPrep}
-          className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md transition-colors disabled:opacity-50"
+          onClick={(e) => { e.stopPropagation(); setShowReschedule(!showReschedule) }}
+          className="flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-md transition-colors"
         >
-          <Clipboard size={11} />
-          {loadingPrep ? 'Loading...' : 'Prep Brief'}
+          <RotateCw size={11} />
+          Reschedule
         </button>
-      ) : (
+
+        {/* Prep Brief */}
+        {!prepBrief && (
+          <button
+            onClick={handleLoadPrep}
+            disabled={loadingPrep}
+            className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md transition-colors disabled:opacity-50"
+          >
+            <Clipboard size={11} />
+            {loadingPrep ? 'Loading...' : 'Prep Brief'}
+          </button>
+        )}
+      </div>
+
+      {/* Reschedule time picker */}
+      {showReschedule && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg" onClick={e => e.stopPropagation()}>
+          <span className="text-amber-700 font-medium">New time:</span>
+          <input
+            type="time"
+            value={newTime}
+            onChange={e => setNewTime(e.target.value)}
+            className="px-2 py-1 border border-amber-200 rounded text-xs bg-white"
+          />
+          <button
+            onClick={handleReschedule}
+            disabled={saving}
+            className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium disabled:opacity-50"
+          >
+            {saving ? '...' : 'Move'}
+          </button>
+        </div>
+      )}
+
+      {/* Prep Brief result */}
+      {prepBrief && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 space-y-1">
           <p className="text-indigo-700 font-medium flex items-center gap-1"><Clipboard size={11} /> Prep Brief</p>
           <p className="text-indigo-600">{prepBrief.today_expected}</p>
