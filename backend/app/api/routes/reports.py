@@ -123,25 +123,29 @@ async def production_report(
         for row in provider_result.all()
     ]
 
-    # By CDT code category (first 2 chars = category)
-    cdt_result = await db.execute(
-        select(
-            func.left(PatientLedgerEntry.cdt_code, 4).label("cdt_cat"),
-            func.sum(PatientLedgerEntry.amount).label("total"),
-            func.count(PatientLedgerEntry.id).label("count"),
+    # By CDT code category (first 4 chars = category)
+    by_cdt = []
+    try:
+        cdt_result = await db.execute(
+            select(
+                func.left(PatientLedgerEntry.cdt_code, 4).label("cdt_cat"),
+                func.sum(PatientLedgerEntry.amount).label("total"),
+                func.count(PatientLedgerEntry.id).label("count"),
+            )
+            .where(and_(base_filter, PatientLedgerEntry.cdt_code.isnot(None)))
+            .group_by(text("1"))
+            .order_by(func.sum(PatientLedgerEntry.amount).desc())
         )
-        .where(and_(base_filter, PatientLedgerEntry.cdt_code.isnot(None)))
-        .group_by(func.left(PatientLedgerEntry.cdt_code, 4))
-        .order_by(func.sum(PatientLedgerEntry.amount).desc())
-    )
-    by_cdt = [
-        ProductionByCDT(
-            cdt_category=row.cdt_cat or "Unknown",
-            total_charges=float(row.total or 0),
-            procedure_count=row.count,
-        )
-        for row in cdt_result.all()
-    ]
+        by_cdt = [
+            ProductionByCDT(
+                cdt_category=row.cdt_cat or "Unknown",
+                total_charges=float(row.total or 0),
+                procedure_count=row.count,
+            )
+            for row in cdt_result.all()
+        ]
+    except Exception:
+        by_cdt = []
 
     # Totals
     total_result = await db.execute(
