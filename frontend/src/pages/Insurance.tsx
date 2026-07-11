@@ -91,10 +91,14 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
   const loadPlans = useCallback(async () => {
     if (!selectedPatient) return
     setLoading(true)
-    const res = await api.getInsurancePlans(selectedPatient.id)
-    if (res.ok) {
-      const data = await res.json()
-      setPlans(data.plans || data || [])
+    try {
+      const res = await api.getInsurancePlans(selectedPatient.id)
+      if (res.ok) {
+        const data = await res.json()
+        setPlans(data.plans || data || [])
+      }
+    } catch {
+      // silently handle
     }
     setLoading(false)
   }, [selectedPatient])
@@ -103,10 +107,14 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
 
   async function handleCheckEligibility(planId: string) {
     setEligibilityChecking(planId)
-    const res = await api.checkEligibility({ plan_id: planId })
-    if (res.ok) {
-      const data = await res.json()
-      setEligibilityResults(prev => ({ ...prev, [planId]: data }))
+    try {
+      const res = await api.checkEligibility({ plan_id: planId })
+      if (res.ok) {
+        const data = await res.json()
+        setEligibilityResults(prev => ({ ...prev, [planId]: data }))
+      }
+    } catch {
+      // silently handle
     }
     setEligibilityChecking(null)
   }
@@ -115,24 +123,28 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
     e.preventDefault()
     if (!selectedPatient) return
     setFormLoading(true)
-    const res = await api.addInsurancePlan({
-      patient_id: selectedPatient.id,
-      payer_name: newPayer,
-      subscriber_id: newSubscriberId,
-      group_number: newGroupNumber,
-      plan_type: newPlanType,
-      coverage_percentage: parseInt(newCoverage, 10),
-      benefits_max: newBenefitsMax ? parseFloat(newBenefitsMax) : null,
-    })
-    if (res.ok) {
-      setNewPayer('')
-      setNewSubscriberId('')
-      setNewGroupNumber('')
-      setNewPlanType('primary')
-      setNewCoverage('80')
-      setNewBenefitsMax('')
-      setShowAddForm(false)
-      loadPlans()
+    try {
+      const res = await api.addInsurancePlan({
+        patient_id: selectedPatient.id,
+        payer_name: newPayer,
+        subscriber_id: newSubscriberId,
+        group_number: newGroupNumber,
+        plan_type: newPlanType,
+        coverage_percentage: parseInt(newCoverage, 10),
+        benefits_max: newBenefitsMax ? parseFloat(newBenefitsMax) : null,
+      })
+      if (res.ok) {
+        setNewPayer('')
+        setNewSubscriberId('')
+        setNewGroupNumber('')
+        setNewPlanType('primary')
+        setNewCoverage('80')
+        setNewBenefitsMax('')
+        setShowAddForm(false)
+        loadPlans()
+      }
+    } catch {
+      // silently handle
     }
     setFormLoading(false)
   }

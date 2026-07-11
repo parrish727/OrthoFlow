@@ -47,12 +47,16 @@ export default function ImagingAlerts() {
   const [activeTab, setActiveTab] = useState<'pending' | 'dismissed' | 'all'>('pending')
   const loadAlerts = useCallback(async () => {
     setLoading(true)
-    const statusParam = activeTab === 'all' ? undefined : activeTab
-    const res = await api.getImagingAlerts({ status: statusParam })
-    if (res.ok) {
-      const data = await res.json()
-      setAlerts(data.alerts || [])
-      if (data.stats) setStats(data.stats)
+    try {
+      const statusParam = activeTab === 'all' ? undefined : activeTab
+      const res = await api.getImagingAlerts({ status: statusParam })
+      if (res.ok) {
+        const data = await res.json()
+        setAlerts(data.alerts || [])
+        if (data.stats) setStats(data.stats)
+      }
+    } catch {
+      // silently handle
     }
     setLoading(false)
   }, [activeTab])
@@ -61,19 +65,31 @@ export default function ImagingAlerts() {
 
   async function handleGenerate() {
     setGenerating(true)
-    const res = await api.generateImagingAlerts()
-    if (res.ok) loadAlerts()
+    try {
+      const res = await api.generateImagingAlerts()
+      if (res.ok) loadAlerts()
+    } catch {
+      // silently handle
+    }
     setGenerating(false)
   }
 
   async function handleDismiss(id: string) {
-    const res = await api.dismissAlert(id)
-    if (res.ok) loadAlerts()
+    try {
+      const res = await api.dismissAlert(id)
+      if (res.ok) loadAlerts()
+    } catch {
+      // silently handle
+    }
   }
 
   async function handleComplete(id: string) {
-    const res = await api.completeAlert(id)
-    if (res.ok) loadAlerts()
+    try {
+      const res = await api.completeAlert(id)
+      if (res.ok) loadAlerts()
+    } catch {
+      // silently handle
+    }
   }
 
   function getSeverityColor(days: number): string {

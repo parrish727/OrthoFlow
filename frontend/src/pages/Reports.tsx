@@ -37,23 +37,29 @@ export default function Reports() {
   const [production, setProduction] = useState<ProductionData | null>(null)
   const [arAging, setArAging] = useState<ArAging | null>(null)
   const [providers, setProviders] = useState<ProviderRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const loadReports = useCallback(async () => {
     setLoading(true)
-    const params: Record<string, string> = { start_date: startDate, end_date: endDate }
-    if (provider) params.provider = provider
+    setError('')
+    try {
+      const params: Record<string, string> = { start_date: startDate, end_date: endDate }
+      if (provider) params.provider = provider
 
-    const [prodRes, arRes, provRes] = await Promise.all([
-      api.reportsProduction(params),
-      api.reportsArAging(params),
-      api.reportsProviderProductivity(params),
-    ])
+      const [prodRes, arRes, provRes] = await Promise.all([
+        api.reportsProduction(params),
+        api.reportsArAging(params),
+        api.reportsProviderProductivity(params),
+      ])
 
-    if (prodRes.ok) setProduction(await prodRes.json())
-    if (arRes.ok) setArAging(await arRes.json())
-    if (provRes.ok) {
-      const data = await provRes.json()
-      setProviders(data.providers || [])
+      if (prodRes.ok) setProduction(await prodRes.json())
+      if (arRes.ok) setArAging(await arRes.json())
+      if (provRes.ok) {
+        const data = await provRes.json()
+        setProviders(data.providers || [])
+      }
+    } catch {
+      setError('Failed to load reports — connection error')
     }
     setLoading(false)
   }, [startDate, endDate, provider])
@@ -255,6 +261,17 @@ export default function Reports() {
         {loading && (
           <div className="flex justify-center py-12">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {error && (
+          <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>
+        )}
+
+        {!loading && !error && !production && !arAging && providers.length === 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm py-16 text-center">
+            <PieChart size={32} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-sm text-gray-400">Select a date range and click Generate to view reports</p>
           </div>
         )}
           </>

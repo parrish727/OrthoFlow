@@ -86,17 +86,21 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
   const loadLedger = useCallback(async () => {
     if (!selectedPatient) return
     setLoading(true)
-    const [entriesRes, summaryRes] = await Promise.all([
-      api.getLedger(selectedPatient.id),
-      api.getLedgerSummary(selectedPatient.id),
-    ])
-    if (entriesRes.ok) {
-      const data = await entriesRes.json()
-      setEntries(data.entries || data || [])
-    }
-    if (summaryRes.ok) {
-      const data = await summaryRes.json()
-      setSummary(data)
+    try {
+      const [entriesRes, summaryRes] = await Promise.all([
+        api.getLedger(selectedPatient.id),
+        api.getLedgerSummary(selectedPatient.id),
+      ])
+      if (entriesRes.ok) {
+        const data = await entriesRes.json()
+        setEntries(data.entries || data || [])
+      }
+      if (summaryRes.ok) {
+        const data = await summaryRes.json()
+        setSummary(data)
+      }
+    } catch {
+      // silently handle — entries will remain empty
     }
     setLoading(false)
   }, [selectedPatient])
@@ -107,17 +111,21 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
     e.preventDefault()
     if (!selectedPatient || !chargeDesc || !chargeAmount) return
     setFormLoading(true)
-    const res = await api.postLedgerEntry({
-      patient_id: selectedPatient.id,
-      type: 'charge',
-      description: chargeDesc,
-      amount: parseFloat(chargeAmount),
-    })
-    if (res.ok) {
-      setChargeDesc('')
-      setChargeAmount('')
-      setShowChargeForm(false)
-      loadLedger()
+    try {
+      const res = await api.postLedgerEntry({
+        patient_id: selectedPatient.id,
+        type: 'charge',
+        description: chargeDesc,
+        amount: parseFloat(chargeAmount),
+      })
+      if (res.ok) {
+        setChargeDesc('')
+        setChargeAmount('')
+        setShowChargeForm(false)
+        loadLedger()
+      }
+    } catch {
+      // silently handle
     }
     setFormLoading(false)
   }
@@ -126,19 +134,23 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
     e.preventDefault()
     if (!selectedPatient || !paymentDesc || !paymentAmount) return
     setFormLoading(true)
-    const res = await api.postLedgerEntry({
-      patient_id: selectedPatient.id,
-      type: 'payment',
-      description: paymentDesc,
-      amount: parseFloat(paymentAmount),
-      payment_method: paymentMethod,
-    })
-    if (res.ok) {
-      setPaymentDesc('')
-      setPaymentAmount('')
-      setPaymentMethod('cash')
-      setShowPaymentForm(false)
-      loadLedger()
+    try {
+      const res = await api.postLedgerEntry({
+        patient_id: selectedPatient.id,
+        type: 'payment',
+        description: paymentDesc,
+        amount: parseFloat(paymentAmount),
+        payment_method: paymentMethod,
+      })
+      if (res.ok) {
+        setPaymentDesc('')
+        setPaymentAmount('')
+        setPaymentMethod('cash')
+        setShowPaymentForm(false)
+        loadLedger()
+      }
+    } catch {
+      // silently handle
     }
     setFormLoading(false)
   }

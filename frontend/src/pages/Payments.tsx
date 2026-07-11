@@ -51,11 +51,15 @@ const fileInputRef = useRef<HTMLInputElement>(null)
   const [newAmount, setNewAmount] = useState('')
   const loadPostings = useCallback(async () => {
     setLoading(true)
-    const res = await api.getPaymentPostings()
-    if (res.ok) {
-      const data = await res.json()
-      setPostings(data.postings || data || [])
-      if (data.stats) setStats(data.stats)
+    try {
+      const res = await api.getPaymentPostings()
+      if (res.ok) {
+        const data = await res.json()
+        setPostings(data.postings || data || [])
+        if (data.stats) setStats(data.stats)
+      }
+    } catch {
+      // silently handle
     }
     setLoading(false)
   }, [])
@@ -66,19 +70,23 @@ const fileInputRef = useRef<HTMLInputElement>(null)
     e.preventDefault()
     if (!newPayer || !newAmount) return
     setFormLoading(true)
-    const res = await api.createPaymentPosting({
-      source: newSource,
-      payer_name: newPayer,
-      check_number: newCheckNumber || null,
-      total_amount: parseFloat(newAmount),
-    })
-    if (res.ok) {
-      setNewSource('insurance')
-      setNewPayer('')
-      setNewCheckNumber('')
-      setNewAmount('')
-      setShowNewForm(false)
-      loadPostings()
+    try {
+      const res = await api.createPaymentPosting({
+        source: newSource,
+        payer_name: newPayer,
+        check_number: newCheckNumber || null,
+        total_amount: parseFloat(newAmount),
+      })
+      if (res.ok) {
+        setNewSource('insurance')
+        setNewPayer('')
+        setNewCheckNumber('')
+        setNewAmount('')
+        setShowNewForm(false)
+        loadPostings()
+      }
+    } catch {
+      // silently handle
     }
     setFormLoading(false)
   }
@@ -86,13 +94,17 @@ const fileInputRef = useRef<HTMLInputElement>(null)
   async function handleEraImport(file: File) {
     setEraImporting(true)
     setEraResult(null)
-    const res = await api.importEra(file)
-    if (res.ok) {
-      const data = await res.json()
-      setEraResult(data.message || `Imported ${data.count || 0} payment(s) successfully`)
-      loadPostings()
-    } else {
-      setEraResult('Failed to import ERA file. Please check the format and try again.')
+    try {
+      const res = await api.importEra(file)
+      if (res.ok) {
+        const data = await res.json()
+        setEraResult(data.message || `Imported ${data.count || 0} payment(s) successfully`)
+        loadPostings()
+      } else {
+        setEraResult('Failed to import ERA file. Please check the format and try again.')
+      }
+    } catch {
+      setEraResult('Failed to import ERA file. Connection error.')
     }
     setEraImporting(false)
   }

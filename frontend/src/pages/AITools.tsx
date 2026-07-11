@@ -40,6 +40,7 @@ const [patients, setPatients] = useState<Patient[]>([])
   const [summaryPatientId, setSummaryPatientId] = useState('')
   const [summary, setSummary] = useState<NoteSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
 
   // Referral Letter
   const [referralPatientId, setReferralPatientId] = useState('')
@@ -50,29 +51,39 @@ const [patients, setPatients] = useState<Patient[]>([])
   const [referralLetter, setReferralLetter] = useState<ReferralLetter | null>(null)
   const [referralLoading, setReferralLoading] = useState(false)
   const [referralCopied, setReferralCopied] = useState(false)
+  const [referralError, setReferralError] = useState('')
 
   // Imaging Reasoning
   const [imagingPatientId, setImagingPatientId] = useState('')
-  const [imagingReasons, setImagingReasons] = useState<ImagingReason[]>([])
+  const [imagingReasons, setImagingReasons] = useState<ImagingReason[] | null>(null)
   const [imagingLoading, setImagingLoading] = useState(false)
+  const [imagingError, setImagingError] = useState('')
 
   // Next Visit Planner
   const [nextVisitPatientId, setNextVisitPatientId] = useState('')
   const [nextVisitPlan, setNextVisitPlan] = useState<NextVisitPlan | null>(null)
   const [nextVisitLoading, setNextVisitLoading] = useState(false)
+  const [nextVisitError, setNextVisitError] = useState('')
 useEffect(() => {
     api.getPatients({ page: 1 }).then(async res => {
       if (res.ok) { const data = await res.json(); setPatients(data.patients || data.items || []) }
-    })
+    }).catch(() => {})
   }, [])
 
   async function handleSummarize() {
     if (!summaryPatientId) return
     setSummaryLoading(true)
-    const res = await api.aiSummarize(summaryPatientId)
-    if (res.ok) {
-      const data = await res.json()
-      setSummary(data)
+    setSummaryError('')
+    try {
+      const res = await api.aiSummarize(summaryPatientId)
+      if (res.ok) {
+        const data = await res.json()
+        setSummary(data)
+      } else {
+        setSummaryError('Failed to generate summary')
+      }
+    } catch {
+      setSummaryError('Connection error — please try again')
     }
     setSummaryLoading(false)
   }
@@ -80,14 +91,21 @@ useEffect(() => {
   async function handleGenerateLetter() {
     if (!referralPatientId || !referralTo || !referralReason) return
     setReferralLoading(true)
-    const res = await api.aiReferralLetter({
-      patient_id: referralPatientId,
-      referral_to: { name: referralTo, specialty: referralSpecialty, address: referralAddress },
-      reason: referralReason,
-    })
-    if (res.ok) {
-      const data = await res.json()
-      setReferralLetter(data)
+    setReferralError('')
+    try {
+      const res = await api.aiReferralLetter({
+        patient_id: referralPatientId,
+        referral_to: { name: referralTo, specialty: referralSpecialty, address: referralAddress },
+        reason: referralReason,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReferralLetter(data)
+      } else {
+        setReferralError('Failed to generate letter')
+      }
+    } catch {
+      setReferralError('Connection error — please try again')
     }
     setReferralLoading(false)
   }
@@ -95,10 +113,17 @@ useEffect(() => {
   async function handleImagingReasoning() {
     if (!imagingPatientId) return
     setImagingLoading(true)
-    const res = await api.aiImagingReasoning(imagingPatientId)
-    if (res.ok) {
-      const data = await res.json()
-      setImagingReasons(data.reasons || data.alerts || [])
+    setImagingError('')
+    try {
+      const res = await api.aiImagingReasoning(imagingPatientId)
+      if (res.ok) {
+        const data = await res.json()
+        setImagingReasons(data.reasons || data.alerts || [])
+      } else {
+        setImagingError('Failed to analyze imaging')
+      }
+    } catch {
+      setImagingError('Connection error — please try again')
     }
     setImagingLoading(false)
   }
@@ -106,10 +131,17 @@ useEffect(() => {
   async function handleNextVisit() {
     if (!nextVisitPatientId) return
     setNextVisitLoading(true)
-    const res = await api.aiNextVisit(nextVisitPatientId)
-    if (res.ok) {
-      const data = await res.json()
-      setNextVisitPlan(data)
+    setNextVisitError('')
+    try {
+      const res = await api.aiNextVisit(nextVisitPatientId)
+      if (res.ok) {
+        const data = await res.json()
+        setNextVisitPlan(data)
+      } else {
+        setNextVisitError('Failed to plan next visit')
+      }
+    } catch {
+      setNextVisitError('Connection error — please try again')
     }
     setNextVisitLoading(false)
   }
@@ -154,11 +186,27 @@ useEffect(() => {
                 className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
                 {summaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                Summarize History
+                {summaryLoading ? 'Analyzing...' : 'Summarize History'}
               </button>
             </div>
 
-            {summary && (
+            {summaryError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{summaryError}</div>
+            )}
+
+            {summaryLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Generating summary... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!summaryLoading && !summaryError && !summary && (
+              <div className="mt-4 py-6 text-center text-gray-400 text-sm">
+                Select a patient to get started
+              </div>
+            )}
+
+            {!summaryLoading && summary && (
               <div className="mt-4 space-y-4 bg-gray-50 rounded-xl p-5 border border-gray-100">
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Treatment Summary</p>
@@ -238,10 +286,20 @@ useEffect(() => {
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
             >
               {referralLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              Generate Letter
+              {referralLoading ? 'Generating...' : 'Generate Letter'}
             </button>
 
-            {referralLetter && (
+            {referralError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{referralError}</div>
+            )}
+
+            {referralLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Generating letter... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!referralLoading && referralLetter && (
               <div className="mt-4 relative">
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{referralLetter.letter}</pre>
@@ -283,11 +341,33 @@ useEffect(() => {
                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
                 {imagingLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                Explain Why
+                {imagingLoading ? 'Analyzing...' : 'Explain Why'}
               </button>
             </div>
 
-            {imagingReasons.length > 0 && (
+            {imagingError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{imagingError}</div>
+            )}
+
+            {imagingLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Analyzing imaging requirements... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!imagingLoading && !imagingError && !imagingReasons && (
+              <div className="mt-4 py-6 text-center text-gray-400 text-sm">
+                Select a patient to get started
+              </div>
+            )}
+
+            {!imagingLoading && imagingReasons && imagingReasons.length === 0 && (
+              <div className="mt-4 py-6 text-center text-gray-400 text-sm">
+                No imaging recommendations for this patient
+              </div>
+            )}
+
+            {!imagingLoading && imagingReasons && imagingReasons.length > 0 && (
               <div className="space-y-4 mt-4">
                 {imagingReasons.map((reason, idx) => (
                   <div key={idx} className="bg-amber-50 rounded-xl p-5 border border-amber-100">
@@ -347,11 +427,27 @@ useEffect(() => {
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
                 {nextVisitLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                Plan Next Visit
+                {nextVisitLoading ? 'Planning...' : 'Plan Next Visit'}
               </button>
             </div>
 
-            {nextVisitPlan && (
+            {nextVisitError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{nextVisitError}</div>
+            )}
+
+            {nextVisitLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Planning next visit... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!nextVisitLoading && !nextVisitError && !nextVisitPlan && (
+              <div className="mt-4 py-6 text-center text-gray-400 text-sm">
+                Select a patient to get started
+              </div>
+            )}
+
+            {!nextVisitLoading && nextVisitPlan && (
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Suggested Procedures</p>

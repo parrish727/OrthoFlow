@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 
@@ -30,21 +30,68 @@ export default function Dashboard() {
   const [dragOver, setDragOver] = useState(false)
   const navigate = useNavigate()
 
+  // Today's Clinical Notes
+  interface ClinicalNote {
+    patient_name: string
+    patient_id: string
+    note_preview: string
+    timestamp: string
+  }
+  const [todaysNotes, setTodaysNotes] = useState<ClinicalNote[] | null>(null)
+  const [notesLoading, setNotesLoading] = useState(false)
+
   const loadInvoices = useCallback(async () => {
-    const res = await api.getInvoices()
-    if (res.ok) {
-      const data = await res.json()
-      setInvoices(data.invoices)
+    try {
+      const res = await api.getInvoices()
+      if (res.ok) {
+        const data = await res.json()
+        setInvoices(data.invoices || [])
+      }
+    } catch {
+      // silently handle
     }
   }, [])
 
-  useEffect(() => { loadInvoices() }, [loadInvoices])
+  const loadTodaysNotes = useCallback(async () => {
+    setNotesLoading(true)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const res = await api.getSchedule(today)
+      if (res.ok) {
+        const data = await res.json()
+        const appointments = data.appointments || data || []
+        const notes: ClinicalNote[] = []
+        for (const appt of appointments) {
+          if (appt.status === 'completed' && appt.notes) {
+            notes.push({
+              patient_name: appt.patient_name || `${appt.patient_first_name || ''} ${appt.patient_last_name || ''}`.trim(),
+              patient_id: appt.patient_id,
+              note_preview: (appt.notes || '').slice(0, 100),
+              timestamp: appt.end_time || appt.start_time || today,
+            })
+          }
+        }
+        setTodaysNotes(notes)
+      } else {
+        setTodaysNotes([])
+      }
+    } catch {
+      setTodaysNotes([])
+    }
+    setNotesLoading(false)
+  }, [])
+
+  useEffect(() => { loadInvoices(); loadTodaysNotes() }, [loadInvoices, loadTodaysNotes])
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
     setUploading(true)
-    for (const file of Array.from(files)) {
-      await api.uploadInvoice(file)
+    try {
+      for (const file of Array.from(files)) {
+        await api.uploadInvoice(file)
+      }
+    } catch {
+      // silently handle
     }
     setUploading(false)
     loadInvoices()
@@ -161,6 +208,45 @@ export default function Dashboard() {
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Today's Clinical Notes */}
+      <div className="mt-8 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <FileText size={16} className="text-teal-600" />
+          <h3 className="font-medium text-gray-800">Today's Clinical Notes</h3>
+        </div>
+        {notesLoading ? (
+          <div className="px-6 py-10 text-center">
+            <Loader2 size={20} className="animate-spin text-gray-400 mx-auto" />
+            <p className="text-sm text-gray-400 mt-2">Loading notes...</p>
+          </div>
+        ) : !todaysNotes || todaysNotes.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <FileText size={28} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-sm text-gray-400">No clinical notes recorded today</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {todaysNotes.map((note, idx) => (
+              <div key={idx} className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50/50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900">{note.patient_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{note.note_preview || 'No preview available'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(note.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate(`/patients/${note.patient_id}`)}
+                  className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors whitespace-nowrap"
+                >
+                  View
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

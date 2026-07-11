@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Users, Plus, Clock } from 'lucide-react'
+import { Search, Users, Plus, Clock, X, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Patient {
@@ -38,15 +38,37 @@ export default function Patients() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
+
+  // Create Patient Modal
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [newPatient, setNewPatient] = useState({
+    first_name: '',
+    last_name: '',
+    date_of_birth: '',
+    email: '',
+    phone: '',
+    treatment_phase: '',
+    referring_doctor: '',
+  })
 const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadPatients = useCallback(async () => {
     setLoading(true)
-    const res = await api.getPatients({ search, status: statusFilter, page })
-    if (res.ok) {
-      const data = await res.json()
-      setPatients(data.patients)
-      setTotal(data.total)
+    setError('')
+    try {
+      const res = await api.getPatients({ search, status: statusFilter, page })
+      if (res.ok) {
+        const data = await res.json()
+        setPatients(data.patients)
+        setTotal(data.total)
+      } else {
+        setError('Failed to load patients')
+      }
+    } catch {
+      setError('Connection error')
     }
     setLoading(false)
   }, [search, statusFilter, page])
@@ -61,6 +83,29 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
     }, 300)
   }
 
+  async function handleCreatePatient(e: React.FormEvent) {
+    e.preventDefault()
+    setCreateLoading(true)
+    setCreateError('')
+    try {
+      const res = await api.request('/api/v1/patients', {
+        method: 'POST',
+        body: JSON.stringify(newPatient),
+      })
+      if (res.ok) {
+        setShowCreateModal(false)
+        setNewPatient({ first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', treatment_phase: '', referring_doctor: '' })
+        loadPatients()
+      } else {
+        const data = await res.json().catch(() => ({ detail: 'Failed to create patient' }))
+        setCreateError(data.detail || 'Failed to create patient')
+      }
+    } catch {
+      setCreateError('Connection error')
+    }
+    setCreateLoading(false)
+  }
+
   const totalPages = Math.ceil(total / 50)
 
   return (
@@ -71,7 +116,9 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
             <h2 className="text-2xl font-semibold text-gray-900">Patients</h2>
             <p className="text-sm text-gray-500 mt-0.5">{total} patient{total !== 1 ? 's' : ''} total</p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-sm font-medium transition-colors shadow-sm">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-sm font-medium transition-colors shadow-sm">
             <Plus size={16} /> New Patient
           </button>
         </div>
@@ -114,6 +161,8 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                 </div>
               ))}
             </div>
+          ) : error ? (
+            <div className="py-12 text-center text-red-500 text-sm">{error}</div>
           ) : patients.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">
               {search ? 'No patients found matching your search' : 'No patients yet'}
@@ -171,6 +220,119 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
             >
               Next
             </button>
+          </div>
+        )}
+
+        {/* Create Patient Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900">New Patient</h3>
+                <button onClick={() => setShowCreateModal(false)} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              {createError && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{createError}</div>
+              )}
+              <form onSubmit={handleCreatePatient} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newPatient.first_name}
+                      onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newPatient.last_name}
+                      onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={newPatient.date_of_birth}
+                    onChange={e => setNewPatient(p => ({ ...p, date_of_birth: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={newPatient.email}
+                      onChange={e => setNewPatient(p => ({ ...p, email: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={newPatient.phone}
+                      onChange={e => setNewPatient(p => ({ ...p, phone: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Treatment Phase</label>
+                  <select
+                    value={newPatient.treatment_phase}
+                    onChange={e => setNewPatient(p => ({ ...p, treatment_phase: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                  >
+                    <option value="">Select phase...</option>
+                    <option value="consultation">Consultation</option>
+                    <option value="records">Records</option>
+                    <option value="treatment_planning">Treatment Planning</option>
+                    <option value="active_treatment">Active Treatment</option>
+                    <option value="retention">Retention</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Referring Doctor</label>
+                  <input
+                    type="text"
+                    value={newPatient.referring_doctor}
+                    onChange={e => setNewPatient(p => ({ ...p, referring_doctor: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {createLoading && <Loader2 size={14} className="animate-spin" />}
+                    {createLoading ? 'Creating...' : 'Create Patient'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
           </>

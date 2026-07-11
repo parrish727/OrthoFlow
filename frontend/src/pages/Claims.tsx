@@ -61,12 +61,16 @@ export default function Claims() {
   const [denialReview, setDenialReview] = useState<Record<string, string>>({})
   const loadClaims = useCallback(async () => {
     setLoading(true)
-    const params = activeTab !== 'all' ? { status: activeTab } : undefined
-    const res = await api.getClaims(params)
-    if (res.ok) {
-      const data = await res.json()
-      setClaims(data.claims || data || [])
-      if (data.counts) setStatusCounts(data.counts)
+    try {
+      const params = activeTab !== 'all' ? { status: activeTab } : undefined
+      const res = await api.getClaims(params)
+      if (res.ok) {
+        const data = await res.json()
+        setClaims(data.claims || data || [])
+        if (data.counts) setStatusCounts(data.counts)
+      }
+    } catch {
+      // silently handle
     }
     setLoading(false)
   }, [activeTab])
@@ -75,19 +79,27 @@ export default function Claims() {
 
   async function handleSubmitClaim(claimId: string) {
     setSubmittingClaim(claimId)
-    const res = await api.submitClaim(claimId)
-    if (res.ok) {
-      loadClaims()
+    try {
+      const res = await api.submitClaim(claimId)
+      if (res.ok) {
+        loadClaims()
+      }
+    } catch {
+      // silently handle
     }
     setSubmittingClaim(null)
   }
 
   async function handleDenialReview(claimId: string) {
     setReviewingDenial(claimId)
-    const res = await api.aiDenialReview({ claim_id: claimId })
-    if (res.ok) {
-      const data = await res.json()
-      setDenialReview(prev => ({ ...prev, [claimId]: data.review || data.recommendation || '' }))
+    try {
+      const res = await api.aiDenialReview({ claim_id: claimId })
+      if (res.ok) {
+        const data = await res.json()
+        setDenialReview(prev => ({ ...prev, [claimId]: data.review || data.recommendation || '' }))
+      }
+    } catch {
+      // silently handle
     }
     setReviewingDenial(null)
   }

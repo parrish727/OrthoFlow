@@ -47,34 +47,45 @@ const [patients, setPatients] = useState<Patient[]>([])
 
   // Huddle state
   const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([])
-  const [huddleInsights, setHuddleInsights] = useState<HuddleInsight[]>([])
+  const [huddleInsights, setHuddleInsights] = useState<HuddleInsight[] | null>(null)
   const [huddleLoading, setHuddleLoading] = useState(false)
+  const [huddleError, setHuddleError] = useState('')
 
   // Timeline state
   const [timelinePatientId, setTimelinePatientId] = useState('')
   const [timeline, setTimeline] = useState<TimelinePrediction | null>(null)
   const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState('')
 
   // Denial state
   const [denialData, setDenialData] = useState<DenialAnalysis | null>(null)
   const [denialLoading, setDenialLoading] = useState(false)
+  const [denialError, setDenialError] = useState('')
 
   // Benchmark state
-  const [benchmarks, setBenchmarks] = useState<Benchmark[]>([])
+  const [benchmarks, setBenchmarks] = useState<Benchmark[] | null>(null)
   const [benchmarkLoading, setBenchmarkLoading] = useState(false)
+  const [benchmarkError, setBenchmarkError] = useState('')
 useEffect(() => {
     api.getPatients({ page: 1 }).then(async res => {
       if (res.ok) { const data = await res.json(); setPatients(data.patients || data.items || []) }
-    })
+    }).catch(() => {})
   }, [])
 
   async function generateHuddleInsights() {
     if (selectedPatientIds.length === 0) return
     setHuddleLoading(true)
-    const res = await api.aiBatchInsights({ patient_ids: selectedPatientIds })
-    if (res.ok) {
-      const data = await res.json()
-      setHuddleInsights(data.insights || [])
+    setHuddleError('')
+    try {
+      const res = await api.aiBatchInsights({ patient_ids: selectedPatientIds })
+      if (res.ok) {
+        const data = await res.json()
+        setHuddleInsights(data.insights || [])
+      } else {
+        setHuddleError('Failed to generate insights')
+      }
+    } catch {
+      setHuddleError('Connection error — please try again')
     }
     setHuddleLoading(false)
   }
@@ -82,30 +93,51 @@ useEffect(() => {
   async function loadTimeline() {
     if (!timelinePatientId) return
     setTimelineLoading(true)
-    const res = await api.aiTimelinePredict(timelinePatientId)
-    if (res.ok) {
-      const data = await res.json()
-      setTimeline(data)
+    setTimelineError('')
+    try {
+      const res = await api.aiTimelinePredict(timelinePatientId)
+      if (res.ok) {
+        const data = await res.json()
+        setTimeline(data)
+      } else {
+        setTimelineError('Failed to predict timeline')
+      }
+    } catch {
+      setTimelineError('Connection error — please try again')
     }
     setTimelineLoading(false)
   }
 
   async function loadDenialPatterns() {
     setDenialLoading(true)
-    const res = await api.aiDenialPatterns()
-    if (res.ok) {
-      const data = await res.json()
-      setDenialData(data)
+    setDenialError('')
+    try {
+      const res = await api.aiDenialPatterns()
+      if (res.ok) {
+        const data = await res.json()
+        setDenialData(data)
+      } else {
+        setDenialError('Failed to load denial patterns')
+      }
+    } catch {
+      setDenialError('Connection error')
     }
     setDenialLoading(false)
   }
 
   async function loadBenchmarks() {
     setBenchmarkLoading(true)
-    const res = await api.aiBenchmarks()
-    if (res.ok) {
-      const data = await res.json()
-      setBenchmarks(data.benchmarks || [])
+    setBenchmarkError('')
+    try {
+      const res = await api.aiBenchmarks()
+      if (res.ok) {
+        const data = await res.json()
+        setBenchmarks(data.benchmarks || [])
+      } else {
+        setBenchmarkError('Failed to load benchmarks')
+      }
+    } catch {
+      setBenchmarkError('Connection error')
     }
     setBenchmarkLoading(false)
   }
@@ -174,10 +206,32 @@ useEffect(() => {
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
             >
               {huddleLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              Generate Insights
+              {huddleLoading ? 'Analyzing...' : 'Generate Insights'}
             </button>
 
-            {huddleInsights.length > 0 && (
+            {huddleError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{huddleError}</div>
+            )}
+
+            {huddleLoading && (
+              <div className="mt-6 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Analyzing patients... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!huddleLoading && !huddleError && !huddleInsights && (
+              <div className="mt-6 py-8 text-center text-gray-400 text-sm">
+                Select patients and click Generate to see AI insights
+              </div>
+            )}
+
+            {!huddleLoading && huddleInsights && huddleInsights.length === 0 && (
+              <div className="mt-6 py-8 text-center text-gray-400 text-sm">
+                No insights generated for selected patients
+              </div>
+            )}
+
+            {!huddleLoading && huddleInsights && huddleInsights.length > 0 && (
               <div className="mt-6 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -232,11 +286,27 @@ useEffect(() => {
                 className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
                 {timelineLoading ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />}
-                Predict Timeline
+                {timelineLoading ? 'Analyzing...' : 'Predict Timeline'}
               </button>
             </div>
 
-            {timeline && (
+            {timelineError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{timelineError}</div>
+            )}
+
+            {timelineLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Predicting timeline... this may take 15–30 seconds
+              </div>
+            )}
+
+            {!timelineLoading && !timelineError && !timeline && (
+              <div className="mt-4 py-8 text-center text-gray-400 text-sm">
+                Select a patient to predict their treatment timeline
+              </div>
+            )}
+
+            {!timelineLoading && timeline && (
               <div className="mt-4 space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-gray-50 rounded-xl p-4">
@@ -294,7 +364,11 @@ useEffect(() => {
           </div>
           <div className="p-6">
             {denialLoading ? (
-              <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-gray-400 mx-auto" /></div>
+              <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={20} className="animate-spin" /> Analyzing denial patterns...
+              </div>
+            ) : denialError ? (
+              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{denialError}</div>
             ) : denialData ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -374,8 +448,12 @@ useEffect(() => {
           </div>
           <div className="p-6">
             {benchmarkLoading ? (
-              <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-gray-400 mx-auto" /></div>
-            ) : benchmarks.length > 0 ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
+                <Loader2 size={20} className="animate-spin" /> Loading benchmarks...
+              </div>
+            ) : benchmarkError ? (
+              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{benchmarkError}</div>
+            ) : benchmarks && benchmarks.length > 0 ? (
               <div>
                 <p className="text-sm text-gray-500 mb-4">Average treatment duration by phase</p>
                 <div className="space-y-3">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { ErrorBoundary } from './ErrorBoundary'
 import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Sparkles, Wrench, Layout, Settings, LogOut, ChevronLeft,
@@ -225,7 +226,9 @@ export default function AppLayout() {
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
