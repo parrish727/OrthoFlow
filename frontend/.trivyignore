@@ -5,3 +5,8 @@
 CVE-2026-56131
 CVE-2026-56407
 CVE-2026-56408
+
+# c-ares CVE in Alpine base image — DNS resolver library.
+# Frontend container uses nginx for static file serving, does not make outbound DNS queries.
+# Review date: 2026-07-11
+CVE-2026-33630
