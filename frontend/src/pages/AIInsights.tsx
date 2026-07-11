@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lightbulb, Users, FileText, Loader2, TrendingUp, AlertTriangle, BarChart3, Brain, Clock, Target, DollarSign } from 'lucide-react'
+import { Lightbulb, Loader2, TrendingUp, AlertTriangle, BarChart3, Clock, Target, DollarSign } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Patient {
@@ -24,14 +24,16 @@ interface TimelinePrediction {
 }
 
 interface DenialPattern {
-  payer: string
-  code: string
+  payer_id: string
+  cdt_code: string
+  denial_reason: string
   count: number
-  reason: string
+  total_amount: number
+  recommendation: string
 }
 
 interface DenialAnalysis {
-  total_denied: number
+  total_denied_amount: number
   recovery_potential: number
   patterns: DenialPattern[]
   recommendations: string[]
@@ -43,7 +45,7 @@ interface Benchmark {
 }
 
 export default function AIInsights() {
-const [patients, setPatients] = useState<Patient[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
 
   // Huddle state
   const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([])
@@ -66,7 +68,8 @@ const [patients, setPatients] = useState<Patient[]>([])
   const [benchmarks, setBenchmarks] = useState<Benchmark[] | null>(null)
   const [benchmarkLoading, setBenchmarkLoading] = useState(false)
   const [benchmarkError, setBenchmarkError] = useState('')
-useEffect(() => {
+
+  useEffect(() => {
     api.getPatients({ page: 1 }).then(async res => {
       if (res.ok) { const data = await res.json(); setPatients(data.patients || data.items || []) }
     }).catch(() => {})
@@ -186,7 +189,7 @@ useEffect(() => {
           <div className="p-6">
             <p className="text-sm text-gray-500 mb-4">Select patients for today's huddle to generate insights</p>
             <div className="flex flex-wrap gap-2 mb-4 max-h-32 overflow-y-auto">
-              {patients.map(p => (
+              {(patients || []).map(p => (
                 <button
                   key={p.id}
                   onClick={() => togglePatient(p.id)}
@@ -196,7 +199,7 @@ useEffect(() => {
                       : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  {p.first_name} {p.last_name}
+                  {p.first_name || ''} {p.last_name || ''}
                 </button>
               ))}
             </div>
@@ -245,12 +248,12 @@ useEffect(() => {
                   <tbody className="divide-y divide-gray-50">
                     {huddleInsights.map((insight, idx) => (
                       <tr key={idx}>
-                        <td className="py-3 px-3 font-medium text-gray-800">{insight.patient_name}</td>
-                        <td className="py-3 px-3 text-gray-600">{insight.status}</td>
-                        <td className="py-3 px-3 text-gray-600">{insight.next_action}</td>
+                        <td className="py-3 px-3 font-medium text-gray-800">{insight.patient_name || ''}</td>
+                        <td className="py-3 px-3 text-gray-600">{insight.status || ''}</td>
+                        <td className="py-3 px-3 text-gray-600">{insight.next_action || ''}</td>
                         <td className="py-3 px-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(insight.priority)}`}>
-                            {insight.priority}
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(insight.priority || '')}`}>
+                            {insight.priority || 'unknown'}
                           </span>
                         </td>
                       </tr>
@@ -276,8 +279,8 @@ useEffect(() => {
                 className="flex-1 max-w-xs px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
                 <option value="">Select patient...</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+                {(patients || []).map(p => (
+                  <option key={p.id} value={p.id}>{p.first_name || ''} {p.last_name || ''}</option>
                 ))}
               </select>
               <button
@@ -311,27 +314,27 @@ useEffect(() => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-500 mb-1">Predicted Months Remaining</p>
-                    <p className="text-2xl font-semibold text-gray-900">{timeline.predicted_months_remaining}</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(timeline.predicted_months_remaining || 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-500 mb-1">Confidence Level</p>
-                    <p className={`text-2xl font-semibold capitalize ${getConfidenceColor(timeline.confidence)}`}>{timeline.confidence}</p>
+                    <p className={`text-2xl font-semibold capitalize ${getConfidenceColor(timeline.confidence || '')}`}>{timeline.confidence || 'unknown'}</p>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-500 mb-1">Milestones</p>
-                    <p className="text-2xl font-semibold text-gray-900">{timeline.milestones.length}</p>
+                    <p className="text-2xl font-semibold text-gray-900">{(timeline.milestones || []).length}</p>
                   </div>
                 </div>
 
                 {/* Vertical Timeline */}
-                {timeline.milestones.length > 0 && (
+                {(timeline.milestones || []).length > 0 && (
                   <div className="relative pl-6 border-l-2 border-gray-200 space-y-4">
-                    {timeline.milestones.map((ms, idx) => (
+                    {(timeline.milestones || []).map((ms, idx) => (
                       <div key={idx} className="relative">
                         <div className={`absolute -left-[25px] w-3 h-3 rounded-full border-2 ${ms.completed ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'}`} />
                         <div className="ml-2">
-                          <p className={`text-sm font-medium ${ms.completed ? 'text-gray-900' : 'text-gray-600'}`}>{ms.name}</p>
-                          <p className="text-xs text-gray-400">{new Date(ms.date).toLocaleDateString()}</p>
+                          <p className={`text-sm font-medium ${ms.completed ? 'text-gray-900' : 'text-gray-600'}`}>{ms.name || ''}</p>
+                          <p className="text-xs text-gray-400">{ms.date ? new Date(ms.date).toLocaleDateString() : ''}</p>
                         </div>
                       </div>
                     ))}
@@ -339,13 +342,13 @@ useEffect(() => {
                 )}
 
                 {/* Delay Factors */}
-                {timeline.delay_factors.length > 0 && (
+                {(timeline.delay_factors || []).length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Delay Factors</p>
                     <div className="flex flex-wrap gap-2">
-                      {timeline.delay_factors.map((f, idx) => (
+                      {(timeline.delay_factors || []).map((f, idx) => (
                         <span key={idx} className="px-3 py-1 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200">
-                          {f}
+                          {f || ''}
                         </span>
                       ))}
                     </div>
@@ -377,39 +380,41 @@ useEffect(() => {
                       <DollarSign size={14} className="text-red-500" />
                       <p className="text-xs text-red-600">Total Denied</p>
                     </div>
-                    <p className="text-2xl font-semibold text-red-700">${denialData.total_denied.toLocaleString()}</p>
+                    <p className="text-2xl font-semibold text-red-700">${(denialData.total_denied_amount || 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
                     <div className="flex items-center gap-2 mb-1">
                       <TrendingUp size={14} className="text-emerald-500" />
                       <p className="text-xs text-emerald-600">Recovery Potential</p>
                     </div>
-                    <p className="text-2xl font-semibold text-emerald-700">${denialData.recovery_potential.toLocaleString()}</p>
+                    <p className="text-2xl font-semibold text-emerald-700">${(denialData.recovery_potential || 0).toLocaleString()}</p>
                   </div>
                 </div>
 
-                {denialData.patterns.length > 0 && (
+                {(denialData.patterns || []).length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th className="text-left py-3 px-3 font-medium text-gray-500">Payer</th>
-                          <th className="text-left py-3 px-3 font-medium text-gray-500">Code</th>
+                          <th className="text-left py-3 px-3 font-medium text-gray-500">CDT Code</th>
                           <th className="text-left py-3 px-3 font-medium text-gray-500">Count</th>
+                          <th className="text-left py-3 px-3 font-medium text-gray-500">Amount</th>
                           <th className="text-left py-3 px-3 font-medium text-gray-500">Reason</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {denialData.patterns.map((p, idx) => (
+                        {(denialData.patterns || []).map((p, idx) => (
                           <tr key={idx}>
-                            <td className="py-3 px-3 font-medium text-gray-800">{p.payer}</td>
-                            <td className="py-3 px-3 text-gray-600 font-mono text-xs">{p.code}</td>
+                            <td className="py-3 px-3 font-medium text-gray-800">{p.payer_id || ''}</td>
+                            <td className="py-3 px-3 text-gray-600 font-mono text-xs">{p.cdt_code || ''}</td>
                             <td className="py-3 px-3">
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${p.count >= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {p.count}
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${(p.count || 0) >= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                {(p.count || 0).toLocaleString()}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-gray-600 text-xs">{p.reason}</td>
+                            <td className="py-3 px-3 text-gray-700 font-medium">${(p.total_amount || 0).toLocaleString()}</td>
+                            <td className="py-3 px-3 text-gray-600 text-xs">{p.denial_reason || ''}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -417,17 +422,17 @@ useEffect(() => {
                   </div>
                 )}
 
-                {denialData.recommendations.length > 0 && (
+                {(denialData.recommendations || []).length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Lightbulb size={14} className="text-violet-500" />
                       <p className="text-sm font-medium text-gray-700">Recommendations</p>
                     </div>
                     <ul className="space-y-2">
-                      {denialData.recommendations.map((rec, idx) => (
+                      {(denialData.recommendations || []).map((rec, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
                           <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 flex-shrink-0" />
-                          {rec}
+                          {rec || ''}
                         </li>
                       ))}
                     </ul>
@@ -458,13 +463,13 @@ useEffect(() => {
                 <p className="text-sm text-gray-500 mb-4">Average treatment duration by phase</p>
                 <div className="space-y-3">
                   {benchmarks.map((b, idx) => {
-                    const maxDuration = Math.max(...benchmarks.map(x => x.avg_duration_months))
-                    const pct = maxDuration > 0 ? (b.avg_duration_months / maxDuration) * 100 : 0
+                    const maxDuration = Math.max(...benchmarks.map(x => x.avg_duration_months || 0))
+                    const pct = maxDuration > 0 ? ((b.avg_duration_months || 0) / maxDuration) * 100 : 0
                     return (
                       <div key={idx}>
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm text-gray-700 font-medium">{b.phase}</p>
-                          <p className="text-sm text-gray-500">{b.avg_duration_months} mo</p>
+                          <p className="text-sm text-gray-700 font-medium">{b.phase || ''}</p>
+                          <p className="text-sm text-gray-500">{(b.avg_duration_months || 0).toFixed(1)} mo</p>
                         </div>
                         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
                           <div

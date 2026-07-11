@@ -29,7 +29,7 @@ interface ToothChartProps {
 const UPPER_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 const LOWER_TEETH = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17]
 
-const BRACKET_TYPES = ['Standard', 'Self-Ligating', 'Ceramic', 'Lingual', 'None']
+const BRACKET_TYPES = ['Standard', 'Self-Ligating', 'Ceramic', 'Lingual']
 const CONDITIONS = ['Healthy', 'Decayed', 'Missing', 'Impacted', 'Extracted', 'Crown', 'Implant']
 
 export default function ToothChart({
@@ -52,6 +52,11 @@ export default function ToothChart({
     if (data.bracket_type && data.bracket_type !== 'None') return 'bg-blue-50 border-blue-400'
     if (data.condition === 'Decayed') return 'bg-amber-50 border-amber-400'
     return 'bg-white border-gray-300 hover:border-blue-400'
+  }
+
+  function hasBand(toothNum: number): boolean {
+    const data = localTeeth[String(toothNum)]
+    return !!data?.band
   }
 
   function hasBracket(toothNum: number): boolean {
@@ -106,6 +111,9 @@ export default function ToothChart({
                 {hasBracket(num) && (
                   <div className="w-2 h-2 bg-blue-500 rounded-sm absolute bottom-1" />
                 )}
+                {hasBand(num) && (
+                  <div className="absolute inset-0 rounded-lg border-2 border-amber-500 pointer-events-none" />
+                )}
               </button>
             ))}
           </div>
@@ -126,6 +134,9 @@ export default function ToothChart({
                 {hasBracket(num) && (
                   <div className="w-2 h-2 bg-blue-500 rounded-sm absolute top-1" />
                 )}
+                {hasBand(num) && (
+                  <div className="absolute inset-0 rounded-lg border-2 border-amber-500 pointer-events-none" />
+                )}
               </button>
             ))}
           </div>
@@ -142,7 +153,21 @@ export default function ToothChart({
           >
             <X size={14} className="text-gray-500" />
           </button>
-          <h4 className="text-xs font-semibold text-gray-700 mb-3">Tooth #{selectedTooth}</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-semibold text-gray-700">Tooth #{selectedTooth}</h4>
+            <button
+              onClick={() => {
+                const key = String(selectedTooth)
+                const updated = { ...localTeeth }
+                delete updated[key]
+                setLocalTeeth(updated)
+                onUpdate?.({ teeth_data: updated })
+              }}
+              className="text-[10px] px-2 py-0.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+            >
+              Clear
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] uppercase text-gray-500 font-medium">Bracket Type</label>

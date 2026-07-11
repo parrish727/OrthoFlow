@@ -133,6 +133,7 @@ export default function Communications() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900">Communications</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Send appointment reminders and messages to patients via email</p>
             <p className="text-sm text-gray-500 mt-0.5">Templates, sending & scheduling</p>
           </div>
           <button
