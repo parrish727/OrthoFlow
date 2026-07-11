@@ -102,8 +102,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
+      - DARIUS_URL=http://host.docker.internal:8100
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - orthoflow
     depends_on:

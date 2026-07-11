@@ -102,7 +102,7 @@ async def _call_darius(task: str) -> str:
             resp = await client.post(
                 f"{DARIUS_URL}/task",
                 json={"task": task, "project": "orthoflow-ai"},
-                timeout=30.0,
+                timeout=60.0,
             )
             resp.raise_for_status()
             data = resp.json()
