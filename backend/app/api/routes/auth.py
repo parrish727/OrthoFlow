@@ -64,8 +64,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
 
-    token = create_token(str(user.id), str(practice.id), user.role.value)
-    return TokenResponse(access_token=token, practice_id=str(practice.id), role=user.role.value)
+    token = create_token(str(user.id), str(practice.id), user.role)
+    return TokenResponse(access_token=token, practice_id=str(practice.id), role=user.role)
 
 
 @router.post("/login")
@@ -86,8 +86,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         return {"mfa_required": True, "message": "Verification code sent to your phone"}
 
     # No MFA — issue token directly
-    token = create_token(str(user.id), str(user.practice_id), user.role.value)
-    return TokenResponse(access_token=token, practice_id=str(user.practice_id), role=user.role.value)
+    token = create_token(str(user.id), str(user.practice_id), user.role)
+    return TokenResponse(access_token=token, practice_id=str(user.practice_id), role=user.role)
 
 
 @router.post("/verify-otp", response_model=TokenResponse)
@@ -101,8 +101,8 @@ async def verify_login_otp(body: VerifyOTPRequest, db: AsyncSession = Depends(ge
     if not verify_otp(str(user.id), body.code):
         raise HTTPException(status_code=401, detail="Invalid or expired verification code")
 
-    token = create_token(str(user.id), str(user.practice_id), user.role.value)
-    return TokenResponse(access_token=token, practice_id=str(user.practice_id), role=user.role.value)
+    token = create_token(str(user.id), str(user.practice_id), user.role)
+    return TokenResponse(access_token=token, practice_id=str(user.practice_id), role=user.role)
 
 
 @router.get("/me")
