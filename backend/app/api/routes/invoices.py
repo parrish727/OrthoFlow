@@ -81,7 +81,7 @@ async def list_invoices(
                 "vendor_name": i.vendor_name,
                 "invoice_number": i.invoice_number,
                 "total_amount": i.total_amount,
-                "status": i.status.value,
+                "status": i.status,
                 "confidence_score": i.confidence_score,
                 "created_at": i.created_at.isoformat() if i.created_at else "",
             }
@@ -112,7 +112,7 @@ async def get_invoice(
         "invoice_date": invoice.invoice_date.isoformat() if invoice.invoice_date else None,
         "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
         "total_amount": invoice.total_amount,
-        "status": invoice.status.value,
+        "status": invoice.status,
         "confidence_score": invoice.confidence_score,
         "coded_json": invoice.coded_json,
         "created_at": invoice.created_at.isoformat() if invoice.created_at else "",
