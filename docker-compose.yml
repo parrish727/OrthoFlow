@@ -112,6 +112,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/deep')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # ── Worker (async invoice processing) ───────────────────────────────────────
   worker:

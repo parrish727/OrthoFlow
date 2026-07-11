@@ -70,3 +70,38 @@ app.include_router(portal_admin.router, tags=["patient-portal-admin"])
 app.include_router(team.router, tags=["team"])
 app.include_router(reports.router, tags=["reports"])
 app.include_router(migration.router, tags=["migration"])
+
+
+# ── Deep Health Check (verifies core routes, not just "is the process alive") ──
+@app.get("/health/deep")
+async def deep_health_check():
+    """Comprehensive health check that catches enum mismatches, DB issues, and import errors.
+    Called by QA agent and container healthcheck. If this fails, the app is broken."""
+    from sqlalchemy import text, select, func
+    from app.core.database import get_db, SessionLocal
+    from app.models.clinical import Patient
+    from app.core.auth import create_token
+
+    errors = []
+
+    # 1. DB connection + model query
+    try:
+        async with SessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+            result = await db.execute(select(func.count(Patient.id)))
+            count = result.scalar()
+    except Exception as e:
+        errors.append(f"db/models: {e}")
+
+    # 2. Verify auth works (catches role enum issues)
+    try:
+        token = create_token("test-id", "test-practice", "owner")
+        assert len(token) > 20
+    except Exception as e:
+        errors.append(f"auth: {e}")
+
+    if errors:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "errors": errors})
+
+    return {"status": "healthy", "checks": ["db", "models", "auth"], "patient_count": count}
