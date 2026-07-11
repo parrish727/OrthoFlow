@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Sparkles, Users, FileText, Loader2, TrendingUp, AlertTriangle, BarChart3, Brain, Clock, Target, DollarSign } from 'lucide-react'
+import { Lightbulb, Users, FileText, Loader2, TrendingUp, AlertTriangle, BarChart3, Brain, Clock, Target, DollarSign } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Patient {
@@ -173,8 +173,8 @@ useEffect(() => {
       <div className="space-y-8">
         {/* Page Title */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900">AI Intelligence Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-0.5">AI-powered insights for your practice</p>
+          <h2 className="text-2xl font-semibold text-gray-900">Insights</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Practice insights and analytics</p>
         </div>
 
         {/* Morning Huddle */}
@@ -184,7 +184,7 @@ useEffect(() => {
             <h3 className="font-medium text-gray-800">Morning Huddle</h3>
           </div>
           <div className="p-6">
-            <p className="text-sm text-gray-500 mb-4">Select patients for today's huddle to generate AI insights</p>
+            <p className="text-sm text-gray-500 mb-4">Select patients for today's huddle to generate insights</p>
             <div className="flex flex-wrap gap-2 mb-4 max-h-32 overflow-y-auto">
               {patients.map(p => (
                 <button
@@ -205,8 +205,8 @@ useEffect(() => {
               disabled={huddleLoading || selectedPatientIds.length === 0}
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
             >
-              {huddleLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {huddleLoading ? 'Analyzing...' : 'Generate Insights'}
+              {huddleLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+              {huddleLoading ? 'Loading...' : 'Generate'}
             </button>
 
             {huddleError && (
@@ -215,13 +215,13 @@ useEffect(() => {
 
             {huddleLoading && (
               <div className="mt-6 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Analyzing patients... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Loading...
               </div>
             )}
 
             {!huddleLoading && !huddleError && !huddleInsights && (
               <div className="mt-6 py-8 text-center text-gray-400 text-sm">
-                Select patients and click Generate to see AI insights
+                Select patients and click Generate to see insights
               </div>
             )}
 
@@ -296,7 +296,7 @@ useEffect(() => {
 
             {timelineLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Predicting timeline... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Loading...
               </div>
             )}
 
@@ -365,7 +365,7 @@ useEffect(() => {
           <div className="p-6">
             {denialLoading ? (
               <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={20} className="animate-spin" /> Analyzing denial patterns...
+                <Loader2 size={20} className="animate-spin" /> Loading denial patterns...
               </div>
             ) : denialError ? (
               <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{denialError}</div>
@@ -420,8 +420,8 @@ useEffect(() => {
                 {denialData.recommendations.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <Sparkles size={14} className="text-violet-500" />
-                      <p className="text-sm font-medium text-gray-700">AI Recommendations</p>
+                      <Lightbulb size={14} className="text-violet-500" />
+                      <p className="text-sm font-medium text-gray-700">Recommendations</p>
                     </div>
                     <ul className="space-y-2">
                       {denialData.recommendations.map((rec, idx) => (

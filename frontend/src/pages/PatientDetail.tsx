@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -242,7 +242,7 @@ export default function PatientDetail() {
               </div>
             </div>
 
-            {/* Treatment Notes + AI Assistant */}
+            {/* Treatment Notes + Assistant */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
                 <FileText size={14} className="text-gray-400" />
@@ -250,7 +250,7 @@ export default function PatientDetail() {
                 <span className="text-xs text-gray-400 ml-auto">{notes.length}</span>
               </div>
 
-              {/* Add Note with AI Assist */}
+              {/* Add Note with Assist */}
               <NoteInput
                 patientId={id || ''}
                 onNoteAdded={note => setNotes(prev => [note, ...prev])}
@@ -264,7 +264,7 @@ export default function PatientDetail() {
                     <div key={note.id} className="px-5 py-3">
                       <p className="text-xs text-gray-700 leading-relaxed">{note.note_text}</p>
                       {note.ai_summary && (
-                        <p className="text-[10px] text-violet-500 mt-1 italic">AI: {note.ai_summary}</p>
+                        <p className="text-[10px] text-violet-500 mt-1 italic">Summary: {note.ai_summary}</p>
                       )}
                       <p className="text-[10px] text-gray-400 mt-1">
                         {note.created_at ? new Date(note.created_at).toLocaleDateString() : ''}
@@ -346,8 +346,8 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
                 disabled={assisting}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500 hover:bg-violet-600 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
               >
-                <Sparkles size={12} />
-                {assisting ? 'Processing...' : 'AI Assist'}
+                <Wand2 size={12} />
+                {assisting ? 'Processing...' : 'Assist'}
               </button>
               <button
                 onClick={handleSave}
@@ -361,11 +361,11 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
             </>
   ) : (
         <>
-          {/* AI-structured note */}
+          {/* Structured note */}
           <div className="bg-violet-50/50 border border-violet-200 rounded-lg p-3 mb-2">
             <div className="flex items-center gap-1.5 mb-2">
-              <Sparkles size={12} className="text-violet-500" />
-              <span className="text-[10px] uppercase font-medium text-violet-600 tracking-wide">AI-Structured Note</span>
+              <Wand2 size={12} className="text-violet-500" />
+              <span className="text-[10px] uppercase font-medium text-violet-600 tracking-wide">Structured Note</span>
             </div>
             <textarea
               value={structuredNote}

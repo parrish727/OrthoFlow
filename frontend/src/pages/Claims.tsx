@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { FileText, ChevronRight, Users, Send, Sparkles, Loader2 } from 'lucide-react'
+import { FileText, ChevronRight, Users, Send, Search, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface ClaimLineItem {
@@ -222,12 +222,12 @@ export default function Claims() {
                           </div>
                         )}
 
-                        {/* AI Denial Review Result */}
+                        {/* Denial Review Result */}
                         {denialReview[claim.id] && (
                           <div className="mb-4 p-3 rounded-xl bg-purple-50 border border-purple-100">
                             <div className="flex items-center gap-1.5 mb-1">
-                              <Sparkles size={12} className="text-purple-600" />
-                              <p className="text-xs font-medium text-purple-700">AI Review</p>
+                              <Search size={12} className="text-purple-600" />
+                              <p className="text-xs font-medium text-purple-700">Review</p>
                             </div>
                             <p className="text-sm text-purple-700">{denialReview[claim.id]}</p>
                           </div>
@@ -257,7 +257,7 @@ export default function Claims() {
                               {reviewingDenial === claim.id ? (
                                 <><Loader2 size={12} className="animate-spin" /> Reviewing...    </>
   ) : (
-                                <><Sparkles size={12} /> AI Review Denial    </>
+                                <><Search size={12} /> Review & Appeal    </>
   )}
                             </button>
                           )}

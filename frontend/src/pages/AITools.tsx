@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Sparkles, Users, FileText, Loader2, Copy, CheckCircle, ClipboardList, Mail, ImageIcon, Calendar } from 'lucide-react'
+import { FileText, Users, ClipboardList, Loader2, Copy, CheckCircle, Mail, ImageIcon, Calendar } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Patient {
@@ -157,15 +157,15 @@ useEffect(() => {
       <div className="space-y-8">
         {/* Page Title */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900">AI Tools</h2>
-          <p className="text-sm text-gray-500 mt-0.5">AI-powered clinical and administrative tools</p>
+          <h2 className="text-2xl font-semibold text-gray-900">Clinical Tools</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Clinical and administrative tools</p>
         </div>
 
         {/* Note Summarization */}
         <section className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <ClipboardList size={16} className="text-blue-500" />
-            <h3 className="font-medium text-gray-800">Note Summarization</h3>
+            <h3 className="font-medium text-gray-800">Summarize History</h3>
           </div>
           <div className="p-6">
             <p className="text-sm text-gray-500 mb-4">Generate a concise summary of a patient's treatment history</p>
@@ -185,8 +185,8 @@ useEffect(() => {
                 disabled={summaryLoading || !summaryPatientId}
                 className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
-                {summaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {summaryLoading ? 'Analyzing...' : 'Summarize History'}
+                {summaryLoading ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16} />}
+                {summaryLoading ? 'Loading...' : 'Summarize'}
               </button>
             </div>
 
@@ -196,7 +196,7 @@ useEffect(() => {
 
             {summaryLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Generating summary... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Loading...
               </div>
             )}
 
@@ -236,10 +236,10 @@ useEffect(() => {
         <section className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <Mail size={16} className="text-violet-500" />
-            <h3 className="font-medium text-gray-800">Referral Letter Generator</h3>
+            <h3 className="font-medium text-gray-800">Referral Letters</h3>
           </div>
           <div className="p-6">
-            <p className="text-sm text-gray-500 mb-4">Generate a professional referral letter with AI</p>
+            <p className="text-sm text-gray-500 mb-4">Generate a professional referral letter</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <select
                 value={referralPatientId}
@@ -285,7 +285,7 @@ useEffect(() => {
               disabled={referralLoading || !referralPatientId || !referralTo || !referralReason}
               className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
             >
-              {referralLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {referralLoading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
               {referralLoading ? 'Generating...' : 'Generate Letter'}
             </button>
 
@@ -295,7 +295,7 @@ useEffect(() => {
 
             {referralLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Generating letter... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Generating letter...
               </div>
             )}
 
@@ -320,7 +320,7 @@ useEffect(() => {
         <section className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <ImageIcon size={16} className="text-amber-500" />
-            <h3 className="font-medium text-gray-800">Imaging Reasoning</h3>
+            <h3 className="font-medium text-gray-800">Imaging Review</h3>
           </div>
           <div className="p-6">
             <p className="text-sm text-gray-500 mb-4">Understand why imaging is recommended based on clinical guidelines</p>
@@ -340,8 +340,8 @@ useEffect(() => {
                 disabled={imagingLoading || !imagingPatientId}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
-                {imagingLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {imagingLoading ? 'Analyzing...' : 'Explain Why'}
+                {imagingLoading ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                {imagingLoading ? 'Loading...' : 'Review'}
               </button>
             </div>
 
@@ -351,7 +351,7 @@ useEffect(() => {
 
             {imagingLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Analyzing imaging requirements... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Loading...
               </div>
             )}
 
@@ -406,10 +406,10 @@ useEffect(() => {
         <section className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <Calendar size={16} className="text-emerald-500" />
-            <h3 className="font-medium text-gray-800">Next Visit Planner</h3>
+            <h3 className="font-medium text-gray-800">Next Visit</h3>
           </div>
           <div className="p-6">
-            <p className="text-sm text-gray-500 mb-4">AI-recommended procedures and preparations for the next appointment</p>
+            <p className="text-sm text-gray-500 mb-4">Recommended procedures and preparations for the next appointment</p>
             <div className="flex items-center gap-3 mb-4">
               <select
                 value={nextVisitPatientId}
@@ -426,8 +426,8 @@ useEffect(() => {
                 disabled={nextVisitLoading || !nextVisitPatientId}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
               >
-                {nextVisitLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {nextVisitLoading ? 'Planning...' : 'Plan Next Visit'}
+                {nextVisitLoading ? <Loader2 size={16} className="animate-spin" /> : <Calendar size={16} />}
+                {nextVisitLoading ? 'Loading...' : 'Plan Next Visit'}
               </button>
             </div>
 
@@ -437,7 +437,7 @@ useEffect(() => {
 
             {nextVisitLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
-                <Loader2 size={16} className="animate-spin" /> Planning next visit... this may take 15–30 seconds
+                <Loader2 size={16} className="animate-spin" /> Loading...
               </div>
             )}
 

@@ -71,8 +71,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/messages" element={<MessageLog />} />
           <Route path="/imaging" element={<Imaging />} />
           <Route path="/imaging/alerts" element={<ImagingAlerts />} />
-          <Route path="/ai-insights" element={<AIInsights />} />
-          <Route path="/ai-tools" element={<AITools />} />
+          <Route path="/insights" element={<AIInsights />} />
+          <Route path="/tools" element={<AITools />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/migration" element={<Migration />} />
           <Route path="/portal-admin" element={<PortalAdmin />} />
