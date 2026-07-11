@@ -141,7 +141,7 @@ services:
 
   # ── Auto-Deploy (Watchtower) ─────────────────────────────────────────────────
   watchtower:
-    image: containrrr/watchtower:latest
+    image: containrrr/watchtower:1.7.1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/config.json:/config.json:ro
@@ -149,8 +149,10 @@ services:
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_NOTIFICATION_URL=http://host.docker.internal:9090/webhook/deploy
-      - WATCHTOWER_NOTIFICATION_TEMPLATE={{range .}}{"image":"{{.ImageName}}","container":"{{.ContainerName}}","source":"watchtower"}{{end}}
+      - DOCKER_API_VERSION=1.43
+      # Notification via orchestrator webhook (Shoutrrr generic format)
+      # Triggers QA pipeline after any image update
+      - WATCHTOWER_NOTIFICATION_URL=generic+http://host.docker.internal:9090/webhook/deploy
     networks:
       - orthoflow
     restart: unless-stopped
