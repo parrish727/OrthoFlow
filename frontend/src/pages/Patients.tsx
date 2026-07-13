@@ -247,7 +247,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
               <form onSubmit={handleCreatePatient} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">First Name <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -257,7 +257,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Name <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
