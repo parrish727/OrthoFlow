@@ -1,3 +1,4 @@
+import uuid
 """OrthoFlow API — AI Denial Detection & Appeal Writing.
 
 Routes denial analysis through Darius → LLM to:
@@ -65,7 +66,7 @@ async def _call_darius(task: str) -> str:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{DARIUS_URL}/task",
-                json={"task": task, "project": "orthoflow-ai"},
+                json={"task": task, "project": "orthoflow-ai", "model_override": "light", "session_id": f"of-{uuid.uuid4().hex[:8]}"},
                 timeout=60.0,
             )
             resp.raise_for_status()

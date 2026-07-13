@@ -1,3 +1,4 @@
+import uuid
 """OrthoFlow API — AI Clinical Note Assistant.
 
 Routes clinical note assist requests through Darius for:
@@ -95,13 +96,14 @@ async def _get_patient_context(db: AsyncSession, patient_id: str, practice_id: s
 
 async def _call_darius(task: str) -> str:
     """Call Darius for LLM-powered text generation.
-    Darius handles model selection (Haiku now, Mistral Small future).
+    Uses 'light' model override to get direct Haiku response without
+    planning/evaluation (clinical notes don't need multi-step execution).
     """
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{DARIUS_URL}/task",
-                json={"task": task, "project": "orthoflow-ai"},
+                json={"task": task, "project": "orthoflow-ai", "model_override": "light", "session_id": f"of-{uuid.uuid4().hex[:8]}"},
                 timeout=60.0,
             )
             resp.raise_for_status()

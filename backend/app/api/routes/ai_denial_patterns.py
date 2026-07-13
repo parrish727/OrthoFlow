@@ -1,3 +1,4 @@
+import uuid
 """OrthoFlow API — AI Denial Pattern Detection.
 
 Analyzes denied claims across the practice to identify systemic patterns:
@@ -84,7 +85,7 @@ async def _call_darius(task: str) -> str:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{DARIUS_URL}/task",
-                json={"task": task, "project": "orthoflow-ai"},
+                json={"task": task, "project": "orthoflow-ai", "model_override": "light", "session_id": f"of-{uuid.uuid4().hex[:8]}"},
                 timeout=60.0,
             )
             resp.raise_for_status()
