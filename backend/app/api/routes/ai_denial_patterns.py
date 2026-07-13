@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ai/denial-patterns", tags=["ai-denial-patterns"])
 
-DARIUS_URL = os.environ.get("DARIUS_URL", "http://darius-agent:8000")
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -80,20 +79,31 @@ class BatchReviewResponse(BaseModel):
 
 
 async def _call_darius(task: str) -> str:
-    """Call Darius for LLM-powered analysis."""
+    """Call Anthropic Claude directly for text generation."""
+    from app.core.config import settings
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{DARIUS_URL}/task",
-                json={"task": task, "project": "orthoflow-ai", "model_override": "light", "session_id": f"of-{uuid.uuid4().hex[:8]}"},
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": settings.ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 2048,
+                    "messages": [{"role": "user", "content": task}],
+                },
                 timeout=60.0,
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("args", {}).get("proposal", "")
+            return data["content"][0]["text"]
     except httpx.TimeoutException:
-        logger.error("darius_timeout_denial_patterns")
-        raise HTTPException(503, "AI analysis timed out — try again")
+        raise HTTPException(503, "Request timed out")
+    except Exception as e:
+        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
     except httpx.HTTPStatusError as e:
         logger.error("darius_http_error", extra={"status": e.response.status_code})
         raise HTTPException(503, "AI analysis service unavailable")
