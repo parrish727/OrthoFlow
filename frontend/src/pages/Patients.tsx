@@ -98,7 +98,14 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
         loadPatients()
       } else {
         const data = await res.json().catch(() => ({ detail: 'Failed to create patient' }))
-        setCreateError(data.detail || 'Failed to create patient')
+        const detail = data.detail
+        if (typeof detail === 'string') {
+          setCreateError(detail)
+        } else if (Array.isArray(detail)) {
+          setCreateError(detail.map((e: { msg?: string }) => e.msg || 'Validation error').join(', '))
+        } else {
+          setCreateError('Failed to create patient')
+        }
       }
     } catch {
       setCreateError('Connection error')
