@@ -61,6 +61,20 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // Auto-load first patient on mount so page isn't empty
+  useEffect(() => {
+    if (!selectedPatient) {
+      api.getPatients({ search: '' }).then(async res => {
+        if (res.ok) {
+          const data = await res.json()
+          if (data.patients?.length > 0) {
+            setSelectedPatient(data.patients[0])
+          }
+        }
+      })
+    }
+  }, [])
   const searchPatients = useCallback(async (query: string) => {
     if (!query.trim()) { setPatients([]); return }
     const res = await api.getPatients({ search: query })
