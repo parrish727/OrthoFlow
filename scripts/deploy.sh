@@ -42,7 +42,12 @@ echo ""
 # ── 1. Pre-Deploy Notification ────────────────────────────────────────────────
 notify_slack "🟡 *CHANGE WINDOW OPEN* — OrthoFlow Manual Deploy\n*Service:* \`$SERVICE\`\n*Time:* $TIMESTAMP\n*Deployer:* $DEPLOYER\n*Status:* Maintenance in progress — brief interruption expected"
 
-echo "[1/5] Slack notified: change window open"
+# Register with SRE (orchestrator tracks the window)
+WINDOW_ID=$(curl -sf -X POST "http://localhost:9090/webhook/change-window/open" \
+  -H "Content-Type: application/json" \
+  -d "{\"service\":\"$SERVICE\",\"deployer\":\"$DEPLOYER\"}" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('window_id',-1))" 2>/dev/null || echo "-1")
+
+echo "[1/5] Slack notified: change window #$WINDOW_ID open"
 
 # ── 2. Pause Watchtower (prevent conflicts) ───────────────────────────────────
 echo "[2/5] Pausing Watchtower..."
@@ -73,7 +78,12 @@ fi
 echo "[5/5] Resuming Watchtower..."
 docker compose start watchtower 2>/dev/null || true
 
-notify_slack "🟢 *CHANGE WINDOW CLOSED* — OrthoFlow Deploy Complete\n*Service:* \`$SERVICE\`\n*Result:* $STATUS\n*Duration:* ~$(( $(date +%s) - $(date -j -f '%Y-%m-%d %H:%M:%S' "${TIMESTAMP% *}" +%s 2>/dev/null || echo $(date +%s)) ))s\n*Health:* $(echo $HEALTH | grep -o '"status":"[^"]*"')"
+# Close the change window with SRE
+curl -sf -X POST "http://localhost:9090/webhook/change-window/close" \
+  -H "Content-Type: application/json" \
+  -d "{\"window_id\":$WINDOW_ID,\"health_result\":\"$STATUS\",\"notes\":\"Service: $SERVICE\"}" 2>/dev/null || true
+
+notify_slack "🟢 *CHANGE WINDOW CLOSED* — OrthoFlow Deploy Complete\n*Service:* \`$SERVICE\`\n*Result:* $STATUS\n*Health:* $(echo $HEALTH | grep -o '"status":"[^"]*"')"
 
 echo ""
 echo "Deploy complete: $STATUS"
