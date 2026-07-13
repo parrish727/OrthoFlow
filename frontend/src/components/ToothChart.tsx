@@ -222,11 +222,11 @@ export default function ToothChart({
       )}
 
       {/* Appliances */}
-      {appliances.length > 0 && (
+      {(appliances || []).length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <h4 className="text-xs font-semibold text-gray-700 mb-2">Appliances</h4>
           <div className="flex flex-wrap gap-2">
-            {appliances.map((a, i) => (
+            {(appliances || []).map((a, i) => (
               <span key={i} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg border border-gray-200">
                 {a.name} {a.placed_date && <span className="text-gray-400">({a.placed_date})</span>}
               </span>

@@ -199,12 +199,12 @@ export default function PatientDetail() {
             {/* Tooth Chart */}
             {chart && (
               <ToothChart
-                teethData={chart.teeth_data}
+                teethData={chart.teeth_data || {}}
                 upperWire={chart.upper_wire}
                 lowerWire={chart.lower_wire}
                 upperWireDate={chart.upper_wire_date}
                 lowerWireDate={chart.lower_wire_date}
-                appliances={chart.appliances}
+                appliances={chart.appliances || []}
                 onUpdate={handleChartUpdate}
               />
             )}
