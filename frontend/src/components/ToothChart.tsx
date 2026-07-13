@@ -48,10 +48,15 @@ export default function ToothChart({
   function getToothStyle(toothNum: number): string {
     const data = localTeeth[String(toothNum)]
     if (!data) return 'bg-white border-gray-300 hover:border-blue-400'
-    if (data.condition === 'Missing' || data.condition === 'Extracted') return 'bg-gray-100 border-gray-300 opacity-50'
+    if (data.condition === 'Missing' || data.condition === 'Extracted') return 'bg-red-50 border-red-300'
     if (data.bracket_type && data.bracket_type !== 'None') return 'bg-blue-50 border-blue-400'
     if (data.condition === 'Decayed') return 'bg-amber-50 border-amber-400'
     return 'bg-white border-gray-300 hover:border-blue-400'
+  }
+
+  function isExtracted(toothNum: number): boolean {
+    const data = localTeeth[String(toothNum)]
+    return data?.condition === "Missing" || data?.condition === "Extracted"
   }
 
   function hasBand(toothNum: number): boolean {
@@ -114,6 +119,11 @@ export default function ToothChart({
                 {hasBand(num) && (
                   <div className="absolute inset-0 rounded-lg border-2 border-amber-500 pointer-events-none" />
                 )}
+                {isExtracted(num) && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-red-500 font-bold text-sm">✕</span>
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -136,6 +146,11 @@ export default function ToothChart({
                 )}
                 {hasBand(num) && (
                   <div className="absolute inset-0 rounded-lg border-2 border-amber-500 pointer-events-none" />
+                )}
+                {isExtracted(num) && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-red-500 font-bold text-sm">✕</span>
+                  </div>
                 )}
               </button>
             ))}
