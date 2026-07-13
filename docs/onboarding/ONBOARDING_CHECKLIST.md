@@ -112,6 +112,12 @@ If using web upload only (Phase 4a): no setup needed — works immediately.
 
 ## Post-Onboarding Verification
 
+**Pre-Live Compliance:**
+- [ ] Anthropic BAA executed (required before real PHI flows through AI features — contact Anthropic sales for standard healthcare BAA)
+- [ ] Practice HIPAA acknowledgment signed
+
+**Functional Verification:**
+
 - [ ] Practice can log in and see dashboard
 - [ ] Chairs and DAs appear on schedule board
 - [ ] Test patient created and visible
