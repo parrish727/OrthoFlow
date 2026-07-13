@@ -210,12 +210,12 @@ useEffect(() => {
               <div className="mt-4 space-y-4 bg-gray-50 rounded-xl p-5 border border-gray-100">
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Treatment Summary</p>
-                  <p className="text-sm text-gray-700">{summary.treatment_summary}</p>
+                  <p className="text-sm text-gray-700">{(summary.treatment_summary || "")}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Milestones</p>
                   <ul className="space-y-1">
-                    {summary.milestones.map((m, idx) => (
+                    {(summary.key_milestones || summary.milestones || []).map((m, idx) => (
                       <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
                         <CheckCircle size={12} className="text-emerald-500 flex-shrink-0" />
                         {m}
@@ -225,7 +225,7 @@ useEffect(() => {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Current Status</p>
-                  <p className="text-sm text-gray-700">{summary.current_status}</p>
+                  <p className="text-sm text-gray-700">{(summary.current_status || "")}</p>
                 </div>
               </div>
             )}
@@ -369,7 +369,7 @@ useEffect(() => {
 
             {!imagingLoading && imagingReasons && imagingReasons.length > 0 && (
               <div className="space-y-4 mt-4">
-                {imagingReasons.map((reason, idx) => (
+                {(imagingReasons || []).map((reason, idx) => (
                   <div key={idx} className="bg-amber-50 rounded-xl p-5 border border-amber-100">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-medium rounded-full">{reason.alert_type}</span>
@@ -389,7 +389,7 @@ useEffect(() => {
                       <div>
                         <p className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-1">Recommended Views</p>
                         <div className="flex flex-wrap gap-2">
-                          {reason.recommended_views.map((v, i) => (
+                          {(reason.recommended_views || []).map((v, i) => (
                             <span key={i} className="px-2.5 py-1 bg-white border border-amber-200 text-amber-700 text-xs rounded-full">{v}</span>
                           ))}
                         </div>
@@ -452,7 +452,7 @@ useEffect(() => {
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Suggested Procedures</p>
                   <ul className="space-y-1.5">
-                    {nextVisitPlan.suggested_procedures.map((proc, idx) => (
+                    {(nextVisitPlan.suggested_procedures || []).map((proc, idx) => (
                       <li key={idx} className="flex items-center gap-2 text-sm text-gray-700">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
                         {proc}
@@ -471,7 +471,7 @@ useEffect(() => {
                 <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Supplies Needed</p>
                   <div className="flex flex-wrap gap-2">
-                    {nextVisitPlan.supplies_needed.map((s, idx) => (
+                    {(nextVisitPlan.supplies_needed || []).map((s, idx) => (
                       <span key={idx} className="px-2.5 py-1 bg-white border border-gray-200 text-gray-600 text-xs rounded-full">{s}</span>
                     ))}
                   </div>
