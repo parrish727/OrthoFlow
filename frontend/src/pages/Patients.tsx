@@ -306,10 +306,11 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     <option value="">Select phase...</option>
                     <option value="consultation">Consultation</option>
                     <option value="records">Records</option>
-                    <option value="treatment_planning">Treatment Planning</option>
-                    <option value="active_treatment">Active Treatment</option>
+                    <option value="bonding">Bonding</option>
+                    <option value="active">Active Treatment</option>
+                    <option value="finishing">Finishing</option>
                     <option value="retention">Retention</option>
-                    <option value="completed">Completed</option>
+                    <option value="complete">Completed</option>
                   </select>
                 </div>
                 <div>
