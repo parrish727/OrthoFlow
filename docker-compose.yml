@@ -153,12 +153,13 @@ services:
     image: containrrr/watchtower:1.7.1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ~/.docker/config.json:/config.json:ro
+      - ./.docker:/config:ro
     environment:
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_LABEL_ENABLE=true
       - DOCKER_API_VERSION=1.43
+      - DOCKER_CONFIG=/config
       # Notification via orchestrator webhook (Shoutrrr generic format)
       # Triggers QA pipeline after any image update
       - WATCHTOWER_NOTIFICATION_URL=generic+http://host.docker.internal:9090/webhook/deploy

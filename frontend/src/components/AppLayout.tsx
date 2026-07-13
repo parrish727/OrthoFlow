@@ -4,7 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
-  ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu,
+  ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
 const BOTTOM_ITEMS: NavItem[] = [
   { to: '/imaging/alerts', icon: AlertTriangle, label: 'Alerts' },
   { to: '/portal-admin', icon: UserCircle, label: 'Portal' },
+  { to: '/help', icon: HelpCircle, label: 'Help' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

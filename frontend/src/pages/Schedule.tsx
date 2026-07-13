@@ -71,11 +71,27 @@ export default function Schedule() {
   const [das, setDas] = useState<DA[]>([])
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
-const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
+  const [phaseToast, setPhaseToast] = useState<{patient_name: string, previous_phase: string, new_phase: string} | null>(null)
+  const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
   const [showNewAppt, setShowNewAppt] = useState(false)
   const navigate = useNavigate()
+
+  // Auto-dismiss phase toast after 8 seconds
+  useEffect(() => {
+    if (!phaseToast) return
+    const timer = setTimeout(() => setPhaseToast(null), 8000)
+    return () => clearTimeout(timer)
+  }, [phaseToast])
+
+  function checkPhaseChanged(res: Response, json: unknown) {
+    const data = json as Record<string, unknown>
+    if (data?.phase_changed) {
+      const pc = data.phase_changed as { patient_name: string; previous_phase: string; new_phase: string }
+      setPhaseToast({ patient_name: pc.patient_name, previous_phase: pc.previous_phase, new_phase: pc.new_phase })
+    }
+  }
   const loadSchedule = useCallback(async () => {
     setLoading(true)
     const [schedRes, dasRes] = await Promise.all([
@@ -121,7 +137,11 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
       if (data.type === 'appointment') {
-        await api.updateAppointment(data.id, { chair_id: targetChairId })
+        const res = await api.updateAppointment(data.id, { chair_id: targetChairId })
+        if (res.ok) {
+          const json = await res.json()
+          checkPhaseChanged(res, json)
+        }
         await loadSchedule()
       }
     } catch { /* ignore invalid drops */ }
@@ -141,7 +161,11 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
       if (data.type === 'da') {
-        await api.updateAppointment(apptId, { da_id: data.id })
+        const res = await api.updateAppointment(apptId, { da_id: data.id })
+        if (res.ok) {
+          const json = await res.json()
+          checkPhaseChanged(res, json)
+        }
         await loadSchedule()
       }
     } catch { /* ignore */ }
@@ -154,6 +178,22 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
 
   return (
     <>
+        {/* Phase Change Toast */}
+        {phaseToast && (
+          <div className="mb-4 px-4 py-3 bg-teal-600 text-white rounded-xl shadow-lg flex items-center justify-between">
+            <span className="text-sm font-medium">
+              Phase Advanced: {phaseToast.patient_name} moved from {phaseToast.previous_phase} → {phaseToast.new_phase}
+            </span>
+            <button
+              onClick={() => setPhaseToast(null)}
+              className="ml-4 text-white/80 hover:text-white text-lg leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Date Navigation */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -281,6 +321,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
                         onDragEnd={handleDragEnd}
                         onDADrop={e => handleApptDADrop(e, appt.id)}
                         onUpdate={loadSchedule}
+                        onPhaseChange={setPhaseToast}
                       />
                     ))
                   )}
@@ -320,7 +361,8 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
                       onDragStart={e => handleDragStart(e, appt.id, 'appointment')}
                       onDragEnd={handleDragEnd}
                       onDADrop={e => handleApptDADrop(e, appt.id)}
-                        onUpdate={loadSchedule}
+                      onUpdate={loadSchedule}
+                      onPhaseChange={setPhaseToast}
                     />
                   ))
                 )}
@@ -334,7 +376,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
   )
 }
 
-function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop, onUpdate }: {
+function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop, onUpdate, onPhaseChange }: {
   appointment: Appointment
   das: DA[]
   expanded: boolean
@@ -345,6 +387,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   onDragEnd: () => void
   onDADrop: (e: React.DragEvent) => void
   onUpdate: () => void
+  onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void
 }) {
   const [daDropHover, setDADropHover] = useState(false)
   const statusClass = STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
@@ -402,7 +445,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
           </div>
 
           {expanded && (
-            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} onUpdate={onUpdate} />
+            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} onUpdate={onUpdate} onPhaseChange={onPhaseChange} />
           )}
         </div>
       </div>
@@ -410,7 +453,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   )
 }
 
-function ExpandedCardDetail({ appointment, daDropHover, onUpdate }: { appointment: Appointment; daDropHover: boolean; onUpdate: () => void }) {
+function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange }: { appointment: Appointment; daDropHover: boolean; onUpdate: () => void; onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void }) {
   const [prepBrief, setPrepBrief] = useState<{ today_expected: string; prep_items: string[] } | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
   const [showReschedule, setShowReschedule] = useState(false)
@@ -431,13 +474,29 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate }: { appointmen
 
   async function handleUnassignDA(e: React.MouseEvent) {
     e.stopPropagation()
-    await api.updateAppointment(appointment.id, { da_id: null })
+    const res = await api.updateAppointment(appointment.id, { da_id: null })
+    if (res.ok) {
+      const json = await res.json()
+      const data = json as Record<string, unknown>
+      if (data?.phase_changed) {
+        const pc = data.phase_changed as { patient_name: string; previous_phase: string; new_phase: string }
+        onPhaseChange(pc)
+      }
+    }
     onUpdate()
   }
 
   async function handleMarkLate(e: React.MouseEvent) {
     e.stopPropagation()
-    await api.updateAppointment(appointment.id, { status: 'no_show' })
+    const res = await api.updateAppointment(appointment.id, { status: 'no_show' })
+    if (res.ok) {
+      const json = await res.json()
+      const data = json as Record<string, unknown>
+      if (data?.phase_changed) {
+        const pc = data.phase_changed as { patient_name: string; previous_phase: string; new_phase: string }
+        onPhaseChange(pc)
+      }
+    }
     onUpdate()
   }
 
@@ -449,11 +508,19 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate }: { appointmen
     const endH = h + Math.floor((m + duration) / 60)
     const endM = (m + duration) % 60
     const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`
-    await api.updateAppointment(appointment.id, {
+    const res = await api.updateAppointment(appointment.id, {
       start_time: `${newTime}:00`,
       end_time: endTime,
       status: 'scheduled',
     })
+    if (res.ok) {
+      const json = await res.json()
+      const data = json as Record<string, unknown>
+      if (data?.phase_changed) {
+        const pc = data.phase_changed as { patient_name: string; previous_phase: string; new_phase: string }
+        onPhaseChange(pc)
+      }
+    }
     setSaving(false)
     setShowReschedule(false)
     onUpdate()

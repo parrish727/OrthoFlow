@@ -36,6 +36,7 @@ import Reports from './pages/Reports'
 import Migration from './pages/Migration'
 import PortalAdmin from './pages/PortalAdmin'
 import Team from './pages/Team'
+import Help from './pages/Help'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -77,6 +78,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/migration" element={<Migration />} />
           <Route path="/portal-admin" element={<PortalAdmin />} />
           <Route path="/team" element={<Team />} />
+          <Route path="/help" element={<Help />} />
         </Route>
       </Routes>
     </BrowserRouter>

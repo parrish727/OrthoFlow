@@ -363,7 +363,8 @@ async def update_appointment(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Update an appointment (reschedule, reassign chair/DA, change status)."""
+    """Update an appointment (reschedule, reassign chair/DA, change status).
+    Auto-advances treatment phase when specific appointment types are completed."""
     result = await db.execute(
         select(Appointment).where(Appointment.id == appt_id, Appointment.practice_id == user["practice_id"])
     )
@@ -371,13 +372,24 @@ async def update_appointment(
     if not appt:
         raise HTTPException(404, "Appointment not found")
 
+    previous_status = appt.status
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(appt, field, value)
     appt.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(appt)
     await audit_log(db, user["practice_id"], user["user_id"], "appointment.update", "appointment", str(appt_id))
-    return await _appointment_dict(db, appt)
+
+    # ── Treatment Phase Auto-Advancement ──────────────────────────────────────
+    phase_changed = None
+    if body.status == "completed" and previous_status != "completed" and appt.appointment_type:
+        phase_changed = await _check_phase_advancement(db, appt, user)
+
+    response = await _appointment_dict(db, appt)
+    if phase_changed:
+        response["phase_changed"] = phase_changed
+    return response
 
 
 @router.delete("/appointments/{appt_id}")
@@ -564,4 +576,65 @@ def _chart_dict(c: ToothChart) -> dict:
         "lower_wire_date": c.lower_wire_date.isoformat() if c.lower_wire_date else None,
         "appliances": c.appliances or [],
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+# ── Treatment Phase Auto-Advancement ─────────────────────────────────────────
+
+# Rules: appointment_type (lowercase) → new phase (only if patient is in expected prior phase)
+PHASE_ADVANCEMENT_RULES = {
+    "records": {"new_phase": "records", "from_phases": ["consultation"]},
+    "initial records": {"new_phase": "records", "from_phases": ["consultation"]},
+    "bonding": {"new_phase": "active", "from_phases": ["records", "bonding"]},
+    "deband": {"new_phase": "retention", "from_phases": ["active", "finishing"]},
+    "retainer delivery": {"new_phase": "retention", "from_phases": ["active", "finishing"]},
+    "final records": {"new_phase": "complete", "from_phases": ["retention"]},
+}
+
+
+async def _check_phase_advancement(db: AsyncSession, appt, user: dict) -> dict | None:
+    """Check if a completed appointment should auto-advance the patient's treatment phase."""
+    appt_type = (appt.appointment_type or "").lower().strip()
+
+    rule = PHASE_ADVANCEMENT_RULES.get(appt_type)
+    if not rule:
+        return None
+
+    # Get the patient
+    patient = (await db.execute(
+        select(Patient).where(Patient.id == appt.patient_id)
+    )).scalar_one_or_none()
+    if not patient:
+        return None
+
+    current_phase = patient.treatment_phase or ""
+    new_phase = rule["new_phase"]
+    valid_from = rule["from_phases"]
+
+    # Only advance if patient is in an expected prior phase
+    if current_phase not in valid_from:
+        return None
+
+    # Don't advance if already in or past the target phase
+    if current_phase == new_phase:
+        return None
+
+    # Advance the phase
+    previous_phase = current_phase
+    patient.treatment_phase = new_phase
+    patient.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    await audit_log(
+        db, user["practice_id"], user["user_id"],
+        "patient.phase_advanced",
+        "patient", str(patient.id),
+    )
+
+    return {
+        "patient_id": str(patient.id),
+        "patient_name": f"{patient.first_name} {patient.last_name}",
+        "previous_phase": previous_phase,
+        "new_phase": new_phase,
+        "reason": f"Auto-advanced: {appt.appointment_type} appointment completed",
     }
