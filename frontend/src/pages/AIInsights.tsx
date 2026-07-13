@@ -145,7 +145,7 @@ export default function AIInsights() {
     setBenchmarkLoading(false)
   }
 
-  useEffect(() => { loadDenialPatterns(); loadBenchmarks() }, [])
+  useEffect(() => { loadBenchmarks() }, [])
 
   function togglePatient(id: string) {
     setSelectedPatientIds(prev =>
@@ -364,9 +364,16 @@ export default function AIInsights() {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <AlertTriangle size={16} className="text-red-500" />
             <h3 className="font-medium text-gray-800">Denial Patterns</h3>
+            {!denialData && !denialLoading && (
+              <button onClick={loadDenialPatterns} className="ml-auto px-3 py-1 text-xs font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
+                Analyze
+              </button>
+            )}
           </div>
           <div className="p-6">
-            {denialLoading ? (
+            {!denialData && !denialLoading && !denialError ? (
+              <p className="text-sm text-gray-400 text-center py-6">Click "Analyze" to scan denied claims for patterns</p>
+            ) : denialLoading ? (
               <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-sm">
                 <Loader2 size={20} className="animate-spin" /> Loading denial patterns...
               </div>
