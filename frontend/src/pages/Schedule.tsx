@@ -74,6 +74,7 @@ export default function Schedule() {
 const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
+  const [showNewAppt, setShowNewAppt] = useState(false)
   const navigate = useNavigate()
   const loadSchedule = useCallback(async () => {
     setLoading(true)
@@ -170,7 +171,7 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
             >
               Today
             </button>
@@ -180,8 +181,25 @@ const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
               onChange={e => setSelectedDate(e.target.value)}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white"
             />
+            <button
+              onClick={() => setShowNewAppt(true)}
+              className="px-3 py-1.5 text-sm font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
+            >
+              + New Appointment
+            </button>
           </div>
         </div>
+
+        {/* New Appointment Modal */}
+        {showNewAppt && (
+          <NewAppointmentModal
+            date={selectedDate}
+            chairs={schedule?.columns.map(c => c.chair) || []}
+            das={das}
+            onClose={() => setShowNewAppt(false)}
+            onCreated={loadSchedule}
+          />
+        )}
 
         {/* DA Roster — draggable DA badges */}
         {das.length > 0 && (
@@ -525,6 +543,179 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate }: { appointmen
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
+  date: string
+  chairs: Chair[]
+  das: DA[]
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [patientSearch, setPatientSearch] = useState('')
+  const [patients, setPatients] = useState<{ id: string; first_name: string; last_name: string }[]>([])
+  const [selectedPatient, setSelectedPatient] = useState<string>('')
+  const [startTime, setStartTime] = useState('09:00')
+  const [duration, setDuration] = useState(30)
+  const [chairId, setChairId] = useState<string>('')
+  const [daId, setDaId] = useState<string>('')
+  const [apptType, setApptType] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const APPT_TYPES = ['Adjustment', 'Bonding', 'Consultation', 'Deband', 'Elastic Check', 'Emergency', 'IPR', 'Progress Photos', 'Records', 'Retainer Check', 'Wire Change']
+
+  useEffect(() => {
+    if (patientSearch.length >= 2) {
+      api.getPatients({ search: patientSearch }).then(async res => {
+        if (res.ok) {
+          const data = await res.json()
+          setPatients(data.patients || [])
+        }
+      })
+    } else {
+      setPatients([])
+    }
+  }, [patientSearch])
+
+  async function handleCreate() {
+    if (!selectedPatient) { setError('Select a patient'); return }
+    if (!startTime) { setError('Select a time'); return }
+    setError('')
+    setSaving(true)
+
+    const [h, m] = startTime.split(':').map(Number)
+    const endH = h + Math.floor((m + duration) / 60)
+    const endM = (m + duration) % 60
+    const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+
+    const res = await api.request('/api/v1/appointments', {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_id: selectedPatient,
+        appointment_date: date,
+        start_time: `${startTime}:00`,
+        end_time: `${endTime}:00`,
+        duration_minutes: duration,
+        chair_id: chairId || null,
+        da_id: daId || null,
+        appointment_type: apptType || null,
+      }),
+    })
+
+    if (res.ok) {
+      onCreated()
+      onClose()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.detail || 'Failed to create appointment')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">New Appointment</h3>
+
+        {error && <p className="text-sm text-red-600 mb-3 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+        {/* Patient Search */}
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Patient</label>
+          {selectedPatient ? (
+            <div className="flex items-center justify-between mt-1 px-3 py-2 bg-teal-50 border border-teal-200 rounded-lg">
+              <span className="text-sm text-teal-800">{patients.find(p => p.id === selectedPatient)?.first_name} {patients.find(p => p.id === selectedPatient)?.last_name}</span>
+              <button onClick={() => { setSelectedPatient(''); setPatientSearch('') }} className="text-xs text-teal-600 hover:text-teal-800">Change</button>
+            </div>
+          ) : (
+            <div className="relative mt-1">
+              <input
+                type="text"
+                value={patientSearch}
+                onChange={e => setPatientSearch(e.target.value)}
+                placeholder="Search patients..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+              />
+              {patients.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
+                  {patients.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedPatient(p.id); setPatientSearch('') }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
+                    >
+                      {p.last_name}, {p.first_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Time + Duration */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Time</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Duration</label>
+            <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value={15}>15 min</option>
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
+              <option value={60}>60 min</option>
+              <option value={90}>90 min</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Chair + DA */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Chair</label>
+            <select value={chairId} onChange={e => setChairId(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="">Unassigned</option>
+              {chairs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">DA</label>
+            <select value={daId} onChange={e => setDaId(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="">Unassigned</option>
+              {das.map(d => <option key={d.id} value={d.id}>{d.first_name} {d.last_name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Appointment Type */}
+        <div className="mb-6">
+          <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Type</label>
+          <select value={apptType} onChange={e => setApptType(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="">Select type...</option>
+            {APPT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCreate}
+            disabled={saving}
+            className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Creating...' : 'Create Appointment'}
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
