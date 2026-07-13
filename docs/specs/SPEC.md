@@ -176,3 +176,42 @@ orthoflow-ai/
 ├── .env.example
 └── .gitignore
 ```
+
+---
+
+## AI Architecture — LLM Routing (Updated 2026-07-13)
+
+### Client-Facing (OrthoFlow App)
+
+```
+OrthoFlow Backend → Anthropic Claude API (direct httpx call)
+```
+
+- Model: claude-haiku-4-5 (fast, reliable, <10s responses)
+- No intermediary (no Darius, no litellm, no smolagents)
+- HIPAA: PHI in transit over TLS, not stored by Anthropic (BAA required)
+- Future: swap to Mistral Small 24B local (one URL change)
+
+### Internal Operations (Darius Agent System)
+
+```
+Slack/Orchestrator → Darius → litellm → Anthropic Claude
+```
+
+- Used for: multi-step infrastructure tasks, code generation, planning
+- Has: session memory, tool calling, evaluation loops, DAG execution
+- Known issue: litellm cache_control_injection_points bug (non-blocking for internal use)
+- Future: upgrade Darius runtime to eliminate Anthropic dependency
+
+### Migration Path to Fully Local
+
+| Phase | Target | Stack |
+|-------|--------|-------|
+| Current | Anthropic Haiku (client) + Sonnet (Darius) | httpx → Anthropic API |
+| 07/20/2026 | Mistral Small 24B local (client) | httpx → Ollama endpoint |
+| Future | Mistral Small local (client + Darius) | All local, zero API cost |
+
+### What NOT to do
+- Do not route client-facing AI through Darius/litellm (reliability risk)
+- Do not use litellm for OrthoFlow features until the harness bug is resolved
+- Do not expose internal agent errors to end users
