@@ -13,14 +13,14 @@ interface ClaimLineItem {
 interface Claim {
   id: string
   patient_name: string
-  payer_name: string
-  amount_billed: number
-  amount_paid: number | null
+  payer_id: string
+  total_billed: number
+  total_paid: number | null
   status: 'draft' | 'submitted' | 'accepted' | 'paid' | 'denied'
   service_date: string
-  submitted_date: string | null
+  submission_date: string | null
   denial_reason: string | null
-  denial_code: string | null
+  denial_codes: string[] | null
   line_items: ClaimLineItem[]
 }
 
@@ -52,6 +52,7 @@ const TABS: { key: string; label: string }[] = [
 
 export default function Claims() {
   const [claims, setClaims] = useState<Claim[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [statusCounts, setStatusCounts] = useState<StatusCounts>({ all: 0, draft: 0, submitted: 0, accepted: 0, paid: 0, denied: 0 })
   const [activeTab, setActiveTab] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -104,8 +105,8 @@ export default function Claims() {
     setReviewingDenial(null)
   }
 
-  function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  function formatCurrency(amount: number | null | undefined): string {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
   }
 
   function formatDate(dateStr: string): string {
@@ -114,10 +115,22 @@ export default function Claims() {
 
   return (
     <>
-        {/* Title */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Claims</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Manage insurance claims & track status</p>
+        {/* Title + Search */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-900">Claims</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Manage insurance claims & track status</p>
+          </div>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by patient or payer..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 w-64"
+            />
+          </div>
         </div>
 
         {/* Status Counts */}
@@ -168,7 +181,11 @@ export default function Claims() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {claims.map(claim => (
+              {claims.filter(c => {
+                if (!searchQuery) return true
+                const q = searchQuery.toLowerCase()
+                return (c.patient_name || '').toLowerCase().includes(q) || (c.payer_id || '').toLowerCase().includes(q)
+              }).map(claim => (
                 <div key={claim.id}>
                   <button
                     onClick={() => setExpandedClaim(expandedClaim === claim.id ? null : claim.id)}
@@ -180,9 +197,9 @@ export default function Claims() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{claim.patient_name}</p>
-                      <p className="text-xs text-gray-500">{claim.payer_name} • {formatDate(claim.service_date)}</p>
+                      <p className="text-xs text-gray-500">{claim.payer_id} • {formatDate(claim.service_date)}</p>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(claim.amount_billed)}</span>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(claim.total_billed)}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGES[claim.status]?.color || ''}`}>
                       {STATUS_BADGES[claim.status]?.label || claim.status}
                     </span>
@@ -261,9 +278,9 @@ export default function Claims() {
   )}
                             </button>
                           )}
-                          {claim.amount_paid !== null && (
+                          {claim.total_paid !== null && (
                             <span className="text-xs text-gray-500">
-                              Paid: {formatCurrency(claim.amount_paid)}
+                              Paid: {formatCurrency(claim.total_paid)}
                             </span>
                           )}
                         </div>
