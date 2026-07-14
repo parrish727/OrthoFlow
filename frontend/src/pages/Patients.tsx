@@ -201,8 +201,8 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                         const remaining = Math.max(0, 24 - elapsed)
                         const isOver = elapsed > 24
                         return (
-                          <span className={`text-xs font-medium ${isOver ? 'text-red-600' : 'text-gray-500'}`}>
-                            {isOver ? `${elapsed - 24} mo over` : `${remaining} mo left`}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isOver ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-teal-50 text-teal-700 border border-teal-200'}`}>
+                            {isOver ? `${elapsed - 24} mo over` : `${remaining} mo remaining`}
                           </span>
                         )
                       })()}
