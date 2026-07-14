@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2 } from 'lucide-react'
+import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2, Image, Receipt, Shield } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -245,6 +245,22 @@ export default function PatientDetail() {
 
           {/* Right Column — Appointments + Notes + Next Visit */}
           <div className="space-y-6">
+            {/* Quick Actions */}
+            <div className="flex gap-2 mb-4">
+              <Link to={`/imaging?patient=${id}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                <Image size={13} /> Images
+              </Link>
+              <Link to={`/schedule`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                <CalendarDays size={13} /> Schedule
+              </Link>
+              <Link to={`/ledger`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                <Receipt size={13} /> Ledger
+              </Link>
+              <Link to={`/insurance`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                <Shield size={13} /> Insurance
+              </Link>
+            </div>
+
             {/* Appointments */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">

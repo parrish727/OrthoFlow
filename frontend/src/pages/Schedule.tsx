@@ -640,6 +640,7 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
   const [patientSearch, setPatientSearch] = useState('')
   const [patients, setPatients] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [selectedPatient, setSelectedPatient] = useState<string>('')
+  const [apptDate, setApptDate] = useState(date)
   const [startTime, setStartTime] = useState('09:00')
   const [duration, setDuration] = useState(30)
   const [chairId, setChairId] = useState<string>('')
@@ -678,7 +679,7 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
       method: 'POST',
       body: JSON.stringify({
         patient_id: selectedPatient,
-        appointment_date: date,
+        appointment_date: apptDate,
         start_time: `${startTime}:00`,
         end_time: `${endTime}:00`,
         duration_minutes: duration,
@@ -740,8 +741,12 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
           )}
         </div>
 
-        {/* Time + Duration */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Date + Time + Duration */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Date</label>
+            <input type="date" value={apptDate} onChange={e => setApptDate(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          </div>
           <div>
             <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Time</label>
             <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
