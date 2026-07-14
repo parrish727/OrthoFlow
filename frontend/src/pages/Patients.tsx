@@ -54,6 +54,8 @@ export default function Patients() {
     phone: '',
     treatment_phase: '',
     referring_doctor: '',
+    sms_consent: true,
+    email_consent: true,
   })
 const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadPatients = useCallback(async () => {
@@ -95,7 +97,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
       })
       if (res.ok) {
         setShowCreateModal(false)
-        setNewPatient({ first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', treatment_phase: '', referring_doctor: '' })
+        setNewPatient({ first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', treatment_phase: '', referring_doctor: '', sms_consent: true, email_consent: true })
         loadPatients()
       } else {
         const data = await res.json().catch(() => ({ detail: 'Failed to create patient' }))
@@ -334,6 +336,31 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
                   />
                 </div>
+
+                {/* Communication Consent */}
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Communication Consent</p>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newPatient.sms_consent}
+                      onChange={e => setNewPatient(p => ({ ...p, sms_consent: e.target.checked }))}
+                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="text-sm text-gray-700">SMS appointment reminders & notifications</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newPatient.email_consent}
+                      onChange={e => setNewPatient(p => ({ ...p, email_consent: e.target.checked }))}
+                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="text-sm text-gray-700">Email communications & reminders</span>
+                  </label>
+                  <p className="text-[10px] text-gray-400">Patient can opt out at any time. <a href="/terms" className="underline">Terms & conditions</a></p>
+                </div>
+
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"

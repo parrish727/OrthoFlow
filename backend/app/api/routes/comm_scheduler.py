@@ -129,9 +129,55 @@ async def _send_sms(to: str, body: str) -> dict:
 
 
 async def _send_email(to: str, subject: str, body: str) -> dict:
-    """Send email — placeholder for future email provider integration."""
-    logger.info("email_send_placeholder", to=to, subject=subject)
-    return {"status": "sent", "external_id": None}
+    """Send email via SMTP with unsubscribe footer."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USERNAME", "")
+    smtp_pass = os.environ.get("SMTP_PASSWORD", "")
+    from_name = os.environ.get("SMTP_FROM_NAME", "OrthoFlow")
+
+    if not smtp_user or not smtp_pass:
+        logger.warning("smtp_not_configured", to=to)
+        return {"status": "failed", "error": "SMTP not configured"}
+
+    # Add unsubscribe footer
+    unsubscribe_url = f"https://app.orthoflowsolutions.com/portal?action=unsubscribe&email={to}"
+    html_body = f"""
+    <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="padding: 20px;">
+            {body.replace(chr(10), '<br>')}
+        </div>
+        <div style="border-top: 1px solid #e5e7eb; padding: 16px 20px; margin-top: 20px;">
+            <p style="font-size: 11px; color: #9ca3af; margin: 0;">
+                You are receiving this because you opted in to communications from your orthodontist.
+                <br><a href="{unsubscribe_url}" style="color: #6b7280; text-decoration: underline;">Unsubscribe from future emails</a>
+            </p>
+        </div>
+    </div>
+    """
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = f"{from_name} <{smtp_user}>"
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg["List-Unsubscribe"] = f"<{unsubscribe_url}>"
+        msg.attach(MIMEText(body + f"\n\n---\nTo unsubscribe: {unsubscribe_url}", "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+
+        return {"status": "sent", "external_id": msg["Message-ID"]}
+    except Exception as e:
+        logger.error("email_send_failed", error=str(e), to=to)
+        return {"status": "failed", "error": str(e)[:200]}
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
