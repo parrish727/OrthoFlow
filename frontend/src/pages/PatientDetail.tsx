@@ -56,17 +56,25 @@ const PHASE_CONFIG: Record<string, { label: string; color: string }> = {
 }
 
 function renderNoteText(text: string) {
-  const sentences = text.split(/\. |\n/).filter(s => s.trim())
-  if (sentences.length < 2) {
-    return <p className="text-xs text-gray-700 leading-relaxed">{text}</p>
+  // Split on actual newlines first, then on ". " for period-separated sentences
+  const lines = text.split(/\n/).filter(s => s.trim())
+  if (lines.length >= 2) {
+    return (
+      <ul className="list-disc ml-3 space-y-0.5">
+        {lines.map((line, i) => <li key={i} className="text-xs text-gray-700">{line.trim()}</li>)}
+      </ul>
+    )
   }
-  return (
-    <ul className="list-disc ml-3 space-y-0.5">
-      {sentences.map((sentence, i) => (
-        <li key={i} className="text-xs text-gray-700 leading-relaxed">{sentence.trim()}</li>
-      ))}
-    </ul>
-  )
+  // Single line — try splitting on ". "
+  const sentences = text.split(/\. /).filter(s => s.trim())
+  if (sentences.length >= 3) {
+    return (
+      <ul className="list-disc ml-3 space-y-0.5">
+        {sentences.map((s, i) => <li key={i} className="text-xs text-gray-700">{s.trim()}{i < sentences.length - 1 ? '.' : ''}</li>)}
+      </ul>
+    )
+  }
+  return <p className="text-xs text-gray-700 leading-relaxed">{text}</p>
 }
 
 export default function PatientDetail() {

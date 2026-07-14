@@ -196,11 +196,13 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       {patient.treatment_phase && (
                         <span className="text-xs text-gray-500">{PHASE_LABELS[patient.treatment_phase] || patient.treatment_phase}</span>
                       )}
-                      {patient.treatment_phase && ['active', 'active_treatment', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
-                        const months = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                      {patient.treatment_phase && ['active', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
+                        const elapsed = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                        const remaining = Math.max(0, 24 - elapsed)
+                        const isOver = elapsed > 24
                         return (
-                          <span className={`text-xs ${months > 24 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                            {months}/24 mo
+                          <span className={`text-xs font-medium ${isOver ? 'text-red-600' : 'text-gray-500'}`}>
+                            {isOver ? `${elapsed - 24} mo over` : `${remaining} mo left`}
                           </span>
                         )
                       })()}
