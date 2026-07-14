@@ -105,15 +105,15 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar — Desktop */}
       <aside
-        className={`hidden lg:flex flex-col fixed top-0 left-0 h-full bg-white border-r border-gray-200 z-30 transition-all duration-200 ${
+        className={`hidden lg:flex flex-col fixed top-0 left-0 h-full bg-white border-r border-gray-300 z-30 transition-all duration-200 ${
           collapsed ? 'w-16' : 'w-56'
         }`}
       >
         {/* Logo */}
-        <div className={`h-14 flex items-center border-b border-gray-100 px-4 ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
+        <div className={`h-14 flex items-center border-b border-gray-200 px-4 ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
           {practiceLogo ? (
             <img src={practiceLogo} alt="" className="w-7 h-7 rounded-md object-contain flex-shrink-0" />
           ) : (
@@ -142,7 +142,7 @@ export default function AppLayout() {
 
             return (
               <div key={item.to}>
-                {showDivider && <div className="my-2 mx-2 border-t border-gray-100" />}
+                {showDivider && <div className="my-2 mx-2 border-t border-gray-200" />}
                 <SidebarLink item={item} collapsed={collapsed} />
               </div>
             )
@@ -150,7 +150,7 @@ export default function AppLayout() {
         </nav>
 
         {/* Bottom Items */}
-        <div className="border-t border-gray-100 py-3 px-2 space-y-0.5">
+        <div className="border-t border-gray-200 py-3 px-2 space-y-0.5">
           {filteredBottom.map(item => (
             <SidebarLink key={item.to} item={item} collapsed={collapsed} />
           ))}
@@ -168,7 +168,7 @@ export default function AppLayout() {
         {/* Collapse Toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="h-10 flex items-center justify-center border-t border-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+          className="h-10 flex items-center justify-center border-t border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -180,7 +180,7 @@ export default function AppLayout() {
         <div className="lg:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/20" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-xl">
-            <div className="h-14 flex items-center border-b border-gray-100 px-4 gap-2.5">
+            <div className="h-14 flex items-center border-b border-gray-200 px-4 gap-2.5">
               <div className="w-7 h-7 bg-gradient-to-br from-teal-500 to-teal-700 rounded-md flex items-center justify-center">
                 <span className="text-white text-xs font-bold">O</span>
               </div>
@@ -190,7 +190,7 @@ export default function AppLayout() {
               {filteredNav.map(item => (
                 <SidebarLink key={item.to} item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
               ))}
-              <div className="my-2 mx-2 border-t border-gray-100" />
+              <div className="my-2 mx-2 border-t border-gray-200" />
               {filteredBottom.map(item => (
                 <SidebarLink key={item.to} item={item} collapsed={false} onClick={() => setMobileOpen(false)} />
               ))}
@@ -202,7 +202,7 @@ export default function AppLayout() {
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col min-h-screen transition-all duration-200 ${collapsed ? 'lg:ml-16' : 'lg:ml-56'}`}>
         {/* Top Bar */}
-        <header className="sticky top-0 z-20 h-14 bg-white/90 backdrop-blur-md border-b border-gray-100 flex items-center px-4 lg:px-6">
+        <header className="sticky top-0 z-20 h-14 bg-white/90 backdrop-blur-md border-b border-gray-200 flex items-center px-4 lg:px-6">
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileOpen(true)}

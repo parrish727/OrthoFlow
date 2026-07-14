@@ -24,6 +24,7 @@ const STATUS_BADGES: Record<string, { label: string; color: string }> = {
 
 const PHASE_LABELS: Record<string, string> = {
   consultation: 'Consultation',
+  pending: 'Pending',
   records: 'Records',
   treatment_planning: 'Treatment Planning',
   active_treatment: 'Active Treatment',
@@ -195,6 +196,14 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       {patient.treatment_phase && (
                         <span className="text-xs text-gray-500">{PHASE_LABELS[patient.treatment_phase] || patient.treatment_phase}</span>
                       )}
+                      {patient.treatment_phase && ['active', 'active_treatment', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
+                        const months = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                        return (
+                          <span className={`text-xs ${months > 24 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                            {months}/24 mo
+                          </span>
+                        )
+                      })()}
                       {patient.phone && <span className="text-xs text-gray-400">• {patient.phone}</span>}
                     </div>
                   </div>
@@ -305,6 +314,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                   >
                     <option value="">Select phase...</option>
                     <option value="consultation">Consultation</option>
+                    <option value="pending">Pending</option>
                     <option value="records">Records</option>
                     <option value="bonding">Bonding</option>
                     <option value="active">Active Treatment</option>

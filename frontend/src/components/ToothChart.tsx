@@ -44,6 +44,11 @@ export default function ToothChart({
 }: ToothChartProps) {
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [localTeeth, setLocalTeeth] = useState<Record<string, ToothData>>(teethData)
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedTeeth, setSelectedTeeth] = useState<number[]>([])
+  const [bulkBracket, setBulkBracket] = useState('')
+  const [bulkCondition, setBulkCondition] = useState('')
+  const [bulkBand, setBulkBand] = useState(false)
 
   function getToothStyle(toothNum: number): string {
     const data = localTeeth[String(toothNum)]
@@ -77,9 +82,61 @@ export default function ToothChart({
     onUpdate?.({ teeth_data: updated })
   }
 
+  function handleToothClick(toothNum: number) {
+    if (readOnly) return
+    if (bulkMode) {
+      setSelectedTeeth(prev =>
+        prev.includes(toothNum)
+          ? prev.filter(t => t !== toothNum)
+          : [...prev, toothNum]
+      )
+    } else {
+      setSelectedTooth(toothNum === selectedTooth ? null : toothNum)
+    }
+  }
+
+  function handleBulkApply() {
+    let updated = { ...localTeeth }
+    for (const toothNum of selectedTeeth) {
+      const key = String(toothNum)
+      const existing = updated[key] || {}
+      const changes: Partial<ToothData> = {}
+      if (bulkBracket) changes.bracket_type = bulkBracket
+      if (bulkCondition) changes.condition = bulkCondition
+      changes.band = bulkBand
+      updated = { ...updated, [key]: { ...existing, ...changes } }
+    }
+    setLocalTeeth(updated)
+    onUpdate?.({ teeth_data: updated })
+    setSelectedTeeth([])
+    setBulkBracket('')
+    setBulkCondition('')
+    setBulkBand(false)
+  }
+
+  function getToothRingClass(toothNum: number): string {
+    if (bulkMode && selectedTeeth.includes(toothNum)) return 'ring-2 ring-teal-500 ring-offset-1'
+    if (!bulkMode && selectedTooth === toothNum) return 'ring-2 ring-blue-500 ring-offset-1'
+    return ''
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-gray-800 mb-4">Tooth Chart</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-800">Tooth Chart</h3>
+        {!readOnly && (
+          <button
+            onClick={() => { setBulkMode(!bulkMode); setSelectedTeeth([]); setSelectedTooth(null) }}
+            className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+              bulkMode
+                ? 'bg-teal-100 text-teal-700 border border-teal-300'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+          >
+            {bulkMode ? 'Select Multiple' : 'Single'}
+          </button>
+        )}
+      </div>
 
       {/* Wire Info */}
       <div className="flex flex-wrap gap-4 mb-4 text-xs">
@@ -108,8 +165,8 @@ export default function ToothChart({
             {UPPER_TEETH.map(num => (
               <button
                 key={num}
-                onClick={() => !readOnly && setSelectedTooth(num === selectedTooth ? null : num)}
-                className={`w-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-medium transition-all relative ${getToothStyle(num)} ${selectedTooth === num ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                onClick={() => handleToothClick(num)}
+                className={`w-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-medium transition-all relative ${getToothStyle(num)} ${getToothRingClass(num)}`}
                 aria-label={`Tooth ${num}`}
               >
                 <span className="text-gray-600">{num}</span>
@@ -136,8 +193,8 @@ export default function ToothChart({
             {LOWER_TEETH.map(num => (
               <button
                 key={num}
-                onClick={() => !readOnly && setSelectedTooth(num === selectedTooth ? null : num)}
-                className={`w-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-medium transition-all relative ${getToothStyle(num)} ${selectedTooth === num ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                onClick={() => handleToothClick(num)}
+                className={`w-8 h-10 rounded-lg border-2 flex flex-col items-center justify-center text-[10px] font-medium transition-all relative ${getToothStyle(num)} ${getToothRingClass(num)}`}
                 aria-label={`Tooth ${num}`}
               >
                 <span className="text-gray-600">{num}</span>
@@ -158,8 +215,64 @@ export default function ToothChart({
         </div>
       </div>
 
-      {/* Tooth Edit Panel */}
-      {selectedTooth !== null && !readOnly && (
+      {/* Bulk Action Bar */}
+      {bulkMode && selectedTeeth.length > 0 && (
+        <div className="mt-4 p-4 bg-teal-50 rounded-xl border border-teal-200">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-semibold text-teal-800">{selectedTeeth.length} teeth selected</h4>
+            <button
+              onClick={() => setSelectedTeeth([])}
+              className="text-[10px] px-2 py-0.5 text-teal-600 hover:bg-teal-100 rounded transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] uppercase text-teal-600 font-medium">Bracket Type</label>
+              <select
+                value={bulkBracket}
+                onChange={e => setBulkBracket(e.target.value)}
+                className="w-full mt-1 px-2 py-1.5 text-xs border border-teal-200 rounded-lg bg-white"
+              >
+                <option value="">None</option>
+                {BRACKET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-teal-600 font-medium">Condition</label>
+              <select
+                value={bulkCondition}
+                onChange={e => setBulkCondition(e.target.value)}
+                className="w-full mt-1 px-2 py-1.5 text-xs border border-teal-200 rounded-lg bg-white"
+              >
+                <option value="">Healthy</option>
+                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col justify-end">
+              <label className="flex items-center gap-2 text-xs text-teal-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bulkBand}
+                  onChange={e => setBulkBand(e.target.checked)}
+                  className="rounded border-teal-300"
+                />
+                Band
+              </label>
+            </div>
+          </div>
+          <button
+            onClick={handleBulkApply}
+            className="mt-3 w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            Apply to All ({selectedTeeth.length})
+          </button>
+        </div>
+      )}
+
+      {/* Tooth Edit Panel — single mode only */}
+      {!bulkMode && selectedTooth !== null && !readOnly && (
         <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 relative">
           <button
             onClick={() => setSelectedTooth(null)}

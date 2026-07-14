@@ -49,8 +49,20 @@ const STATUS_COLORS: Record<string, string> = {
   scheduled: 'border-l-blue-400 bg-blue-50/50',
   checked_in: 'border-l-amber-400 bg-amber-50/50',
   in_progress: 'border-l-violet-400 bg-violet-50/50',
-  completed: 'border-l-emerald-400 bg-emerald-50/50',
+  completed: 'border-l-gray-300 bg-gray-50 opacity-60',
   no_show: 'border-l-red-400 bg-red-50/50',
+}
+
+const APPT_TYPE_COLORS: Record<string, string> = {
+  'Emergency': 'border-l-red-500 bg-red-50',
+  'Emergency - Bracket': 'border-l-red-500 bg-red-50',
+  'Emergency - Wire': 'border-l-red-500 bg-red-50',
+  'Deband': 'border-l-orange-400 bg-orange-50',
+  'Bonding': 'border-l-green-500 bg-green-50',
+  'Consultation': 'border-l-yellow-400 bg-yellow-50',
+  'Retainer Check': 'border-l-pink-400 bg-pink-50',
+  'Invisalign': 'border-l-purple-500 bg-purple-50',
+  'Priority': 'border-l-blue-800 bg-blue-50',
 }
 
 function formatTime(timeStr: string): string {
@@ -390,7 +402,11 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void
 }) {
   const [daDropHover, setDADropHover] = useState(false)
-  const statusClass = STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
+  const statusClass = appointment.status === 'completed'
+    ? 'border-l-gray-300 bg-gray-50 opacity-60'
+    : (appointment.appointment_type && APPT_TYPE_COLORS[appointment.appointment_type])
+      ? APPT_TYPE_COLORS[appointment.appointment_type]
+      : STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
   const assignedDA = das.find(d => d.id === appointment.da_id)
 
   return (

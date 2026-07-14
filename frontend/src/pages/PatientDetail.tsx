@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle } from 'lucide-react'
+import { useNavigate, useParams, Link } from 'react-router-dom'
+import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2 } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -47,11 +47,26 @@ interface ChartData {
 
 const PHASE_CONFIG: Record<string, { label: string; color: string }> = {
   consultation: { label: 'Consultation', color: 'bg-gray-100 text-gray-700' },
+  pending: { label: 'Pending', color: 'bg-gray-200 text-gray-700' },
   records: { label: 'Records', color: 'bg-amber-100 text-amber-700' },
   treatment_planning: { label: 'Treatment Planning', color: 'bg-blue-100 text-blue-700' },
   active_treatment: { label: 'Active Treatment', color: 'bg-violet-100 text-violet-700' },
   retention: { label: 'Retention', color: 'bg-emerald-100 text-emerald-700' },
   completed: { label: 'Completed', color: 'bg-green-100 text-green-700' },
+}
+
+function renderNoteText(text: string) {
+  const sentences = text.split(/\. |\n/).filter(s => s.trim())
+  if (sentences.length < 2) {
+    return <p className="text-xs text-gray-700 leading-relaxed">{text}</p>
+  }
+  return (
+    <ul className="list-disc ml-3 space-y-0.5">
+      {sentences.map((sentence, i) => (
+        <li key={i} className="text-xs text-gray-700 leading-relaxed">{sentence.trim()}</li>
+      ))}
+    </ul>
+  )
 }
 
 export default function PatientDetail() {
@@ -210,7 +225,7 @@ export default function PatientDetail() {
             )}
           </div>
 
-          {/* Right Column — Appointments + Notes */}
+          {/* Right Column — Appointments + Notes + Next Visit */}
           <div className="space-y-6">
             {/* Appointments */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
@@ -262,7 +277,7 @@ export default function PatientDetail() {
                 ) : (
                   notes.map(note => (
                     <div key={note.id} className="px-5 py-3">
-                      <p className="text-xs text-gray-700 leading-relaxed">{note.note_text}</p>
+                      {renderNoteText(note.note_text)}
                       {note.ai_summary && (
                         <p className="text-[10px] text-violet-500 mt-1 italic">Summary: {note.ai_summary}</p>
                       )}
@@ -275,15 +290,67 @@ export default function PatientDetail() {
                 )}
               </div>
             </div>
+
+            {/* Next Visit Section */}
+            <NextVisitSection patientId={id || ''} patientName={`${patient.first_name} ${patient.last_name}`} />
           </div>
         </div>
           </>
   )
 }
 
+function NextVisitSection({ patientId, patientName }: { patientId: string; patientName: string }) {
+  const [nextNotes, setNextNotes] = useState('')
+  const [weeks, setWeeks] = useState(4)
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <CalendarDays size={14} className="text-gray-400" />
+        <h3 className="text-sm font-semibold text-gray-800">Next Visit</h3>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        <div>
+          <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Next visit notes</label>
+          <textarea
+            value={nextNotes}
+            onChange={e => setNextNotes(e.target.value)}
+            placeholder="What to do next time..."
+            rows={3}
+            className="w-full mt-1 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Weeks out</label>
+            <select
+              value={weeks}
+              onChange={e => setWeeks(Number(e.target.value))}
+              className="w-full mt-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(w => (
+                <option key={w} value={w}>{w} week{w > 1 ? 's' : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 flex items-end">
+            <Link
+              to={`/schedule`}
+              className="w-full mt-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-lg transition-colors text-center block"
+            >
+              Schedule
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded: (note: TreatmentNote) => void }) {
   const [rawInput, setRawInput] = useState('')
   const [structuredNote, setStructuredNote] = useState('')
+  const [savedRawInput, setSavedRawInput] = useState('')
   const [nextVisit, setNextVisit] = useState<string | null>(null)
   const [flags, setFlags] = useState<string[]>([])
   const [assisting, setAssisting] = useState(false)
@@ -296,6 +363,7 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
     const res = await api.aiNoteAssist({ patient_id: patientId, raw_input: rawInput.trim() })
     if (res.ok) {
       const data = await res.json()
+      setSavedRawInput(rawInput)
       setStructuredNote(data.structured_note)
       setNextVisit(data.next_visit_suggestion || null)
       setFlags(data.completeness_flags || [])
@@ -314,6 +382,7 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
       onNoteAdded(note)
       setRawInput('')
       setStructuredNote('')
+      setSavedRawInput('')
       setNextVisit(null)
       setFlags([])
       setMode('raw')
@@ -324,6 +393,15 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
   function handleReset() {
     setMode('raw')
     setStructuredNote('')
+    setNextVisit(null)
+    setFlags([])
+  }
+
+  function handleRevert() {
+    setMode('raw')
+    setRawInput(savedRawInput)
+    setStructuredNote('')
+    setSavedRawInput('')
     setNextVisit(null)
     setFlags([])
   }
@@ -405,6 +483,13 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
             >
               <CheckCircle size={12} />
               {saving ? 'Saving...' : 'Save Note'}
+            </button>
+            <button
+              onClick={handleRevert}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors"
+            >
+              <Undo2 size={12} />
+              Revert
             </button>
             <button
               onClick={handleReset}
