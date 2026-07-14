@@ -271,7 +271,7 @@ export default function PatientDetail() {
                 onNoteAdded={note => setNotes(prev => [note, ...prev])}
               />
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+              <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-50">
                 {notes.length === 0 ? (
                   <p className="px-5 py-6 text-xs text-gray-400 text-center">No notes yet</p>
                 ) : (
@@ -316,7 +316,7 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
             value={nextNotes}
             onChange={e => setNextNotes(e.target.value)}
             placeholder="What to do next time..."
-            rows={3}
+            rows={5}
             className="w-full mt-1 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
           />
         </div>
@@ -414,7 +414,7 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
             value={rawInput}
             onChange={e => setRawInput(e.target.value)}
             placeholder="Type your notes (shorthand OK)... e.g. 'adj upper 18ss, elastics 3/16 med, pt compliant'"
-            rows={3}
+            rows={5}
             className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
           />
           {rawInput.trim() && (
