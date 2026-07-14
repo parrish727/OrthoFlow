@@ -228,4 +228,19 @@ export const api = {
   getInvites: () => request('/api/v1/team/invites'),
   revokeInvite: (inviteId: string) =>
     request(`/api/v1/team/invites/${inviteId}`, { method: 'DELETE' }),
+
+  // Time Tracking & Payroll
+  clockIn: () => request('/api/v1/time/clock-in', { method: 'POST' }),
+  clockOut: () => request('/api/v1/time/clock-out', { method: 'POST' }),
+  getMyStatus: () => request('/api/v1/time/my-status'),
+  getMyHours: () => request('/api/v1/time/my-hours'),
+  getStaffHours: (startDate: string, endDate: string) =>
+    request(`/api/v1/time/staff-hours?start_date=${startDate}&end_date=${endDate}`),
+  getPayrollSummary: (startDate: string, endDate: string) =>
+    request(`/api/v1/time/payroll-summary?start_date=${startDate}&end_date=${endDate}`),
+  editTimeEntry: (entryId: string, data: Record<string, unknown>) =>
+    request(`/api/v1/time/time-entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  setPayRate: (data: { staff_id: string; hourly_rate: string; worker_type: string; effective_date: string }) =>
+    request('/api/v1/time/pay-rates', { method: 'POST', body: JSON.stringify(data) }),
+  getPayRates: () => request('/api/v1/time/pay-rates'),
 }

@@ -56,3 +56,9 @@ from app.models.portal import (  # noqa: F401
     MigrationJob,
     TeamInvite,
 )
+
+from app.models.timetracking import (  # noqa: F401
+    TimeEntry,
+    PayRate,
+    PayrollPeriod,
+)

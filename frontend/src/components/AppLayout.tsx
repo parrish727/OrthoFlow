@@ -4,7 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
-  ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle,
+  ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle, Clock,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', icon: Layout, label: 'Dashboard', section: 'main' },
   { to: '/schedule', icon: CalendarDays, label: 'Schedule', section: 'main' },
   { to: '/patients', icon: Users, label: 'Patients', section: 'main' },
+  { to: '/time-tracking', icon: Clock, label: 'Time Clock', section: 'main' },
   { to: '/imaging', icon: Image, label: 'Imaging', section: 'clinical' },
   { to: '/ledger', icon: Receipt, label: 'Ledger', section: 'finance' },
   { to: '/insurance', icon: Shield, label: 'Insurance', section: 'finance' },
@@ -58,9 +59,9 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 // Nav labels visible per role
 const ROLE_NAV_ALLOWED: Record<string, string[]> = {
-  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Insights', 'Tools'],
-  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Messages', 'Payments', 'Portal'],
-  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Ledger', 'Insurance', 'Claims', 'Payments', 'Messages', 'Reports', 'Insights', 'Portal', 'Alerts'],
+  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Insights', 'Tools', 'Time Clock'],
+  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Messages', 'Payments', 'Portal', 'Time Clock'],
+  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Ledger', 'Insurance', 'Claims', 'Payments', 'Messages', 'Reports', 'Insights', 'Portal', 'Alerts', 'Time Clock'],
   // doctor and owner get everything — no filter needed
 }
 
