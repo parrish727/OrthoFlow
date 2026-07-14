@@ -172,6 +172,16 @@ export default function PatientDetail() {
                   {phase.label}
                 </span>
               )}
+              {patient.treatment_phase && ['active', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
+                const elapsed = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                const remaining = Math.max(0, 24 - elapsed)
+                const isOver = elapsed > 24
+                return (
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${isOver ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-teal-50 text-teal-700 border border-teal-200'}`}>
+                    {isOver ? `${elapsed - 24} mo over` : `${remaining} mo remaining`}
+                  </span>
+                )
+              })()}
               {patient.status && (
                 <span className="text-xs text-gray-400 capitalize">{patient.status}</span>
               )}
