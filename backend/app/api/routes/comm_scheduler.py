@@ -84,100 +84,45 @@ def _resolve_template_variables(
     return result
 
 
-async def _send_sms(to: str, body: str) -> dict:
-    """Send SMS via Twilio REST API using httpx.
-
-    DISABLED: SMS is disabled until TCPA consent workflow is approved by legal.
-    All communications default to email only. Re-enable by setting
-    SMS_ENABLED=true in environment variables after legal sign-off.
-    """
-    import os
-    if os.environ.get("SMS_ENABLED", "false").lower() != "true":
-        logger.info("sms_disabled_pending_legal_review", to=to)
-        return {"status": "blocked", "error": "SMS disabled pending TCPA legal review. Email only."}
-
-    if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-        logger.warning("twilio_not_configured", to=to)
-        return {"status": "failed", "error": "Twilio not configured"}
-
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
-    auth_str = base64.b64encode(
-        f"{settings.TWILIO_ACCOUNT_SID}:{settings.TWILIO_AUTH_TOKEN}".encode()
-    ).decode()
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.post(
-                url,
-                data={
-                    "To": to,
-                    "From": settings.TWILIO_PHONE_NUMBER,
-                    "Body": body,
-                    "StatusCallback": f"{settings.CORS_ORIGINS[0]}/api/v1/communications/messages/webhook/status",
-                },
-                headers={"Authorization": f"Basic {auth_str}"},
-            )
-            response.raise_for_status()
-            data = response.json()
-            return {"status": "sent", "external_id": data.get("sid")}
-        except httpx.HTTPStatusError as e:
-            logger.error("twilio_send_failed", status=e.response.status_code, body=e.response.text)
-            return {"status": "failed", "error": f"Twilio error: {e.response.status_code}"}
-        except httpx.RequestError as e:
-            logger.error("twilio_request_error", error=str(e))
-            return {"status": "failed", "error": f"Network error: {str(e)}"}
+async def _send_sms(to: str, body: str, subscriber_id: str = None) -> dict:
+    """Send SMS via Novu self-hosted notification platform."""
+    from app.api.routes.comm_novu import send_sms, create_subscriber
+    
+    # If we have a subscriber_id (patient_id), use Novu workflow
+    if subscriber_id:
+        result = await send_sms(subscriber_id, body)
+        if "error" not in result:
+            return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
+        return {"status": "failed", "error": result.get("error", "Novu send failed")}
+    
+    # Fallback: create a temporary subscriber with the phone number
+    temp_id = f"phone-{to.replace('+', '').replace('-', '').replace(' ', '')}"
+    await create_subscriber(temp_id, phone=to)
+    result = await send_sms(temp_id, body)
+    if "error" not in result:
+        return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
+    return {"status": "failed", "error": result.get("error", "Novu send failed")}
 
 
-async def _send_email(to: str, subject: str, body: str) -> dict:
-    """Send email via SMTP with unsubscribe footer."""
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
+async def _send_email(to: str, subject: str, body: str, subscriber_id: str = None) -> dict:
+    """Send email via Novu self-hosted notification platform."""
+    from app.api.routes.comm_novu import send_email, create_subscriber
 
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USERNAME", "")
-    smtp_pass = os.environ.get("SMTP_PASSWORD", "")
-    from_name = os.environ.get("SMTP_FROM_NAME", "OrthoFlow")
+    # If we have a subscriber_id (patient_id), use Novu workflow
+    if subscriber_id:
+        result = await send_email(subscriber_id, subject, body)
+        if "error" not in result:
+            return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
+        return {"status": "failed", "error": result.get("error", "Novu send failed")}
 
-    if not smtp_user or not smtp_pass:
-        logger.warning("smtp_not_configured", to=to)
-        return {"status": "failed", "error": "SMTP not configured"}
+    # Fallback: create a temporary subscriber with the email
+    temp_id = f"email-{to.replace('@', '-at-').replace('.', '-')}"
+    await create_subscriber(temp_id, email=to)
+    result = await send_email(temp_id, subject, body)
+    if "error" not in result:
+        return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
+    return {"status": "failed", "error": result.get("error", "Novu send failed")}
 
-    # Add unsubscribe footer
-    unsubscribe_url = f"https://app.orthoflowsolutions.com/portal?action=unsubscribe&email={to}"
-    html_body = f"""
-    <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="padding: 20px;">
-            {body.replace(chr(10), '<br>')}
-        </div>
-        <div style="border-top: 1px solid #e5e7eb; padding: 16px 20px; margin-top: 20px;">
-            <p style="font-size: 11px; color: #9ca3af; margin: 0;">
-                You are receiving this because you opted in to communications from your orthodontist.
-                <br><a href="{unsubscribe_url}" style="color: #6b7280; text-decoration: underline;">Unsubscribe from future emails</a>
-            </p>
-        </div>
-    </div>
-    """
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = f"{from_name} <{smtp_user}>"
-        msg["To"] = to
-        msg["Subject"] = subject
-        msg["List-Unsubscribe"] = f"<{unsubscribe_url}>"
-        msg.attach(MIMEText(body + f"\n\n---\nTo unsubscribe: {unsubscribe_url}", "plain"))
-        msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-
-        return {"status": "sent", "external_id": msg["Message-ID"]}
-    except Exception as e:
-        logger.error("email_send_failed", error=str(e), to=to)
-        return {"status": "failed", "error": str(e)[:200]}
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
