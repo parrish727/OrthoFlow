@@ -10,3 +10,10 @@ CVE-2026-56408
 # Frontend container uses nginx for static file serving, does not make outbound DNS queries.
 # Review date: 2026-07-11
 CVE-2026-33630
+
+# curl/libcurl CVEs in Alpine base image — SMB connection reuse + cookie leak.
+# Frontend container only serves static files via nginx, does not make outbound
+# curl/SMB/cookie requests. Will resolve when Alpine updates curl to 8.20.
+# Review date: 2026-07-14
+CVE-2026-5773
+CVE-2026-6276
