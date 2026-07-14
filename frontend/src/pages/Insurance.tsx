@@ -95,7 +95,7 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
       const res = await api.getInsurancePlans(selectedPatient.id)
       if (res.ok) {
         const data = await res.json()
-        setPlans(data.plans || data || [])
+        setPlans(data.insurance_plans || data.plans || [])
       }
     } catch {
       // silently handle
