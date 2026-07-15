@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2, Image, Receipt, Shield } from 'lucide-react'
+import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2, Image, Receipt, Shield, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 
@@ -241,6 +241,15 @@ export default function PatientDetail() {
                 onUpdate={handleChartUpdate}
               />
             )}
+
+            {/* Wire & Appliance Tracking */}
+            {chart && (
+              <WireTrackingSection
+                patientId={id || ''}
+                chart={chart}
+                onChartUpdated={setChart}
+              />
+            )}
           </div>
 
           {/* Right Column — Appointments + Notes + Next Visit */}
@@ -330,6 +339,140 @@ export default function PatientDetail() {
           </div>
         </div>
           </>
+  )
+}
+
+const WIRE_OPTIONS = ['None', '14 NiTi', '16 NiTi', '18 NiTi', '16x22 NiTi', '18 SS', '16x22 SS', '19x25 SS', '19x25 TMA']
+
+function WireTrackingSection({ patientId, chart, onChartUpdated }: {
+  patientId: string
+  chart: ChartData
+  onChartUpdated: (chart: ChartData) => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+  const [upperWire, setUpperWire] = useState(chart.upper_wire || 'None')
+  const [lowerWire, setLowerWire] = useState(chart.lower_wire || 'None')
+  const [appliances, setAppliances] = useState<Array<{ name: string; placed_date?: string }>>(chart.appliances || [])
+  const [newAppliance, setNewAppliance] = useState('')
+
+  async function handleWireChange(field: 'upper_wire' | 'lower_wire', value: string) {
+    if (field === 'upper_wire') setUpperWire(value)
+    else setLowerWire(value)
+    const payload = {
+      upper_wire: field === 'upper_wire' ? value : upperWire,
+      lower_wire: field === 'lower_wire' ? value : lowerWire,
+      appliances,
+    }
+    const res = await api.updateToothChart(patientId, payload)
+    if (res.ok) {
+      const data = await res.json()
+      onChartUpdated(data)
+    }
+  }
+
+  async function handleAddAppliance() {
+    if (!newAppliance.trim()) return
+    const updated = [...appliances, { name: newAppliance.trim(), placed_date: new Date().toISOString().split('T')[0] }]
+    setAppliances(updated)
+    setNewAppliance('')
+    const res = await api.updateToothChart(patientId, { upper_wire: upperWire, lower_wire: lowerWire, appliances: updated })
+    if (res.ok) {
+      const data = await res.json()
+      onChartUpdated(data)
+    }
+  }
+
+  async function handleRemoveAppliance(index: number) {
+    const updated = appliances.filter((_, i) => i !== index)
+    setAppliances(updated)
+    const res = await api.updateToothChart(patientId, { upper_wire: upperWire, lower_wire: lowerWire, appliances: updated })
+    if (res.ok) {
+      const data = await res.json()
+      onChartUpdated(data)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+      >
+        <h3 className="text-sm font-semibold text-gray-800">Wire & Appliance Tracking</h3>
+        {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+      {expanded && (
+        <div className="px-5 pb-5 space-y-4">
+          {/* Upper Wire */}
+          <div>
+            <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Upper Wire</label>
+            <select
+              value={upperWire}
+              onChange={e => handleWireChange('upper_wire', e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+            >
+              {WIRE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {chart.upper_wire_date && (
+              <p className="text-[10px] text-gray-400 mt-1">Changed: {chart.upper_wire_date}</p>
+            )}
+          </div>
+
+          {/* Lower Wire */}
+          <div>
+            <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Lower Wire</label>
+            <select
+              value={lowerWire}
+              onChange={e => handleWireChange('lower_wire', e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+            >
+              {WIRE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {chart.lower_wire_date && (
+              <p className="text-[10px] text-gray-400 mt-1">Changed: {chart.lower_wire_date}</p>
+            )}
+          </div>
+
+          {/* Appliances */}
+          <div>
+            <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Appliances</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {appliances.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-teal-50 text-teal-700 rounded-lg border border-teal-200">
+                  {a.name}
+                  {a.placed_date && <span className="text-teal-400 text-[10px]">({a.placed_date})</span>}
+                  <button
+                    onClick={() => handleRemoveAppliance(i)}
+                    className="ml-0.5 text-teal-400 hover:text-red-500 transition-colors"
+                    aria-label={`Remove ${a.name}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="text"
+                placeholder="e.g. RPE, Power Chain..."
+                value={newAppliance}
+                onChange={e => setNewAppliance(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAppliance() } }}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+              />
+              <button
+                onClick={handleAddAppliance}
+                disabled={!newAppliance.trim()}
+                className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                aria-label="Add appliance"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

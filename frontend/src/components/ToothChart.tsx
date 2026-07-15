@@ -44,7 +44,6 @@ export default function ToothChart({
 }: ToothChartProps) {
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [localTeeth, setLocalTeeth] = useState<Record<string, ToothData>>(teethData)
-  const [bulkMode, setBulkMode] = useState(false)
   const [selectedTeeth, setSelectedTeeth] = useState<number[]>([])
   const [bulkBracket, setBulkBracket] = useState('')
   const [bulkCondition, setBulkCondition] = useState('')
@@ -84,15 +83,20 @@ export default function ToothChart({
 
   function handleToothClick(toothNum: number) {
     if (readOnly) return
-    if (bulkMode) {
-      setSelectedTeeth(prev =>
-        prev.includes(toothNum)
-          ? prev.filter(t => t !== toothNum)
-          : [...prev, toothNum]
-      )
-    } else {
-      setSelectedTooth(toothNum === selectedTooth ? null : toothNum)
+    // If this tooth is already the only selected tooth and user clicks it again, open edit panel
+    if (selectedTeeth.length === 1 && selectedTeeth[0] === toothNum) {
+      setSelectedTooth(toothNum)
+      setSelectedTeeth([])
+      return
     }
+    // Close single-tooth edit panel when multi-selecting
+    setSelectedTooth(null)
+    // Toggle tooth in selection
+    setSelectedTeeth(prev =>
+      prev.includes(toothNum)
+        ? prev.filter(t => t !== toothNum)
+        : [...prev, toothNum]
+    )
   }
 
   function handleBulkApply() {
@@ -115,8 +119,8 @@ export default function ToothChart({
   }
 
   function getToothRingClass(toothNum: number): string {
-    if (bulkMode && selectedTeeth.includes(toothNum)) return 'ring-2 ring-teal-500 ring-offset-1'
-    if (!bulkMode && selectedTooth === toothNum) return 'ring-2 ring-blue-500 ring-offset-1'
+    if (selectedTeeth.includes(toothNum)) return 'ring-2 ring-teal-500 ring-offset-1'
+    if (selectedTooth === toothNum) return 'ring-2 ring-blue-500 ring-offset-1'
     return ''
   }
 
@@ -124,18 +128,6 @@ export default function ToothChart({
     <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-800">Tooth Chart</h3>
-        {!readOnly && (
-          <button
-            onClick={() => { setBulkMode(!bulkMode); setSelectedTeeth([]); setSelectedTooth(null) }}
-            className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-              bulkMode
-                ? 'bg-teal-100 text-teal-700 border border-teal-300'
-                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-            }`}
-          >
-            {bulkMode ? 'Select Multiple' : 'Single'}
-          </button>
-        )}
       </div>
 
       {/* Wire Info */}
@@ -216,7 +208,7 @@ export default function ToothChart({
       </div>
 
       {/* Bulk Action Bar */}
-      {bulkMode && selectedTeeth.length > 0 && (
+      {selectedTeeth.length >= 2 && (
         <div className="mt-4 p-4 bg-teal-50 rounded-xl border border-teal-200">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-semibold text-teal-800">{selectedTeeth.length} teeth selected</h4>
@@ -272,7 +264,7 @@ export default function ToothChart({
       )}
 
       {/* Tooth Edit Panel — single mode only */}
-      {!bulkMode && selectedTooth !== null && !readOnly && (
+      {selectedTooth !== null && !readOnly && (
         <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 relative">
           <button
             onClick={() => setSelectedTooth(null)}

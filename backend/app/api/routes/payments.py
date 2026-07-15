@@ -367,3 +367,26 @@ def _posting_dict(p: PaymentPosting) -> dict:
         "notes": p.notes,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
+
+
+# ── Plaid Integration ─────────────────────────────────────────────────────────
+
+@router.post("/plaid/link-token")
+async def create_plaid_link_token(
+    user: dict = Depends(get_current_user),
+):
+    """Generate a Plaid Link token for connecting a bank account."""
+    from app.services.plaid import create_link_token
+    token = await create_link_token(user["user_id"], "OrthoFlow Practice")
+    return {"link_token": token}
+
+
+@router.post("/plaid/exchange-token")
+async def exchange_plaid_token(
+    body: dict,
+    user: dict = Depends(get_current_user),
+):
+    """Exchange a Plaid public token for an access token after user connects bank."""
+    from app.services.plaid import exchange_public_token
+    result = await exchange_public_token(body.get("public_token", ""))
+    return result

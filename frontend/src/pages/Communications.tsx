@@ -1,6 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { MessageSquare, Users, FileText, Plus, Edit3, Eye, Send, X, Clock, Mail, Loader2, Inbox } from 'lucide-react'
 import { api } from '../lib/api'
+
+interface PatientResult {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  email: string | null
+}
 
 interface Template {
   id: string
@@ -41,6 +49,13 @@ export default function Communications() {
   const [sendChannel, setSendChannel] = useState<'sms' | 'email'>('sms')
   const [sendCustomBody, setSendCustomBody] = useState('')
 
+  // Patient search state
+  const [patientSearch, setPatientSearch] = useState('')
+  const [patientResults, setPatientResults] = useState<PatientResult[]>([])
+  const [selectedPatientInfo, setSelectedPatientInfo] = useState<PatientResult | null>(null)
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false)
+  const patientSearchRef = useRef<HTMLDivElement>(null)
+
   // New template form state
   const [newTemplateName, setNewTemplateName] = useState('')
   const [newTemplateChannel, setNewTemplateChannel] = useState<'sms' | 'email'>('sms')
@@ -65,6 +80,51 @@ export default function Communications() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Patient search debounce
+  useEffect(() => {
+    if (!patientSearch || patientSearch.length < 2) { setPatientResults([]); return }
+    const timer = setTimeout(async () => {
+      const res = await api.getPatients({ search: patientSearch })
+      if (res.ok) {
+        const data = await res.json()
+        setPatientResults(data.patients || data || [])
+        setShowPatientDropdown(true)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [patientSearch])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (patientSearchRef.current && !patientSearchRef.current.contains(e.target as Node)) {
+        setShowPatientDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  // Auto-swap contact info when channel changes
+  useEffect(() => {
+    if (!selectedPatientInfo) return
+    // No need to update sendPatient (it's the ID), just let the UI show the right contact
+  }, [sendChannel, selectedPatientInfo])
+
+  function handleSelectPatient(patient: PatientResult) {
+    setSelectedPatientInfo(patient)
+    setSendPatient(patient.id)
+    setPatientSearch(`${patient.first_name} ${patient.last_name}`)
+    setShowPatientDropdown(false)
+    setPatientResults([])
+  }
+
+  function getResolvedContact(): string | null {
+    if (!selectedPatientInfo) return null
+    if (sendChannel === 'sms') return selectedPatientInfo.phone || null
+    return selectedPatientInfo.email || null
+  }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -169,14 +229,43 @@ export default function Communications() {
           <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 mb-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Send Message Now</h3>
             <form onSubmit={handleSendMessage} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Patient ID or name"
-                value={sendPatient}
-                onChange={e => setSendPatient(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                required
-              />
+              <div className="relative" ref={patientSearchRef}>
+                <input
+                  type="text"
+                  placeholder="Search patient by name..."
+                  value={patientSearch}
+                  onChange={e => {
+                    setPatientSearch(e.target.value)
+                    if (selectedPatientInfo) {
+                      setSelectedPatientInfo(null)
+                      setSendPatient('')
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                  required
+                />
+                {showPatientDropdown && patientResults.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {patientResults.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectPatient(p)}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors flex items-center justify-between"
+                      >
+                        <span className="font-medium text-gray-900">{p.first_name} {p.last_name}</span>
+                        <span className="text-xs text-gray-400">{p.phone || p.email || ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedPatientInfo && getResolvedContact() && (
+                  <p className="text-xs text-teal-600 mt-1">Sending to: {getResolvedContact()}</p>
+                )}
+                {selectedPatientInfo && !getResolvedContact() && (
+                  <p className="text-xs text-amber-600 mt-1">No {sendChannel === 'sms' ? 'phone' : 'email'} on file</p>
+                )}
+              </div>
               <select
                 value={sendChannel}
                 onChange={e => setSendChannel(e.target.value as 'sms' | 'email')}
