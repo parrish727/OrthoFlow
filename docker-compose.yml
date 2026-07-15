@@ -181,6 +181,4 @@ services:
       - VITE_API_URL=https://api.orthoflowsolutions.com
     networks:
       - orthoflow
-    depends_on:
-      - backend
     restart: unless-stopped
