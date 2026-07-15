@@ -134,7 +134,7 @@ export default function Communications() {
       patient_id: sendPatient,
       template_id: sendTemplate || undefined,
       channel: sendChannel,
-      custom_body: sendTemplate ? undefined : sendCustomBody,
+      body: sendTemplate ? undefined : sendCustomBody,
     })
     if (res.ok) {
       setSendPatient('')
