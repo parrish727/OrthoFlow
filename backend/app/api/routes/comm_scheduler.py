@@ -84,44 +84,17 @@ def _resolve_template_variables(
     return result
 
 
-async def _send_sms(to: str, body: str, subscriber_id: str = None) -> dict:
-    """Send SMS via Novu self-hosted notification platform."""
-    from app.api.routes.comm_novu import send_sms, create_subscriber
-    
-    # If we have a subscriber_id (patient_id), use Novu workflow
-    if subscriber_id:
-        result = await send_sms(subscriber_id, body)
-        if "error" not in result:
-            return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
-        return {"status": "failed", "error": result.get("error", "Novu send failed")}
-    
-    # Fallback: create a temporary subscriber with the phone number
-    temp_id = f"phone-{to.replace('+', '').replace('-', '').replace(' ', '')}"
-    await create_subscriber(temp_id, phone=to)
-    result = await send_sms(temp_id, body)
-    if "error" not in result:
-        return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
-    return {"status": "failed", "error": result.get("error", "Novu send failed")}
+
+async def _send_sms(to: str, body: str, **kwargs) -> dict:
+    """Send SMS via Twilio."""
+    from app.api.routes.comm_send import send_sms
+    return await send_sms(to, body)
 
 
-async def _send_email(to: str, subject: str, body: str, subscriber_id: str = None) -> dict:
-    """Send email via Novu self-hosted notification platform."""
-    from app.api.routes.comm_novu import send_email, create_subscriber
-
-    # If we have a subscriber_id (patient_id), use Novu workflow
-    if subscriber_id:
-        result = await send_email(subscriber_id, subject, body)
-        if "error" not in result:
-            return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
-        return {"status": "failed", "error": result.get("error", "Novu send failed")}
-
-    # Fallback: create a temporary subscriber with the email
-    temp_id = f"email-{to.replace('@', '-at-').replace('.', '-')}"
-    await create_subscriber(temp_id, email=to)
-    result = await send_email(temp_id, subject, body)
-    if "error" not in result:
-        return {"status": "sent", "external_id": result.get("data", {}).get("transactionId")}
-    return {"status": "failed", "error": result.get("error", "Novu send failed")}
+async def _send_email(to: str, subject: str, body: str, **kwargs) -> dict:
+    """Send Email via Twilio SendGrid."""
+    from app.api.routes.comm_send import send_email
+    return await send_email(to, subject, body)
 
 
 
