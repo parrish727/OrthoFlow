@@ -11,24 +11,30 @@ _PLAID_BASE = {
 async def create_link_token(user_id: str, practice_name: str) -> str:
     """Create a Plaid Link token for the frontend to open the bank connection UI."""
     base = _PLAID_BASE.get(settings.PLAID_ENVIRONMENT, _PLAID_BASE["sandbox"])
+    
+    payload = {
+        "client_id": settings.PLAID_CLIENT_ID,
+        "secret": settings.PLAID_SECRET,
+        "user": {"client_user_id": user_id},
+        "client_name": "OrthoFlow AI",
+        "products": ["auth"],
+        "country_codes": ["US"],
+        "language": "en",
+    }
+    
+    # Production requires redirect_uri for OAuth banks
+    if settings.PLAID_ENVIRONMENT == "production":
+        payload["redirect_uri"] = "https://app.orthoflowsolutions.com/plaid/callback"
+    
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{base}/link/token/create",
-            json={
-                "client_id": settings.PLAID_CLIENT_ID,
-                "secret": settings.PLAID_SECRET,
-                "user": {"client_user_id": user_id},
-                "client_name": "OrthoFlow AI",
-                "products": ["auth", "transfer"],
-                "country_codes": ["US"],
-                "language": "en",
-                "account_filters": {
-                    "depository": {"account_subtypes": ["checking"]},
-                },
-            },
+            json=payload,
             timeout=15,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            error_data = resp.json()
+            raise Exception(f"Plaid error: {error_data.get('error_message', resp.text[:200])}")
         return resp.json()["link_token"]
 
 
