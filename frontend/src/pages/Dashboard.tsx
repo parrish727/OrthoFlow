@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
+import VisitTracker from '../components/VisitTracker'
 
 interface Invoice {
   id: string
@@ -123,6 +124,11 @@ export default function Dashboard() {
         <StatCard icon={Clock} label="Awaiting Action" value={stats.pending} color="text-amber-600" tooltip="Invoices that need your review or are being processed by AI" />
         <StatCard icon={CheckCircle} label="Approved" value={stats.approved} color="text-emerald-600" tooltip="Invoices you've approved — these sync to QuickBooks" />
         <StatCard icon={DollarSign} label="Total Amount" value={`$${stats.totalAmount.toLocaleString()}`} color="text-blue-600" tooltip="Sum of all invoice amounts in the system" />
+      </div>
+
+      {/* Visit Tracker — Patient Flow */}
+      <div className="mb-8">
+        <VisitTracker />
       </div>
 
       {/* Upload Zone */}
