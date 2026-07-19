@@ -8,6 +8,11 @@ Revision ID: 005
 Create Date: 2026-07-09
 """
 from alembic import op
+
+revision = "005"
+down_revision = "004"
+branch_labels = None
+depends_on = None
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 

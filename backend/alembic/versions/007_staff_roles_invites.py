@@ -7,6 +7,11 @@ Revision ID: 007
 Create Date: 2026-07-09
 """
 from alembic import op
+
+revision = "007"
+down_revision = "006"
+branch_labels = None
+depends_on = None
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 

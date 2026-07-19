@@ -39,9 +39,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    from app.models.models import Base  # noqa: ensure models are imported
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    import app.models  # noqa: ensure all models are registered
+    # Schema managed by Alembic migrations — no create_all needed
+    pass
 
 app.include_router(health.router, tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
