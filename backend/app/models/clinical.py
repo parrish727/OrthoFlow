@@ -71,9 +71,20 @@ class Patient(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
+    # Sprint 1 enhancements
+    ssn_encrypted: Mapped[str | None] = mapped_column(String(512))  # AES-256 encrypted
+    general_dentist: Mapped[str | None] = mapped_column(String(255))
+    general_dentist_phone: Mapped[str | None] = mapped_column(String(30))
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deactivation_reason: Mapped[str | None] = mapped_column(Text)
+    oral_hygiene_score: Mapped[int | None] = mapped_column(Integer)  # 1-5 stars
+    family_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patient_families.id"))
+    family_relationship: Mapped[str | None] = mapped_column(String(50))  # parent, child, sibling, spouse
+
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="patient")
     treatment_notes: Mapped[list["TreatmentNote"]] = relationship(back_populates="patient")
     tooth_chart: Mapped["ToothChart | None"] = relationship(back_populates="patient", uselist=False)
+    alerts: Mapped[list["PatientAlert"]] = relationship(back_populates="patient")
 
     __table_args__ = (
         Index("idx_patients_practice_id", "practice_id"),
@@ -207,4 +218,126 @@ class ToothChart(Base):
 
     __table_args__ = (
         Index("idx_tooth_chart_patient", "patient_id", unique=True),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sprint 1 — New Clinical Models
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PatientAlert(Base):
+    """Alerts/flags on a patient: allergies, medical conditions, behavioral notes."""
+    __tablename__ = "patient_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(30), nullable=False)  # allergy, medical, behavioral, billing, other
+    severity: Mapped[str] = mapped_column(String(10), default="medium")  # low, medium, high, critical
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    patient: Mapped["Patient"] = relationship(back_populates="alerts")
+
+    __table_args__ = (
+        Index("idx_alerts_patient", "patient_id", "is_active"),
+        Index("idx_alerts_practice", "practice_id"),
+    )
+
+
+class PatientFamily(Base):
+    """Groups related patients into a family unit."""
+    __tablename__ = "patient_families"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    family_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    primary_contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patients.id"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_families_practice", "practice_id"),
+    )
+
+
+class AlignerTreatment(Base):
+    """Clear aligner treatment tracking (Invisalign, SureSmile, Spark, etc.)."""
+    __tablename__ = "aligner_treatments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    brand: Mapped[str | None] = mapped_column(String(100))
+    total_trays: Mapped[int] = mapped_column(Integer, nullable=False)
+    current_tray: Mapped[int] = mapped_column(Integer, default=1)
+    upper_trays: Mapped[int | None] = mapped_column(Integer)
+    lower_trays: Mapped[int | None] = mapped_column(Integer)
+    wear_hours_per_day: Mapped[int] = mapped_column(Integer, default=22)
+    change_interval_days: Mapped[int] = mapped_column(Integer, default=14)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    estimated_end_date: Mapped[date | None] = mapped_column(Date)
+    refinement_number: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    tray_log: Mapped[list["AlignerTrayLog"]] = relationship(back_populates="treatment")
+
+    __table_args__ = (
+        Index("idx_aligner_patient", "patient_id"),
+        Index("idx_aligner_practice", "practice_id", "status"),
+    )
+
+
+class AlignerTrayLog(Base):
+    """Log of individual tray changes for aligner compliance tracking."""
+    __tablename__ = "aligner_tray_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    treatment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("aligner_treatments.id"), nullable=False)
+    tray_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expected_end_date: Mapped[date | None] = mapped_column(Date)
+    actual_end_date: Mapped[date | None] = mapped_column(Date)
+    tracking_status: Mapped[str] = mapped_column(String(20), default="on_track")
+    notes: Mapped[str | None] = mapped_column(Text)
+    logged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    treatment: Mapped["AlignerTreatment"] = relationship(back_populates="tray_log")
+
+    __table_args__ = (
+        Index("idx_tray_log_treatment", "treatment_id", "tray_number"),
+    )
+
+
+class ElasticPrescription(Base):
+    """Elastic wear prescription for a patient — type, schedule, attachment points."""
+    __tablename__ = "elastic_prescriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    elastic_type: Mapped[str] = mapped_column(String(50), nullable=False)  # Class II, Class III, triangle, box, vertical
+    size: Mapped[str | None] = mapped_column(String(50))  # 3/16", 1/4", 5/16", 3/8"
+    force: Mapped[str | None] = mapped_column(String(50))  # Light (2oz), Medium (3.5oz), Heavy (4.5oz)
+    wear_schedule: Mapped[str] = mapped_column(String(20), nullable=False)  # day, night, full_time
+    attachment_from: Mapped[str | None] = mapped_column(String(50))
+    attachment_to: Mapped[str | None] = mapped_column(String(50))
+    instructions: Mapped[str | None] = mapped_column(Text)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    prescribed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_elastics_patient", "patient_id", "is_active"),
+        Index("idx_elastics_practice", "practice_id"),
     )

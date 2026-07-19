@@ -15,6 +15,11 @@ from app.models.clinical import (  # noqa: F401
     Appointment,
     TreatmentNote,
     ToothChart,
+    PatientAlert,
+    PatientFamily,
+    AlignerTreatment,
+    AlignerTrayLog,
+    ElasticPrescription,
 )
 
 # Also import claims if they exist
