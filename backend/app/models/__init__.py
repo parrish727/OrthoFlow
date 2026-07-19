@@ -62,3 +62,10 @@ from app.models.timetracking import (  # noqa: F401
     PayRate,
     PayrollPeriod,
 )
+
+from app.models.appliance_tracking import (  # noqa: F401
+    Lab,
+    AppliancePrescription,
+    ApplianceStatusHistory,
+    EasyRxIntegration,
+)
