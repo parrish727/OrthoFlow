@@ -46,7 +46,7 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-600 to-teal-700 items-center justify-center p-12">
         <div className="max-w-md text-center">
           <div className="w-16 h-16 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-8">
-            <FileText size={28} className="text-white" />
+            <img src="/brand/mark-teal.svg" alt="OrthoFlow" className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-semibold text-white mb-4">OrthoFlow AI</h2>
           <p className="text-teal-100 text-lg leading-relaxed">
@@ -73,8 +73,8 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="lg:hidden text-center mb-8">
-            <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <FileText size={20} className="text-white" />
+            <div className="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <img src="/brand/mark-teal.svg" alt="OrthoFlow" className="w-7 h-7" />
             </div>
             <h1 className="text-xl font-semibold text-gray-900">OrthoFlow AI</h1>
           </div>

@@ -1,0 +1,8 @@
+<svg width="260" height="60" viewBox="0 0 260 60" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0, 5)">
+    <path d="M 30 22 C 30 14 38 10 46 14 C 50 16 50 16 54 14 C 62 10 70 14 70 22 C 70 30 66 34 64 42 C 62 52 60 62 56 76 C 55 80 50 80 49 76 C 47 66 46 58 45 50 C 44 58 43 66 41 76 C 40 80 35 80 34 76 C 30 62 28 52 26 42 C 24 34 30 30 30 22 Z"
+      stroke="#00C2A8" stroke-width="6" stroke-linejoin="round" fill="none"
+      transform="scale(0.44) translate(2, -2)"/>
+  </g>
+  <text x="46" y="40" font-family="Inter, -apple-system, sans-serif" font-size="30" font-weight="900" letter-spacing="-1" fill="#FFFFFF">Ortho<tspan fill="#00C2A8">Flow</tspan></text>
+</svg>
