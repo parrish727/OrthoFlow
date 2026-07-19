@@ -80,3 +80,9 @@ from app.models.workflow import (  # noqa: F401
     RecentPatientSearch,
     PatientDocument,
 )
+
+from app.models.messaging import (  # noqa: F401
+    ChatRoom,
+    ChatRoomMember,
+    ChatMessage,
+)
