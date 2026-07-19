@@ -5,6 +5,7 @@ import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
   ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle, Clock,
+  FlaskConical,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -22,11 +23,13 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/patients', icon: Users, label: 'Patients', section: 'main' },
   { to: '/time-tracking', icon: Clock, label: 'Time Clock', section: 'main' },
   { to: '/imaging', icon: Image, label: 'Imaging', section: 'clinical' },
+  { to: '/appliances', icon: FlaskConical, label: 'Appliances', section: 'clinical' },
   { to: '/ledger', icon: Receipt, label: 'Ledger', section: 'finance' },
   { to: '/insurance', icon: Shield, label: 'Insurance', section: 'finance' },
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
   { to: '/communications', icon: MessageSquare, label: 'Messages', section: 'comms' },
+  { to: '/da-chat', icon: MessageSquare, label: 'DA Chat', section: 'comms' },
   { to: '/reports', icon: BarChart3, label: 'Reports', section: 'insights' },
   { to: '/insights', icon: Lightbulb, label: 'Insights', section: 'insights' },
   { to: '/tools', icon: Wrench, label: 'Tools', section: 'insights' },

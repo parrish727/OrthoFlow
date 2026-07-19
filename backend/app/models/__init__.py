@@ -15,6 +15,11 @@ from app.models.clinical import (  # noqa: F401
     Appointment,
     TreatmentNote,
     ToothChart,
+    PatientAlert,
+    PatientFamily,
+    AlignerTreatment,
+    AlignerTrayLog,
+    ElasticPrescription,
 )
 
 # Also import claims if they exist
@@ -61,4 +66,23 @@ from app.models.timetracking import (  # noqa: F401
     TimeEntry,
     PayRate,
     PayrollPeriod,
+)
+
+from app.models.appliance_tracking import (  # noqa: F401
+    Lab,
+    AppliancePrescription,
+    ApplianceStatusHistory,
+    EasyRxIntegration,
+)
+
+from app.models.workflow import (  # noqa: F401
+    PatientVisitStatus,
+    RecentPatientSearch,
+    PatientDocument,
+)
+
+from app.models.messaging import (  # noqa: F401
+    ChatRoom,
+    ChatRoomMember,
+    ChatMessage,
 )

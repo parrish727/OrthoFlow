@@ -10,3 +10,6 @@ dist/
 .terraform/
 .DS_Store
 .docker/
+# Brochure artifacts (lives in orthoflow-brochure/ project)
+orthoflow-agentic-brochure*
+og-image*

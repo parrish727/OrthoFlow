@@ -37,7 +37,9 @@ import Migration from './pages/Migration'
 import PortalAdmin from './pages/PortalAdmin'
 import Team from './pages/Team'
 import TimeTracking from './pages/TimeTracking'
+import ApplianceTracker from './pages/ApplianceTracker'
 import Help from './pages/Help'
+import DAMessaging from './pages/DAMessaging'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
@@ -80,7 +82,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/portal-admin" element={<PortalAdmin />} />
           <Route path="/team" element={<Team />} />
           <Route path="/time-tracking" element={<TimeTracking />} />
+          <Route path="/appliances" element={<ApplianceTracker />} />
           <Route path="/help" element={<Help />} />
+          <Route path="/da-chat" element={<DAMessaging />} />
         </Route>
       </Routes>
     </BrowserRouter>

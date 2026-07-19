@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2, Image, Receipt, Shield, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
+import ClinicalEnhancements from '../components/ClinicalEnhancements'
 
 interface Patient {
   id: string
@@ -228,6 +229,9 @@ export default function PatientDetail() {
                 </div>
               )}
             </div>
+
+            {/* ── Sprint 1: Clinical Enhancements ── */}
+            <ClinicalEnhancements patientId={patient.id} />
 
             {/* Tooth Chart */}
             {chart && (
