@@ -74,3 +74,9 @@ from app.models.appliance_tracking import (  # noqa: F401
     ApplianceStatusHistory,
     EasyRxIntegration,
 )
+
+from app.models.workflow import (  # noqa: F401
+    PatientVisitStatus,
+    RecentPatientSearch,
+    PatientDocument,
+)

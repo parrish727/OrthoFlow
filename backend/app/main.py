@@ -17,6 +17,7 @@ from app.api.routes import team
 from app.api.routes import timetracking
 from app.api.routes import appliance_tracking
 from app.api.routes import clinical_enhancements
+from app.api.routes import workflow
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -76,6 +77,7 @@ app.include_router(migration.router, tags=["migration"])
 app.include_router(timetracking.router, tags=["time-tracking"])
 app.include_router(appliance_tracking.router, tags=["appliance-tracking"])
 app.include_router(clinical_enhancements.router, tags=["clinical-enhancements"])
+app.include_router(workflow.router, tags=["workflow"])
 
 
 # ── Deep Health Check (verifies core routes, not just "is the process alive") ──
