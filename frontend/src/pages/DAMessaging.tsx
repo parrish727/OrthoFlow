@@ -96,13 +96,14 @@ export default function DAMessaging() {
 
   // --- Fetch Messages for Selected Room ---
   const fetchMessages = useCallback(async (roomId: string) => {
-    setLoadingMessages(true)
     try {
       const res = await api.request(`/api/v1/chat/rooms/${roomId}/messages?limit=50`)
       if (res.ok) {
         const data = await res.json()
         const msgList = Array.isArray(data) ? data : data.messages || []
-        setMessages(msgList.reverse())
+        // API returns newest-first, reverse for display (oldest at top)
+        const sorted = [...msgList].reverse()
+        setMessages(sorted)
       }
     } catch {
       // silent
@@ -172,8 +173,18 @@ export default function DAMessaging() {
     setTypingUser(null)
     setShowEmoji(false)
     setMobileSidebarOpen(false)
+    setLoadingMessages(true)
     fetchMessages(roomId)
   }
+
+  // --- Poll for new messages (iMessage-style: always up to date) ---
+  useEffect(() => {
+    if (!selectedRoomId) return
+    const interval = setInterval(() => {
+      fetchMessages(selectedRoomId)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [selectedRoomId, fetchMessages])
 
   // --- Send Typing Indicator ---
   function sendTypingIndicator() {
@@ -216,8 +227,7 @@ export default function DAMessaging() {
             created_at: msg.created_at,
           }]
         })
-        // Re-fetch after delay to pick up any auto-replies (demo mode)
-        setTimeout(() => { if (selectedRoomId) fetchMessages(selectedRoomId) }, 4000)
+        // Re-fetch handled by polling interval — auto-replies appear within 3s
       }
     } catch {
       // If REST fails, try WebSocket as fallback
