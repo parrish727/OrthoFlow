@@ -379,24 +379,24 @@ export default function DAMessaging() {
                   return (
                     <div
                       key={msg.id}
-                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-xl px-3 py-2 ${
+                        className={`max-w-[75%] px-3.5 py-2.5 shadow-sm ${
                           isOwn
-                            ? 'bg-teal-500 text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                            ? 'bg-teal-500 text-white rounded-2xl rounded-br-md'
+                            : 'bg-white text-gray-900 border border-gray-100 rounded-2xl rounded-bl-md'
                         }`}
                       >
                         {!isOwn && (
-                          <p className="text-[10px] font-semibold text-teal-700 mb-0.5">
+                          <p className="text-[11px] font-semibold text-teal-600 mb-0.5">
                             {msg.sender_name}
                           </p>
                         )}
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                         <p
-                          className={`text-[10px] mt-1 ${
-                            isOwn ? 'text-teal-100' : 'text-gray-400'
+                          className={`text-[10px] mt-1 text-right ${
+                            isOwn ? 'text-teal-200' : 'text-gray-400'
                           }`}
                         >
                           {formatTime(msg.created_at)}

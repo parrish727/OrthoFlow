@@ -332,9 +332,11 @@ async def send_message(
             reply_text = random.choice(replies)
 
             # Save the auto-reply as a system-generated message
+            # Use a fixed synthetic UUID for demo staff (not the real user)
+            demo_staff_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
             reply_msg = ChatMessage(
                 room_id=room_uuid,
-                sender_id=sender_uuid,  # Same user (demo only has one)
+                sender_id=demo_staff_id,
                 content=reply_text,
                 message_type="text",
             )
