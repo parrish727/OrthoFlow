@@ -29,7 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
   { to: '/communications', icon: MessageSquare, label: 'Messages', section: 'comms' },
-  { to: '/da-chat', icon: MessageSquare, label: 'DA Chat', section: 'comms' },
+  { to: '/da-chat', icon: MessageSquare, label: 'Staff Messages', section: 'comms' },
   { to: '/reports', icon: BarChart3, label: 'Reports', section: 'insights' },
   { to: '/insights', icon: Lightbulb, label: 'Insights', section: 'insights' },
   { to: '/tools', icon: Wrench, label: 'Tools', section: 'insights' },

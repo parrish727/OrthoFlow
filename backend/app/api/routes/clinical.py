@@ -124,7 +124,8 @@ async def list_patients(
         q = q.where(
             (Patient.first_name.ilike(f"%{search}%")) |
             (Patient.last_name.ilike(f"%{search}%")) |
-            (Patient.email.ilike(f"%{search}%"))
+            (Patient.email.ilike(f"%{search}%")) |
+            (Patient.phone.ilike(f"%{search}%"))
         )
 
     q = q.order_by(Patient.last_name, Patient.first_name)

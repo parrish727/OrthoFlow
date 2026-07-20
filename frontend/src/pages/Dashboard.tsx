@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2 } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 import VisitTracker from '../components/VisitTracker'
@@ -29,7 +29,25 @@ export default function Dashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const navigate = useNavigate()
+
+  function shiftDate(days: number) {
+    const d = new Date(selectedDate + 'T00:00:00')
+    d.setDate(d.getDate() + days)
+    setSelectedDate(d.toISOString().split('T')[0])
+  }
+
+  function formatDate(dateStr: string) {
+    const d = new Date(dateStr + 'T00:00:00')
+    const today = new Date().toISOString().split('T')[0]
+    if (dateStr === today) return 'Today'
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday'
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+    if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Tomorrow'
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  }
 
   // Today's Clinical Notes
   interface ClinicalNote {
@@ -113,10 +131,32 @@ export default function Dashboard() {
 
   return (
     <>
-      {/* Welcome + Stats */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-1">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}</h2>
-        <p className="text-gray-500 text-sm">Here's your accounts payable overview</p>
+      {/* Welcome + Date Navigation */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-1">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}</h2>
+          <p className="text-gray-500 text-sm">Here's your practice overview</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => shiftDate(-1)} className="p-2 hover:bg-white rounded-lg transition-colors" aria-label="Previous day">
+            <ChevronLeft size={20} className="text-gray-600" />
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200">
+            <Calendar size={16} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-900">{formatDate(selectedDate)}</span>
+          </div>
+          <button onClick={() => shiftDate(1)} className="p-2 hover:bg-white rounded-lg transition-colors" aria-label="Next day">
+            <ChevronRight size={20} className="text-gray-600" />
+          </button>
+          {selectedDate !== new Date().toISOString().split('T')[0] && (
+            <button
+              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              className="px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+            >
+              Today
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">

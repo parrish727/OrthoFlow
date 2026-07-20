@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.models.models import User
+
 from app.models.appliance_tracking import (
     Lab,
     AppliancePrescription,
@@ -155,11 +155,11 @@ class QualityMetrics(BaseModel):
 @router.get("/labs", response_model=list[LabResponse])
 async def list_labs(
     active_only: bool = Query(True),
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[LabResponse]:
     """List all labs for the practice."""
-    query = select(Lab).where(Lab.practice_id == user.practice_id)
+    query = select(Lab).where(Lab.practice_id == user["practice_id"])
     if active_only:
         query = query.where(Lab.is_active.is_(True))
     query = query.order_by(Lab.name)
@@ -172,12 +172,12 @@ async def list_labs(
 @router.post("/labs", status_code=status.HTTP_201_CREATED, response_model=LabResponse)
 async def create_lab(
     payload: LabCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabResponse:
     """Add a new lab vendor."""
     lab = Lab(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         **payload.model_dump(),
     )
     db.add(lab)
@@ -190,11 +190,11 @@ async def create_lab(
 async def update_lab(
     lab_id: str,
     payload: LabUpdate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabResponse:
     """Update a lab vendor."""
-    lab = await _get_lab(db, lab_id, user.practice_id)
+    lab = await _get_lab(db, lab_id, user["practice_id"])
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(lab, key, value)
@@ -206,11 +206,11 @@ async def update_lab(
 @router.get("/labs/{lab_id}/metrics", response_model=QualityMetrics)
 async def get_lab_quality_metrics(
     lab_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> QualityMetrics:
     """Get quality metrics for a specific lab."""
-    lab = await _get_lab(db, lab_id, user.practice_id)
+    lab = await _get_lab(db, lab_id, user["practice_id"])
     return await _calculate_lab_metrics(db, lab)
 
 
@@ -343,12 +343,12 @@ async def list_prescriptions(
     patient_id: str | None = None,
     lab_id: str | None = None,
     appliance_type: str | None = None,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PrescriptionResponse]:
     """List appliance prescriptions with filters."""
     query = select(AppliancePrescription).where(
-        AppliancePrescription.practice_id == user.practice_id
+        AppliancePrescription.practice_id == user["practice_id"]
     )
 
     if status_filter:
@@ -378,22 +378,22 @@ async def list_prescriptions(
 @router.post("/prescriptions", status_code=status.HTTP_201_CREATED, response_model=PrescriptionResponse)
 async def create_prescription(
     payload: PrescriptionCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PrescriptionResponse:
     """Create a new appliance prescription."""
     # Validate lab belongs to practice
-    lab = await _get_lab(db, payload.lab_id, user.practice_id)
+    lab = await _get_lab(db, payload.lab_id, user["practice_id"])
 
     # Calculate expected delivery date from lab avg turnaround
     today = date.today()
     expected = today + timedelta(days=lab.avg_turnaround_days)
 
     rx = AppliancePrescription(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         patient_id=uuid.UUID(payload.patient_id),
         lab_id=uuid.UUID(payload.lab_id),
-        prescribed_by=user.id,
+        prescribed_by=user["user_id"],
         appliance_type=payload.appliance_type,
         appliance_name=payload.appliance_name,
         arch=payload.arch,
@@ -419,7 +419,7 @@ async def create_prescription(
         prescription_id=rx.id,
         previous_status=None,
         new_status="draft",
-        changed_by=user.id,
+        changed_by=user["user_id"],
         notes="Prescription created",
     )
     db.add(history)
@@ -431,11 +431,11 @@ async def create_prescription(
 @router.get("/prescriptions/{rx_id}", response_model=PrescriptionResponse)
 async def get_prescription(
     rx_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PrescriptionResponse:
     """Get a single prescription by ID."""
-    rx = await _get_prescription(db, rx_id, user.practice_id)
+    rx = await _get_prescription(db, rx_id, user["practice_id"])
     lab_result = await db.execute(select(Lab.name).where(Lab.id == rx.lab_id))
     lab_name = lab_result.scalar_one_or_none()
     return _rx_to_response(rx, lab_name)
@@ -445,11 +445,11 @@ async def get_prescription(
 async def update_prescription_status(
     rx_id: str,
     payload: StatusUpdate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PrescriptionResponse:
     """Update the status of an appliance prescription."""
-    rx = await _get_prescription(db, rx_id, user.practice_id)
+    rx = await _get_prescription(db, rx_id, user["practice_id"])
     old_status = rx.status
     new_status = payload.status
 
@@ -482,7 +482,7 @@ async def update_prescription_status(
         prescription_id=rx.id,
         previous_status=old_status,
         new_status=new_status,
-        changed_by=user.id,
+        changed_by=user["user_id"],
         notes=payload.notes,
     )
     db.add(history)
@@ -498,11 +498,11 @@ async def update_prescription_status(
 async def create_remake(
     rx_id: str,
     reason: str = Query(..., min_length=1),
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PrescriptionResponse:
     """Create a remake order from a rejected prescription."""
-    original = await _get_prescription(db, rx_id, user.practice_id)
+    original = await _get_prescription(db, rx_id, user["practice_id"])
 
     # Mark original as rejected
     original.status = "rejected"
@@ -510,21 +510,21 @@ async def create_remake(
         prescription_id=original.id,
         previous_status=original.status,
         new_status="rejected",
-        changed_by=user.id,
+        changed_by=user["user_id"],
         notes=f"Rejected — remake ordered: {reason}",
     )
     db.add(history)
 
     # Get lab for expected delivery calc
-    lab = await _get_lab(db, str(original.lab_id), user.practice_id)
+    lab = await _get_lab(db, str(original.lab_id), user["practice_id"])
     today = date.today()
 
     # Create new prescription as remake
     remake = AppliancePrescription(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         patient_id=original.patient_id,
         lab_id=original.lab_id,
-        prescribed_by=user.id,
+        prescribed_by=user["user_id"],
         appliance_type=original.appliance_type,
         appliance_name=original.appliance_name,
         arch=original.arch,
@@ -553,7 +553,7 @@ async def create_remake(
         prescription_id=remake.id,
         previous_status=None,
         new_status="submitted",
-        changed_by=user.id,
+        changed_by=user["user_id"],
         notes=f"Remake of {str(original.id)[:8]}: {reason}",
     )
     db.add(remake_history)
@@ -568,13 +568,13 @@ async def create_remake(
 
 @router.get("/overdue", response_model=list[PrescriptionResponse])
 async def get_overdue_appliances(
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PrescriptionResponse]:
     """Get all appliances past their expected delivery date that haven't been received."""
     today = date.today()
     query = select(AppliancePrescription).where(
-        AppliancePrescription.practice_id == user.practice_id,
+        AppliancePrescription.practice_id == user["practice_id"],
         AppliancePrescription.expected_delivery_date < today,
         AppliancePrescription.status.in_(["submitted", "received_by_lab", "in_fabrication", "shipped"]),
     ).order_by(AppliancePrescription.expected_delivery_date.asc())
@@ -594,7 +594,7 @@ async def get_overdue_appliances(
 
 @router.get("/summary")
 async def get_appliance_summary(
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Dashboard summary: counts by status, overdue count, etc."""
@@ -604,7 +604,7 @@ async def get_appliance_summary(
             AppliancePrescription.status,
             func.count(AppliancePrescription.id),
         ).where(
-            AppliancePrescription.practice_id == user.practice_id
+            AppliancePrescription.practice_id == user["practice_id"]
         ).group_by(AppliancePrescription.status)
     )
     status_counts = {row[0]: row[1] for row in status_q.all()}
@@ -613,7 +613,7 @@ async def get_appliance_summary(
     today = date.today()
     overdue_q = await db.execute(
         select(func.count(AppliancePrescription.id)).where(
-            AppliancePrescription.practice_id == user.practice_id,
+            AppliancePrescription.practice_id == user["practice_id"],
             AppliancePrescription.expected_delivery_date < today,
             AppliancePrescription.status.in_(["submitted", "received_by_lab", "in_fabrication", "shipped"]),
         )
@@ -624,7 +624,7 @@ async def get_appliance_summary(
     week_end = today + timedelta(days=7)
     due_soon_q = await db.execute(
         select(func.count(AppliancePrescription.id)).where(
-            AppliancePrescription.practice_id == user.practice_id,
+            AppliancePrescription.practice_id == user["practice_id"],
             AppliancePrescription.expected_delivery_date.between(today, week_end),
             AppliancePrescription.status.in_(["submitted", "received_by_lab", "in_fabrication", "shipped"]),
         )
@@ -645,11 +645,11 @@ async def get_appliance_summary(
 @router.get("/prescriptions/{rx_id}/history")
 async def get_status_history(
     rx_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Get the full status change history for a prescription."""
-    rx = await _get_prescription(db, rx_id, user.practice_id)
+    rx = await _get_prescription(db, rx_id, user["practice_id"])
     result = await db.execute(
         select(ApplianceStatusHistory)
         .where(ApplianceStatusHistory.prescription_id == rx.id)
@@ -682,12 +682,12 @@ class EasyRxConfig(BaseModel):
 
 @router.get("/easyrx/config")
 async def get_easyrx_config(
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get EasyRx integration settings."""
     result = await db.execute(
-        select(EasyRxIntegration).where(EasyRxIntegration.practice_id == user.practice_id)
+        select(EasyRxIntegration).where(EasyRxIntegration.practice_id == user["practice_id"])
     )
     config = result.scalar_one_or_none()
     if not config:
@@ -705,17 +705,17 @@ async def get_easyrx_config(
 @router.put("/easyrx/config")
 async def update_easyrx_config(
     payload: EasyRxConfig,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Update EasyRx integration settings."""
     result = await db.execute(
-        select(EasyRxIntegration).where(EasyRxIntegration.practice_id == user.practice_id)
+        select(EasyRxIntegration).where(EasyRxIntegration.practice_id == user["practice_id"])
     )
     config = result.scalar_one_or_none()
 
     if not config:
-        config = EasyRxIntegration(practice_id=user.practice_id, is_enabled=True)
+        config = EasyRxIntegration(practice_id=user["practice_id"], is_enabled=True)
         db.add(config)
 
     if payload.easyrx_practice_id is not None:
@@ -734,13 +734,13 @@ async def update_easyrx_config(
 @router.get("/easyrx/launch-url/{patient_id}")
 async def get_easyrx_launch_url(
     patient_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Generate EasyRx SSO launch URL for a specific patient."""
     result = await db.execute(
         select(EasyRxIntegration).where(
-            EasyRxIntegration.practice_id == user.practice_id,
+            EasyRxIntegration.practice_id == user["practice_id"],
             EasyRxIntegration.is_enabled.is_(True),
         )
     )
@@ -754,7 +754,7 @@ async def get_easyrx_launch_url(
     patient_result = await db.execute(
         select(Patient).where(
             Patient.id == uuid.UUID(patient_id),
-            Patient.practice_id == user.practice_id,
+            Patient.practice_id == user["practice_id"],
         )
     )
     patient = patient_result.scalar_one_or_none()

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user, decode_token
 from app.core.database import get_db
 from app.models.messaging import ChatRoom, ChatRoomMember, ChatMessage
+from app.models.models import User as UserModel
 
 router = APIRouter(prefix="/api/v1/chat")
 
@@ -203,7 +204,6 @@ async def get_messages(
     messages = result.scalars().all()
 
     # Fetch sender names (simple approach — works for small room sizes)
-    from app.models.models import User as UserModel
 
     sender_ids = {m.sender_id for m in messages}
     sender_names: dict[uuid.UUID, str] = {}
@@ -262,7 +262,6 @@ async def send_message(
     await db.refresh(msg)
 
     # Get sender name
-    from app.models.models import User as UserModel
 
     sender_result = await db.execute(select(UserModel).where(UserModel.id == sender_uuid))
     sender = sender_result.scalars().first()
@@ -320,7 +319,6 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: str = Query(
             return
 
         # Get user name for broadcasts
-        from app.models.models import User as UserModel
 
         user_result = await db.execute(select(UserModel).where(UserModel.id == uuid.UUID(user_id)))
         user_record = user_result.scalars().first()

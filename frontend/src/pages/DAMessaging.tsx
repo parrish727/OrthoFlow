@@ -81,7 +81,7 @@ export default function DAMessaging() {
       const res = await api.request('/api/v1/chat/rooms')
       if (res.ok) {
         const data = await res.json()
-        setRooms(data)
+        setRooms(Array.isArray(data) ? data : data.rooms || [])
       }
     } catch {
       // silent
@@ -478,7 +478,8 @@ function CreateRoomModal({ onClose, onCreated }: CreateRoomModalProps) {
         const res = await api.request('/api/v1/team/')
         if (res.ok) {
           const data = await res.json()
-          setMembers(data.members || data)
+          const staffList = data.staff || data.members || []
+          setMembers(Array.isArray(staffList) ? staffList : [])
         }
       } catch {
         // silent

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.models.models import User
+
 from app.models.clinical import (
     Patient, PatientAlert, PatientFamily,
     AlignerTreatment, AlignerTrayLog, ElasticPrescription,
@@ -36,11 +36,11 @@ class DeactivateRequest(BaseModel):
 async def deactivate_patient(
     patient_id: str,
     payload: DeactivateRequest,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Deactivate a patient. Optionally remove their PHI."""
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     patient.status = "inactive"
     patient.deactivated_at = datetime.now(timezone.utc)
     patient.deactivation_reason = payload.reason
@@ -60,11 +60,11 @@ async def deactivate_patient(
 @router.post("/patients/{patient_id}/reactivate")
 async def reactivate_patient(
     patient_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Reactivate a previously deactivated patient."""
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     patient.status = "active"
     patient.deactivated_at = None
     patient.deactivation_reason = None
@@ -84,21 +84,21 @@ class SSNUpdate(BaseModel):
 async def update_patient_ssn(
     patient_id: str,
     payload: SSNUpdate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Store encrypted SSN for patient. Only owner/office_manager can access."""
-    if user.role not in ("owner", "office_manager", "doctor"):
+    if user["role"] not in ("owner", "office_manager", "doctor"):
         raise HTTPException(status_code=403, detail="Insufficient permissions for SSN access")
 
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
 
     # Simple encryption placeholder — in production use Fernet/AES from app.core.crypto
     # For now, store with a reversible obfuscation marker
     from hashlib import sha256
     import base64
     # XOR-based obfuscation (replace with proper AES in production crypto module)
-    key_bytes = sha256(str(user.practice_id).encode()).digest()[:16]
+    key_bytes = sha256(str(user["practice_id"]).encode()).digest()[:16]
     ssn_bytes = payload.ssn.encode()
     encrypted = base64.b64encode(
         bytes(a ^ b for a, b in zip(ssn_bytes, key_bytes * 2))
@@ -111,21 +111,21 @@ async def update_patient_ssn(
 @router.get("/patients/{patient_id}/ssn")
 async def get_patient_ssn(
     patient_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | None]:
     """Retrieve decrypted SSN. Restricted to owner/office_manager."""
-    if user.role not in ("owner", "office_manager", "doctor"):
+    if user["role"] not in ("owner", "office_manager", "doctor"):
         raise HTTPException(status_code=403, detail="Insufficient permissions for SSN access")
 
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     if not patient.ssn_encrypted:
         return {"ssn": None, "masked": None}
 
     # Decrypt
     from hashlib import sha256
     import base64
-    key_bytes = sha256(str(user.practice_id).encode()).digest()[:16]
+    key_bytes = sha256(str(user["practice_id"]).encode()).digest()[:16]
     encrypted_bytes = base64.b64decode(patient.ssn_encrypted)
     decrypted = bytes(a ^ b for a, b in zip(encrypted_bytes, key_bytes * 2)).decode()
 
@@ -149,13 +149,13 @@ class AlertCreate(BaseModel):
 async def get_patient_alerts(
     patient_id: str,
     active_only: bool = Query(True),
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Get alerts for a patient."""
     query = select(PatientAlert).where(
         PatientAlert.patient_id == uuid.UUID(patient_id),
-        PatientAlert.practice_id == user.practice_id,
+        PatientAlert.practice_id == user["practice_id"],
     )
     if active_only:
         query = query.where(PatientAlert.is_active.is_(True))
@@ -177,18 +177,18 @@ async def get_patient_alerts(
 async def create_patient_alert(
     patient_id: str,
     payload: AlertCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Create a new alert for a patient."""
     alert = PatientAlert(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         patient_id=uuid.UUID(patient_id),
         alert_type=payload.alert_type,
         severity=payload.severity,
         title=payload.title,
         description=payload.description,
-        created_by=user.id,
+        created_by=user["user_id"],
     )
     db.add(alert)
     await db.commit()
@@ -199,14 +199,14 @@ async def create_patient_alert(
 async def dismiss_alert(
     patient_id: str,
     alert_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Dismiss (deactivate) an alert."""
     result = await db.execute(
         select(PatientAlert).where(
             PatientAlert.id == uuid.UUID(alert_id),
-            PatientAlert.practice_id == user.practice_id,
+            PatientAlert.practice_id == user["practice_id"],
         )
     )
     alert = result.scalar_one_or_none()
@@ -230,12 +230,12 @@ class FamilyCreate(BaseModel):
 @router.post("/families", status_code=status.HTTP_201_CREATED)
 async def create_family(
     payload: FamilyCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Create a family group and link patients to it."""
     family = PatientFamily(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         family_name=payload.family_name,
     )
     db.add(family)
@@ -244,7 +244,7 @@ async def create_family(
     # Link patients
     for pid in payload.patient_ids:
         result = await db.execute(
-            select(Patient).where(Patient.id == uuid.UUID(pid), Patient.practice_id == user.practice_id)
+            select(Patient).where(Patient.id == uuid.UUID(pid), Patient.practice_id == user["practice_id"])
         )
         patient = result.scalar_one_or_none()
         if patient:
@@ -262,11 +262,11 @@ async def create_family(
 @router.get("/patients/{patient_id}/family")
 async def get_patient_family(
     patient_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get family members for a patient."""
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     if not patient.family_id:
         return {"family": None, "members": []}
 
@@ -274,7 +274,7 @@ async def get_patient_family(
     result = await db.execute(
         select(Patient).where(
             Patient.family_id == patient.family_id,
-            Patient.practice_id == user.practice_id,
+            Patient.practice_id == user["practice_id"],
         )
     )
     members = result.scalars().all()
@@ -307,11 +307,11 @@ class HygieneScore(BaseModel):
 async def update_hygiene_score(
     patient_id: str,
     payload: HygieneScore,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
     """Update the patient's oral hygiene score (1-5 stars)."""
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     patient.oral_hygiene_score = payload.score
     await db.commit()
     return {"score": payload.score}
@@ -330,11 +330,11 @@ class DentistUpdate(BaseModel):
 async def update_general_dentist(
     patient_id: str,
     payload: DentistUpdate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Update the patient's general dentist info."""
-    patient = await _get_patient(db, patient_id, user.practice_id)
+    patient = await _get_patient(db, patient_id, user["practice_id"])
     patient.general_dentist = payload.general_dentist
     patient.general_dentist_phone = payload.general_dentist_phone
     await db.commit()
@@ -365,14 +365,14 @@ class TrayAdvance(BaseModel):
 @router.get("/patients/{patient_id}/aligners")
 async def get_aligner_treatments(
     patient_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Get all aligner treatments for a patient."""
     result = await db.execute(
         select(AlignerTreatment).where(
             AlignerTreatment.patient_id == uuid.UUID(patient_id),
-            AlignerTreatment.practice_id == user.practice_id,
+            AlignerTreatment.practice_id == user["practice_id"],
         ).order_by(AlignerTreatment.created_at.desc())
     )
     treatments = result.scalars().all()
@@ -392,7 +392,7 @@ async def get_aligner_treatments(
 @router.post("/aligners", status_code=status.HTTP_201_CREATED)
 async def create_aligner_treatment(
     payload: AlignerCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Start a new aligner treatment for a patient."""
@@ -401,7 +401,7 @@ async def create_aligner_treatment(
     est_end = start + timedelta(days=payload.total_trays * payload.change_interval_days)
 
     treatment = AlignerTreatment(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         patient_id=uuid.UUID(payload.patient_id),
         brand=payload.brand,
         total_trays=payload.total_trays,
@@ -424,14 +424,14 @@ async def create_aligner_treatment(
 async def advance_aligner_tray(
     treatment_id: str,
     payload: TrayAdvance,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Advance to the next tray (log the change)."""
     result = await db.execute(
         select(AlignerTreatment).where(
             AlignerTreatment.id == uuid.UUID(treatment_id),
-            AlignerTreatment.practice_id == user.practice_id,
+            AlignerTreatment.practice_id == user["practice_id"],
         )
     )
     treatment = result.scalar_one_or_none()
@@ -451,7 +451,7 @@ async def advance_aligner_tray(
         tray_number=treatment.current_tray + 1,
         started_date=today,
         expected_end_date=today + timedelta(days=treatment.change_interval_days),
-        logged_by=user.id,
+        logged_by=user["user_id"],
         notes=payload.notes,
     )
     db.add(log_entry)
@@ -481,13 +481,13 @@ class ElasticCreate(BaseModel):
 async def get_elastic_prescriptions(
     patient_id: str,
     active_only: bool = Query(True),
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Get elastic prescriptions for a patient."""
     query = select(ElasticPrescription).where(
         ElasticPrescription.patient_id == uuid.UUID(patient_id),
-        ElasticPrescription.practice_id == user.practice_id,
+        ElasticPrescription.practice_id == user["practice_id"],
     )
     if active_only:
         query = query.where(ElasticPrescription.is_active.is_(True))
@@ -512,12 +512,12 @@ async def get_elastic_prescriptions(
 @router.post("/elastics", status_code=status.HTTP_201_CREATED)
 async def create_elastic_prescription(
     payload: ElasticCreate,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Prescribe elastics for a patient."""
     elastic = ElasticPrescription(
-        practice_id=user.practice_id,
+        practice_id=user["practice_id"],
         patient_id=uuid.UUID(payload.patient_id),
         elastic_type=payload.elastic_type,
         size=payload.size,
@@ -527,7 +527,7 @@ async def create_elastic_prescription(
         attachment_to=payload.attachment_to,
         instructions=payload.instructions,
         start_date=payload.start_date or date.today(),
-        prescribed_by=user.id,
+        prescribed_by=user["user_id"],
     )
     db.add(elastic)
     await db.commit()
@@ -537,14 +537,14 @@ async def create_elastic_prescription(
 @router.patch("/elastics/{elastic_id}/end")
 async def end_elastic_prescription(
     elastic_id: str,
-    user: User = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """End an elastic prescription."""
     result = await db.execute(
         select(ElasticPrescription).where(
             ElasticPrescription.id == uuid.UUID(elastic_id),
-            ElasticPrescription.practice_id == user.practice_id,
+            ElasticPrescription.practice_id == user["practice_id"],
         )
     )
     elastic = result.scalar_one_or_none()
