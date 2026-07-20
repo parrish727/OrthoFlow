@@ -101,7 +101,8 @@ export default function DAMessaging() {
       const res = await api.request(`/api/v1/chat/rooms/${roomId}/messages?limit=50`)
       if (res.ok) {
         const data = await res.json()
-        setMessages(data.reverse())
+        const msgList = Array.isArray(data) ? data : data.messages || []
+        setMessages(msgList.reverse())
       }
     } catch {
       // silent
@@ -192,12 +193,30 @@ export default function DAMessaging() {
     setInputText('')
     setShowEmoji(false)
 
-    // Send via REST (persists and broadcasts)
+    // Send via REST (persists and broadcasts via WebSocket)
     try {
-      await api.request(`/api/v1/chat/rooms/${selectedRoomId}/messages`, {
+      const res = await api.request(`/api/v1/chat/rooms/${selectedRoomId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ content: text, message_type: 'text' }),
       })
+      if (res.ok) {
+        const msg = await res.json()
+        // Optimistically add to local state so user sees their message immediately
+        setMessages((prev) => {
+          // Avoid duplicate if WebSocket already delivered it
+          if (prev.some((m) => m.id === msg.id)) return prev
+          return [...prev, {
+            id: msg.id,
+            room_id: selectedRoomId,
+            sender_id: msg.sender_id,
+            sender_name: msg.sender_name,
+            content: msg.content,
+            message_type: msg.message_type || 'text',
+            is_edited: false,
+            created_at: msg.created_at,
+          }]
+        })
+      }
     } catch {
       // If REST fails, try WebSocket as fallback
       if (wsRef.current?.readyState === WebSocket.OPEN) {
