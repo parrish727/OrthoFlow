@@ -132,9 +132,9 @@ export default function Dashboard() {
   return (
     <>
       {/* Welcome + Date Navigation */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-1">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}</h2>
           <p className="text-gray-500 text-sm">Here's your practice overview</p>
         </div>
         <div className="flex items-center gap-2">

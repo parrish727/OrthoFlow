@@ -183,9 +183,7 @@ export default function AppLayout() {
           <div className="absolute inset-0 bg-black/20" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-xl">
             <div className="h-14 flex items-center border-b border-gray-200 px-4 gap-2.5">
-              <div className="w-7 h-7 bg-gradient-to-br from-teal-500 to-teal-700 rounded-md flex items-center justify-center">
-                <span className="text-white text-xs font-bold">O</span>
-              </div>
+              <img src="/brand/mark-teal.svg" alt="OrthoFlow" className="w-7 h-7 flex-shrink-0" />
               <span className="text-sm font-bold text-gray-900">{practiceName}</span>
             </div>
             <nav className="py-3 px-2 space-y-0.5">
