@@ -216,6 +216,8 @@ export default function DAMessaging() {
             created_at: msg.created_at,
           }]
         })
+        // Re-fetch after delay to pick up any auto-replies (demo mode)
+        setTimeout(() => { if (selectedRoomId) fetchMessages(selectedRoomId) }, 4000)
       }
     } catch {
       // If REST fails, try WebSocket as fallback

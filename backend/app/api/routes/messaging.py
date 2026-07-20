@@ -9,7 +9,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user, decode_token
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.models.messaging import ChatRoom, ChatRoomMember, ChatMessage
 from app.models.models import User as UserModel
 
@@ -282,6 +282,69 @@ async def send_message(
         room_id,
         {"type": "message", "data": response.model_dump()},
     )
+
+    # ── Demo Auto-Reply: simulate staff responses for the demo account ────────
+    import asyncio
+    import random
+
+    DEMO_PRACTICE_ID = "82fe9d87-6250-4b15-ac7d-26de094a4be8"
+    DEMO_REPLIES = [
+        ("Sarah (Front Desk)", [
+            "Got it! I'll update the schedule 📋",
+            "On it — patient is checked in ✅",
+            "Let me pull up their chart real quick",
+            "Done! Anything else you need?",
+            "I'll send the reminder now 👍",
+        ]),
+        ("Mike (DA)", [
+            "Chair 3 is prepped and ready 🦷",
+            "Elastics are set out for the next patient",
+            "I'll grab the panoramic from imaging",
+            "Patient is seated, you're good to go doc",
+            "Wire change complete — noted in chart ✅",
+        ]),
+        ("Dr. Williams", [
+            "Thanks for the heads up, adjusting the plan now",
+            "Let's move that appointment to Thursday",
+            "Good catch — I'll review the x-ray before we proceed",
+            "Approved 👍",
+            "Can you prep the consent form for that one?",
+        ]),
+    ]
+
+    if user.get("practice_id") == DEMO_PRACTICE_ID and payload.message_type == "text":
+        async def _send_demo_reply():
+            await asyncio.sleep(random.uniform(1.5, 3.5))
+            responder_name, replies = random.choice(DEMO_REPLIES)
+            reply_text = random.choice(replies)
+
+            # Save the auto-reply as a system-generated message
+            reply_msg = ChatMessage(
+                room_id=room_uuid,
+                sender_id=sender_uuid,  # Same user (demo only has one)
+                content=reply_text,
+                message_type="text",
+            )
+            async with SessionLocal() as reply_db:
+                reply_db.add(reply_msg)
+                await reply_db.commit()
+                await reply_db.refresh(reply_msg)
+
+                reply_response = {
+                    "type": "message",
+                    "data": {
+                        "id": str(reply_msg.id),
+                        "sender_id": str(reply_msg.sender_id),
+                        "sender_name": responder_name,
+                        "content": reply_text,
+                        "message_type": "text",
+                        "is_edited": False,
+                        "created_at": reply_msg.created_at.isoformat(),
+                    },
+                }
+                await manager.broadcast(room_id, reply_response)
+
+        asyncio.create_task(_send_demo_reply())
 
     return response
 
