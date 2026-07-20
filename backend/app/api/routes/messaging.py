@@ -289,21 +289,21 @@ async def send_message(
 
     DEMO_PRACTICE_ID = "82fe9d87-6250-4b15-ac7d-26de094a4be8"
     DEMO_REPLIES = [
-        ("Sarah (Front Desk)", [
+        ("00000000-0000-0000-0000-000000000001", [
             "Got it! I'll update the schedule 📋",
             "On it — patient is checked in ✅",
             "Let me pull up their chart real quick",
             "Done! Anything else you need?",
             "I'll send the reminder now 👍",
         ]),
-        ("Mike (DA)", [
+        ("00000000-0000-0000-0000-000000000002", [
             "Chair 3 is prepped and ready 🦷",
             "Elastics are set out for the next patient",
             "I'll grab the panoramic from imaging",
             "Patient is seated, you're good to go doc",
             "Wire change complete — noted in chart ✅",
         ]),
-        ("Dr. Williams", [
+        ("00000000-0000-0000-0000-000000000003", [
             "Thanks for the heads up, adjusting the plan now",
             "Let's move that appointment to Thursday",
             "Good catch — I'll review the x-ray before we proceed",
@@ -320,20 +320,19 @@ async def send_message(
                 count_result = await count_db.execute(
                     select(sqlfunc.count(ChatMessage.id)).where(
                         ChatMessage.room_id == room_uuid,
-                        ChatMessage.sender_id == sender_uuid,
+                        ChatMessage.sender_id != sender_uuid,
                     )
                 )
-                total_msgs = count_result.scalar() or 0
-                if total_msgs > 12:  # 6 user + 6 replies = 12 total
+                reply_count = count_result.scalar() or 0
+                if reply_count >= 6:
                     return
 
             await asyncio.sleep(random.uniform(1.5, 3.5))
-            responder_name, replies = random.choice(DEMO_REPLIES)
+            staff_id_str, replies = random.choice(DEMO_REPLIES)
             reply_text = random.choice(replies)
 
             # Save the auto-reply as a system-generated message
-            # Use a fixed synthetic UUID for demo staff (not the real user)
-            demo_staff_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+            demo_staff_id = uuid.UUID(staff_id_str)
             reply_msg = ChatMessage(
                 room_id=room_uuid,
                 sender_id=demo_staff_id,
@@ -345,12 +344,17 @@ async def send_message(
                 await reply_db.commit()
                 await reply_db.refresh(reply_msg)
 
+                # Get the staff name from DB
+                staff_user = await reply_db.execute(select(UserModel).where(UserModel.id == demo_staff_id))
+                staff = staff_user.scalars().first()
+                staff_name = staff.full_name if staff else "Staff"
+
                 reply_response = {
                     "type": "message",
                     "data": {
                         "id": str(reply_msg.id),
                         "sender_id": str(reply_msg.sender_id),
-                        "sender_name": responder_name,
+                        "sender_name": staff_name,
                         "content": reply_text,
                         "message_type": "text",
                         "is_edited": False,
