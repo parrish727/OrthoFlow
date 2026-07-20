@@ -314,6 +314,19 @@ async def send_message(
 
     if user.get("practice_id") == DEMO_PRACTICE_ID and payload.message_type == "text":
         async def _send_demo_reply():
+            # Cap at 6 auto-replies per room
+            async with SessionLocal() as count_db:
+                from sqlalchemy import func as sqlfunc
+                count_result = await count_db.execute(
+                    select(sqlfunc.count(ChatMessage.id)).where(
+                        ChatMessage.room_id == room_uuid,
+                        ChatMessage.sender_id == sender_uuid,
+                    )
+                )
+                total_msgs = count_result.scalar() or 0
+                if total_msgs > 12:  # 6 user + 6 replies = 12 total
+                    return
+
             await asyncio.sleep(random.uniform(1.5, 3.5))
             responder_name, replies = random.choice(DEMO_REPLIES)
             reply_text = random.choice(replies)
