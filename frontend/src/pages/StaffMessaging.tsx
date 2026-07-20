@@ -354,7 +354,7 @@ export default function DAMessaging() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               {loadingMessages ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">
                   Loading messages…
@@ -364,13 +364,16 @@ export default function DAMessaging() {
                   No messages yet. Say hello! 👋
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, idx) => {
                   const isOwn = msg.sender_id === userId
                   const isSystem = msg.message_type === 'system'
+                  const prevMsg = idx > 0 ? messages[idx - 1] : null
+                  const sameSenderAsPrev = prevMsg && prevMsg.sender_id === msg.sender_id
+                  const showName = !isOwn && !sameSenderAsPrev
 
                   if (isSystem) {
                     return (
-                      <div key={msg.id} className="text-center">
+                      <div key={msg.id} className="text-center my-3">
                         <span className="text-xs text-gray-400 italic">{msg.content}</span>
                       </div>
                     )
@@ -379,23 +382,23 @@ export default function DAMessaging() {
                   return (
                     <div
                       key={msg.id}
-                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1`}
+                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${sameSenderAsPrev ? 'mt-0.5' : 'mt-3'}`}
                     >
                       <div
-                        className={`max-w-[75%] px-3.5 py-2.5 shadow-sm ${
+                        className={`max-w-[75%] px-3.5 py-2 shadow-sm ${
                           isOwn
                             ? 'bg-teal-500 text-white rounded-2xl rounded-br-md'
                             : 'bg-white text-gray-900 border border-gray-100 rounded-2xl rounded-bl-md'
                         }`}
                       >
-                        {!isOwn && (
+                        {showName && (
                           <p className="text-[11px] font-semibold text-teal-600 mb-0.5">
                             {msg.sender_name}
                           </p>
                         )}
-                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="text-[14px] leading-snug whitespace-pre-wrap break-words">{msg.content}</p>
                         <p
-                          className={`text-[10px] mt-1 text-right ${
+                          className={`text-[10px] mt-0.5 text-right ${
                             isOwn ? 'text-teal-200' : 'text-gray-400'
                           }`}
                         >
