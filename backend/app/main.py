@@ -1,8 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 
 from app.api.routes import invoices, auth, practices, health
 from app.api.routes import quickbooks, notifications, payments, pms, spend
@@ -38,19 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# Strip trailing slashes so routes match regardless of slash presence
-# Added AFTER CORS so it runs BEFORE CORS in the request lifecycle
-class TrailingSlashMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
-        path = request.scope["path"]
-        if path != "/" and path.endswith("/"):
-            request.scope["path"] = path.rstrip("/")
-        return await call_next(request)
-
-
-app.add_middleware(TrailingSlashMiddleware)
 
 
 @app.on_event("startup")
