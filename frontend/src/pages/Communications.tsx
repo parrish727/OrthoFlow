@@ -34,10 +34,22 @@ interface CommStats {
   pending_queue: number
 }
 
+interface SentMessage {
+  id: string
+  patient_id: string
+  direction: string
+  channel: string
+  to_address: string
+  body: string
+  status: string
+  created_at: string
+}
+
 export default function Communications() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [scheduled, setScheduled] = useState<ScheduledMessage[]>([])
   const [stats, setStats] = useState<CommStats | null>(null)
+  const [recentMessages, setRecentMessages] = useState<SentMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null)
   const [showSendForm, setShowSendForm] = useState(false)
@@ -63,9 +75,10 @@ export default function Communications() {
   const [templateFormLoading, setTemplateFormLoading] = useState(false)
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [templatesRes, scheduledRes] = await Promise.all([
+    const [templatesRes, scheduledRes, messagesRes] = await Promise.all([
       api.getTemplates(),
       api.getScheduledMessages(),
+      api.request('/api/v1/communications/messages?size=20'),
     ])
     if (templatesRes.ok) {
       const data = await templatesRes.json()
@@ -73,8 +86,25 @@ export default function Communications() {
     }
     if (scheduledRes.ok) {
       const data = await scheduledRes.json()
-      setScheduled(data.scheduled || data || [])
+      setScheduled(data.scheduled_messages || data.scheduled || data || [])
       if (data.stats) setStats(data.stats)
+    }
+    if (messagesRes.ok) {
+      const data = await messagesRes.json()
+      setRecentMessages(data.messages || data || [])
+      // Build stats from messages if not provided
+      if (!stats) {
+        const msgs = data.messages || data || []
+        const today = new Date().toDateString()
+        const sentToday = msgs.filter((m: SentMessage) => new Date(m.created_at).toDateString() === today && m.direction === 'outbound').length
+        const delivered = msgs.filter((m: SentMessage) => m.status === 'delivered').length
+        const total = msgs.filter((m: SentMessage) => m.direction === 'outbound').length
+        setStats({
+          sent_today: sentToday,
+          delivery_rate: total > 0 ? Math.round((delivered / total) * 100) : 100,
+          pending_queue: msgs.filter((m: SentMessage) => m.status === 'queued' || m.status === 'pending').length,
+        })
+      }
     }
     setLoading(false)
   }, [])
@@ -223,6 +253,54 @@ export default function Communications() {
             </div>
           </div>
         )}
+
+        {/* Recent Messages — Conversation Log */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-6 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <MessageSquare size={16} className="text-teal-600" />
+              Recent Messages
+            </h3>
+            <span className="text-xs text-gray-400">{recentMessages.length} messages</span>
+          </div>
+          {recentMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <Inbox size={32} className="mb-2 opacity-50" />
+              <p className="text-sm font-medium">No messages yet</p>
+              <p className="text-xs mt-1">Send your first message to a patient above</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+              {recentMessages.map(msg => (
+                <div key={msg.id} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                      msg.direction === 'inbound' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
+                    }`}>
+                      {msg.direction === 'inbound' ? '←' : '→'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 truncate">{msg.to_address}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          msg.channel === 'sms' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'
+                        }`}>{msg.channel.toUpperCase()}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          msg.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                          msg.status === 'received' ? 'bg-blue-100 text-blue-700' :
+                          msg.status === 'sent' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{msg.status}</span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-0.5 truncate">{msg.body}</p>
+                    </div>
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{formatDateTime(msg.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Send Message Form */}
         {showSendForm && (
