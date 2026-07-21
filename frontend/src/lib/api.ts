@@ -102,12 +102,12 @@ export const api = {
   request: (path: string, options?: RequestInit) => request(path, options),
 
   // Communications — Phase 3
-  getTemplates: () => request('/api/v1/communications/templates'),
+  getTemplates: () => request('/api/v1/communications/templates/'),
   createTemplate: (data: { name: string; channel: string; body: string }) =>
     request('/api/v1/communications/templates', { method: 'POST', body: JSON.stringify(data) }),
   sendMessage: (data: { patient_id: string; template_id?: string; channel: string; body?: string; subject?: string }) =>
     request('/api/v1/communications/reminders/send-now', { method: 'POST', body: JSON.stringify(data) }),
-  getScheduledMessages: () => request('/api/v1/communications/reminders/scheduled'),
+  getScheduledMessages: () => request('/api/v1/communications/reminders/scheduled/'),
   cancelScheduledMessage: (id: string) =>
     request(`/api/v1/communications/reminders/scheduled/${id}`, { method: 'DELETE' }),
   getMessageLog: (params?: Record<string, string>) => {

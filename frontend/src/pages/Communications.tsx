@@ -78,7 +78,7 @@ export default function Communications() {
     const [templatesRes, scheduledRes, messagesRes] = await Promise.all([
       api.getTemplates(),
       api.getScheduledMessages(),
-      api.request('/api/v1/communications/messages?size=20'),
+      api.request('/api/v1/communications/messages/?size=20'),
     ])
     if (templatesRes.ok) {
       const data = await templatesRes.json()
