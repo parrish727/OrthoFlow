@@ -2,14 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 async function request(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token')
-  // Normalize path: add trailing slash only for GET requests on collection endpoints
-  // POST/PATCH/DELETE to action endpoints (login, approve, etc.) must NOT get a trailing slash
-  let normalizedPath = path
-  const method = (options.method || 'GET').toUpperCase()
-  if (method === 'GET' && !normalizedPath.includes('?') && !normalizedPath.endsWith('/')) {
-    normalizedPath += '/'
-  }
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       ...options.headers,
