@@ -2,7 +2,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 async function request(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token')
-  const res = await fetch(`${API_URL}${path}`, {
+  // Ensure trailing slash on API paths (prevents 307 redirect issues with CORS)
+  let normalizedPath = path
+  if (!normalizedPath.includes('?') && !normalizedPath.endsWith('/')) {
+    normalizedPath += '/'
+  }
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
     headers: {
       ...options.headers,

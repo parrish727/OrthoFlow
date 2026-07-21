@@ -26,7 +26,6 @@ app = FastAPI(
     title="OrthoFlow AI",
     version="0.1.0",
     description="AI-Powered Accounts Payable Automation for Orthodontic Practices",
-    redirect_slashes=False,
 )
 
 app.add_middleware(
