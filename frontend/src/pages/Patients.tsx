@@ -30,6 +30,22 @@ const PHASE_LABELS: Record<string, string> = {
   active_treatment: 'Active Treatment',
   retention: 'Retention',
   completed: 'Completed',
+  // GP
+  new_patient: 'New Patient',
+  active_gp: 'Active GP',
+  hygiene_recall: 'Hygiene/Recall',
+  restorative: 'Restorative',
+  // Ortho
+  bonding: 'Bonding',
+  active: 'Active Ortho',
+  finishing: 'Finishing',
+  complete: 'Complete',
+  // Cosmetic
+  cosmetic_consult: 'Cosmetic Consult',
+  cosmetic_active: 'Cosmetic Treatment',
+  // Perio
+  perio_active: 'Perio Treatment',
+  perio_maintenance: 'Perio Maintenance',
 }
 
 export default function Patients() {
@@ -196,8 +212,12 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       {/* Specialty badge */}
-                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records'].includes(patient.treatment_phase) ? (
+                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
+                      ) : patient.treatment_phase && ['cosmetic_consult', 'cosmetic_active'].includes(patient.treatment_phase) ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 font-medium">Cosmetic</span>
+                      ) : patient.treatment_phase && ['perio_active', 'perio_maintenance'].includes(patient.treatment_phase) ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">Perio</span>
                       ) : patient.treatment_phase === 'complete' ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">Complete</span>
                       ) : (
@@ -318,21 +338,40 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Treatment Phase</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Patient Type</label>
                   <select
                     value={newPatient.treatment_phase}
                     onChange={e => setNewPatient(p => ({ ...p, treatment_phase: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
                   >
-                    <option value="">Select phase...</option>
-                    <option value="consultation">Consultation</option>
-                    <option value="pending">Pending</option>
-                    <option value="records">Records</option>
-                    <option value="bonding">Bonding</option>
-                    <option value="active">Active Treatment</option>
-                    <option value="finishing">Finishing</option>
-                    <option value="retention">Retention</option>
-                    <option value="complete">Completed</option>
+                    <option value="">Select type...</option>
+                    <optgroup label="🏥 General Dentistry">
+                      <option value="new_patient">New Patient</option>
+                      <option value="active_gp">Active GP Patient</option>
+                      <option value="hygiene_recall">Hygiene / Recall</option>
+                      <option value="restorative">Restorative Treatment</option>
+                    </optgroup>
+                    <optgroup label="🦷 Orthodontics">
+                      <option value="consultation">Ortho Consultation</option>
+                      <option value="pending">Pending Start</option>
+                      <option value="records">Records</option>
+                      <option value="bonding">Bonding</option>
+                      <option value="active">Active Ortho Treatment</option>
+                      <option value="finishing">Finishing</option>
+                      <option value="retention">Retention</option>
+                    </optgroup>
+                    <optgroup label="✨ Cosmetic">
+                      <option value="cosmetic_consult">Cosmetic Consultation</option>
+                      <option value="cosmetic_active">Cosmetic Treatment (Veneers/Whitening)</option>
+                    </optgroup>
+                    <optgroup label="🩺 Periodontics">
+                      <option value="perio_active">Active Perio Treatment</option>
+                      <option value="perio_maintenance">Perio Maintenance</option>
+                    </optgroup>
+                    <optgroup label="✅ Complete">
+                      <option value="complete">Treatment Complete</option>
+                    </optgroup>
+                  </select>
                   </select>
                 </div>
                 <div>
