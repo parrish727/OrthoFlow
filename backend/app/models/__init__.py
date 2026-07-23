@@ -101,3 +101,5 @@ from app.models.perio import (  # noqa: F401
     PerioExam,
     PerioReading,
 )
+
+from app.models.recall import HygieneRecall  # noqa: F401
