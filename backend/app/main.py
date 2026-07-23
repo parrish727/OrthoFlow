@@ -21,6 +21,7 @@ from app.api.routes import catalog
 from app.api.routes import restorative
 from app.api.routes import workflow
 from app.api.routes import messaging
+from app.api.routes import perio
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -84,6 +85,7 @@ app.include_router(catalog.router, tags=["catalog"])
 app.include_router(restorative.router, tags=["restorative-charting"])
 app.include_router(workflow.router, tags=["workflow"])
 app.include_router(messaging.router, tags=["messaging"])
+app.include_router(perio.router, tags=["perio-charting"])
 
 
 # ── Deep Health Check (verifies core routes, not just "is the process alive") ──

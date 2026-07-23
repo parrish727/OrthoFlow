@@ -96,3 +96,8 @@ from app.models.messaging import (  # noqa: F401
     ChatRoomMember,
     ChatMessage,
 )
+
+from app.models.perio import (  # noqa: F401
+    PerioExam,
+    PerioReading,
+)
