@@ -75,6 +75,11 @@ from app.models.appliance_tracking import (  # noqa: F401
     EasyRxIntegration,
 )
 
+from app.models.cdt_codes import (  # noqa: F401
+    CDTCode,
+    AppointmentTypeTemplate,
+)
+
 from app.models.workflow import (  # noqa: F401
     PatientVisitStatus,
     RecentPatientSearch,
