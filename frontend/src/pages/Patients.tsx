@@ -372,7 +372,6 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       <option value="complete">Treatment Complete</option>
                     </optgroup>
                   </select>
-                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Referring Doctor</label>
