@@ -651,6 +651,18 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
 
   const APPT_TYPES = ['Adjustment', 'Bonding', 'Consultation', 'Deband', 'Elastic Check', 'Emergency', 'IPR', 'Progress Photos', 'Records', 'Retainer Check', 'Wire Change']
 
+  // Fetch specialty appointment types from catalog
+  interface ApptTypeTemplate { id: string; name: string; specialty: string; default_duration_minutes: number; color: string | null; requires_da: boolean }
+  const [catalogTypes, setCatalogTypes] = useState<ApptTypeTemplate[]>([])
+  useEffect(() => {
+    api.request('/api/v1/catalog/appointment-types').then(async (res) => {
+      if (res.ok) {
+        const data = await res.json()
+        setCatalogTypes(data.appointment_types || [])
+      }
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (patientSearch.length >= 2) {
       api.getPatients({ search: patientSearch }).then(async res => {
@@ -781,12 +793,40 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
           </div>
         </div>
 
-        {/* Appointment Type */}
+        {/* Appointment Type — Grouped by Specialty */}
         <div className="mb-6">
           <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Type</label>
-          <select value={apptType} onChange={e => setApptType(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+          <select
+            value={apptType}
+            onChange={e => {
+              setApptType(e.target.value)
+              const tmpl = catalogTypes.find(t => t.name === e.target.value)
+              if (tmpl) {
+                setDuration(tmpl.default_duration_minutes)
+                if (tmpl.requires_da && !daId && das.length > 0) setDaId(das[0].id)
+              }
+            }}
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          >
             <option value="">Select type...</option>
-            {APPT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            {catalogTypes.length > 0 ? (
+              <>
+                {['ortho', 'general', 'cosmetic', 'perio', 'surgery'].map(spec => {
+                  const group = catalogTypes.filter(t => t.specialty === spec)
+                  if (group.length === 0) return null
+                  const label = spec === 'ortho' ? '🦷 Orthodontics' : spec === 'general' ? '🏥 General' : spec === 'cosmetic' ? '✨ Cosmetic' : spec === 'perio' ? '🩺 Periodontics' : '🔪 Surgery'
+                  return (
+                    <optgroup key={spec} label={label}>
+                      {group.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    </optgroup>
+                  )
+                })}
+              </>
+            ) : (
+              <>
+                {APPT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </>
+            )}
           </select>
         </div>
 

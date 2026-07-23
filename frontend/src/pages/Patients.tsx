@@ -195,6 +195,14 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       {patient.last_name}, {patient.first_name}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
+                      {/* Specialty badge */}
+                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records'].includes(patient.treatment_phase) ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
+                      ) : patient.treatment_phase === 'complete' ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">Complete</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">General</span>
+                      )}
                       {patient.treatment_phase && (
                         <span className="text-xs text-gray-500">{PHASE_LABELS[patient.treatment_phase] || patient.treatment_phase}</span>
                       )}
