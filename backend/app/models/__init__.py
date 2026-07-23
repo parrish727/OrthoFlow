@@ -80,6 +80,11 @@ from app.models.cdt_codes import (  # noqa: F401
     AppointmentTypeTemplate,
 )
 
+from app.models.restorative import (  # noqa: F401
+    RestorativeChart,
+    ToothRestoration,
+)
+
 from app.models.workflow import (  # noqa: F401
     PatientVisitStatus,
     RecentPatientSearch,
