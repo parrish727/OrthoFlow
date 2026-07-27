@@ -426,6 +426,11 @@ async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     print("\n🌱 Seeding OrthoFlow demo data...\n")
 
+    # Seed CDT codes and appointment types (independent of practice)
+    from app.seeds import seed_cdt_codes, seed_appointment_types
+    await seed_cdt_codes()
+    await seed_appointment_types()
+
     async with SessionLocal() as db:
         # Verify practice exists
         result = await db.execute(select(Practice).where(Practice.id == DEMO_PRACTICE_ID))
