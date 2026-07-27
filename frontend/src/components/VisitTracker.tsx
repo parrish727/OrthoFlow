@@ -4,12 +4,14 @@ import { Clock, Armchair, Stethoscope, CheckCircle2, Loader2, Users } from 'luci
 import { api } from '../lib/api'
 
 interface VisitEntry {
-  id: number
-  patient_id: number
-  patient_name: string
+  id: string
+  patient_id: string
+  patient_name: string | null
   status: 'waiting' | 'seated' | 'in_treatment' | 'checked_out'
-  checked_in_at: string
-  status_changed_at: string
+  checked_in_at: string | null
+  seated_at: string | null
+  checked_out_at: string | null
+  created_at: string
 }
 
 const STATUS_COLUMNS = [
@@ -92,7 +94,7 @@ export default function VisitTracker() {
     return () => clearInterval(interval)
   }, [loadVisits])
 
-  const movePatient = async (visitId: number, newStatus: string) => {
+  const movePatient = async (visitId: string, newStatus: string) => {
     try {
       await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
         method: 'PATCH',
@@ -155,13 +157,13 @@ export default function VisitTracker() {
                       className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-colors group"
                     >
                       <p className="text-sm font-medium text-gray-800 group-hover:text-teal-700 transition-colors truncate">
-                        {patient.patient_name}
+                        {patient.patient_name || 'Unknown Patient'}
                       </p>
                       <div className="flex items-center justify-between mt-0.5">
                         <div className="flex items-center gap-1">
                           <span className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
                           <span className="text-xs text-gray-400">
-                            {timeAgo(patient.status_changed_at)}
+                            {timeAgo(patient.seated_at || patient.checked_in_at || patient.created_at)}
                           </span>
                         </div>
                         {col.next && (
