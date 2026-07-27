@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, Armchair, Stethoscope, CheckCircle2, Loader2, Users } from 'lucide-react'
+import { Clock, Armchair, Stethoscope, CheckCircle2, Loader2, Users, GripVertical } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface VisitEntry {
@@ -8,6 +8,7 @@ interface VisitEntry {
   patient_id: string
   patient_name: string | null
   status: 'waiting' | 'seated' | 'in_treatment' | 'checked_out'
+  chair_id: string | null
   checked_in_at: string | null
   seated_at: string | null
   checked_out_at: string | null
@@ -19,53 +20,58 @@ const STATUS_COLUMNS = [
     key: 'waiting' as const,
     label: 'Lobby',
     icon: Clock,
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
+    headerBg: 'bg-amber-50',
+    headerBorder: 'border-amber-200',
     badge: 'bg-amber-100 text-amber-700',
     dot: 'bg-amber-400',
-    next: 'seated' as const,
-    nextLabel: 'Seat Patient',
+    cardBorder: 'border-l-amber-400',
+    cardBg: 'bg-amber-50/50',
+    dropActive: 'border-amber-400 ring-2 ring-amber-100',
   },
   {
     key: 'seated' as const,
     label: 'Seated',
     icon: Armchair,
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
+    headerBg: 'bg-blue-50',
+    headerBorder: 'border-blue-200',
     badge: 'bg-blue-100 text-blue-700',
     dot: 'bg-blue-400',
-    next: 'in_treatment' as const,
-    nextLabel: 'Ready for Checkout',
+    cardBorder: 'border-l-blue-400',
+    cardBg: 'bg-blue-50/50',
+    dropActive: 'border-blue-400 ring-2 ring-blue-100',
   },
   {
     key: 'in_treatment' as const,
     label: 'Checkout',
     icon: Stethoscope,
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
+    headerBg: 'bg-purple-50',
+    headerBorder: 'border-purple-200',
     badge: 'bg-purple-100 text-purple-700',
     dot: 'bg-purple-400',
-    next: 'checked_out' as const,
-    nextLabel: 'Dismiss',
+    cardBorder: 'border-l-purple-400',
+    cardBg: 'bg-purple-50/50',
+    dropActive: 'border-purple-400 ring-2 ring-purple-100',
   },
   {
     key: 'checked_out' as const,
     label: 'Dismissed',
     icon: CheckCircle2,
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
+    headerBg: 'bg-emerald-50',
+    headerBorder: 'border-emerald-200',
     badge: 'bg-emerald-100 text-emerald-700',
     dot: 'bg-emerald-400',
-    next: null,
-    nextLabel: null,
+    cardBorder: 'border-l-emerald-400',
+    cardBg: 'bg-emerald-50/50',
+    dropActive: 'border-emerald-400 ring-2 ring-emerald-100',
   },
 ]
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return ''
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m`
+  if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   return `${hrs}h ${mins % 60}m`
 }
@@ -73,6 +79,8 @@ function timeAgo(dateStr: string): string {
 export default function VisitTracker() {
   const [visits, setVisits] = useState<VisitEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
+  const [draggingVisit, setDraggingVisit] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const loadVisits = useCallback(async () => {
@@ -94,15 +102,55 @@ export default function VisitTracker() {
     return () => clearInterval(interval)
   }, [loadVisits])
 
-  const movePatient = async (visitId: string, newStatus: string) => {
-    try {
-      await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: newStatus }),
-      })
-      loadVisits()
-    } catch { /* silent */ }
+  // ── Drag-and-Drop Handlers ─────────────────────────────────────────────────
+
+  function handleDragStart(e: React.DragEvent, visitId: string) {
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: visitId }))
+    e.dataTransfer.effectAllowed = 'move'
+    setDraggingVisit(visitId)
   }
+
+  function handleDragEnd() {
+    setDraggingVisit(null)
+    setDragOverColumn(null)
+  }
+
+  function handleColumnDragOver(e: React.DragEvent, columnKey: string) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverColumn(columnKey)
+  }
+
+  function handleColumnDragLeave() {
+    setDragOverColumn(null)
+  }
+
+  async function handleColumnDrop(e: React.DragEvent, targetStatus: string) {
+    e.preventDefault()
+    setDragOverColumn(null)
+    setDraggingVisit(null)
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      const visitId = data.id
+
+      // Find the current visit to check if transition is valid
+      const visit = visits.find(v => v.id === visitId)
+      if (!visit || visit.status === targetStatus) return
+
+      const res = await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: targetStatus }),
+      })
+      if (res.ok) {
+        await loadVisits()
+      }
+    } catch {
+      // Invalid drop or transition not allowed — silently ignore
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const grouped = STATUS_COLUMNS.map(col => ({
     ...col,
@@ -128,16 +176,26 @@ export default function VisitTracker() {
           <h3 className="font-medium text-gray-800">Today's Patient Flow</h3>
         </div>
         <span className="text-xs text-gray-400">
-          {visits.length} patient{visits.length !== 1 ? 's' : ''} today
+          {visits.length} patient{visits.length !== 1 ? 's' : ''} today · Drag to move between stages
         </span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-gray-100">
         {grouped.map(col => {
           const Icon = col.icon
+          const isDropTarget = dragOverColumn === col.key
           return (
-            <div key={col.key} className="min-h-[120px]">
-              <div className={`px-3 py-2.5 ${col.bg} border-b ${col.border} flex items-center justify-between`}>
+            <div
+              key={col.key}
+              onDragOver={e => handleColumnDragOver(e, col.key)}
+              onDragLeave={handleColumnDragLeave}
+              onDrop={e => handleColumnDrop(e, col.key)}
+              className={`min-h-[180px] transition-all ${
+                isDropTarget ? `${col.dropActive} scale-[1.01]` : ''
+              }`}
+            >
+              {/* Column Header */}
+              <div className={`px-3 py-2.5 ${col.headerBg} border-b ${col.headerBorder} flex items-center justify-between`}>
                 <div className="flex items-center gap-1.5">
                   <Icon size={14} className={col.badge.split(' ')[1]} />
                   <span className="text-xs font-medium text-gray-700">{col.label}</span>
@@ -146,36 +204,42 @@ export default function VisitTracker() {
                   {col.patients.length}
                 </span>
               </div>
-              <div className="p-2 space-y-1">
+
+              {/* Patient Cards */}
+              <div className="p-2 space-y-1.5">
                 {col.patients.length === 0 ? (
-                  <p className="text-xs text-gray-300 text-center py-4">—</p>
+                  <p className="text-xs text-gray-300 text-center py-6">
+                    {isDropTarget ? 'Drop here' : '—'}
+                  </p>
                 ) : (
                   col.patients.map(patient => (
-                    <button
+                    <div
                       key={patient.id}
-                      onClick={() => navigate(`/patients/${patient.patient_id}`)}
-                      className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                      draggable
+                      onDragStart={e => handleDragStart(e, patient.id)}
+                      onDragEnd={handleDragEnd}
+                      className={`border-l-[3px] ${col.cardBorder} ${col.cardBg} rounded-lg px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-all hover:shadow-sm ${
+                        draggingVisit === patient.id ? 'opacity-40 scale-95' : ''
+                      }`}
                     >
-                      <p className="text-sm font-medium text-gray-800 group-hover:text-teal-700 transition-colors truncate">
-                        {patient.patient_name || 'Unknown Patient'}
-                      </p>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <div className="flex items-center gap-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
-                          <span className="text-xs text-gray-400">
-                            {timeAgo(patient.seated_at || patient.checked_in_at || patient.created_at)}
-                          </span>
-                        </div>
-                        {col.next && (
-                          <span
-                            onClick={(e) => { e.stopPropagation(); movePatient(patient.id, col.next!) }}
-                            className="text-[9px] font-medium text-teal-600 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                      <div className="flex items-start gap-2">
+                        <GripVertical size={14} className="text-gray-300 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <button
+                            onClick={() => navigate(`/patients/${patient.patient_id}`)}
+                            className="text-sm font-medium text-gray-800 hover:text-teal-700 transition-colors truncate block text-left"
                           >
-                            {col.nextLabel} →
-                          </span>
-                        )}
+                            {patient.patient_name || 'Unknown Patient'}
+                          </button>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
+                            <span className="text-[10px] text-gray-400">
+                              {timeAgo(patient.seated_at || patient.checked_in_at || patient.created_at)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </button>
+                    </div>
                   ))
                 )}
               </div>
