@@ -3,7 +3,6 @@ Run via: docker compose exec backend python -m app.seeds.demo_flow
 """
 import asyncio
 import uuid
-import random
 from datetime import datetime, date, time, timezone, timedelta
 
 from sqlalchemy import select
@@ -11,7 +10,7 @@ from app.core.database import SessionLocal
 from app.models.models import User, Practice
 from app.models.clinical import Patient, Appointment, Chair, DentalAssistant
 from app.models.workflow import PatientVisitStatus
-from app.models.messaging import ChatRoom, ChatRoomMember, ChatMessage
+from app.models.messaging import ChatRoom, ChatRoomMember
 from app.models.communications import MessageLog
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -349,55 +348,7 @@ async def seed_staff_messaging(db) -> None:
         ))
 
     await db.flush()
-
-    # ── Huddle Room Messages ──────────────────────────────────────────────────
-    huddle_messages = [
-        (manager, "Good morning team! 🌅 Today's schedule is full — 10 patients on the books.", -95),
-        (front_desk, "Marcus Johnson is here for his 8am adjustment. Checked in!", -90),
-        (da, "Chair 1 prepped and ready. I'll grab his chart.", -88),
-        (doctor, "Thanks Mike. Let's make sure we check his lower wire — it was loose last visit.", -85),
-        (da, "Noted. I'll have the NiTi wires set out just in case. 🦷", -83),
-        (manager, "Reminder: Aaliyah Washington's bonding is at 8:30 — it's her big day! Make it special.", -75),
-        (front_desk, "Her mom confirmed they're on their way. ETA 5 minutes.", -70),
-        (doctor, "Perfect. Keisha, can you set up Chair 2 for bonding? Full kit.", -65),
-        (da, "On it! Brackets, adhesive, and bite turbos ready to go. ✅", -60),
-        (manager, "Devon Brooks (9am observation) — reminder his mom wants to discuss phase 1 timing.", -50),
-        (front_desk, "Devon just checked in. Mom has questions about when braces start.", -15),
-        (doctor, "I'll take extra time with them. His growth is on track — we can discuss timing after I review the latest ceph.", -12),
-    ]
-
-    for sender, content, mins_ago in huddle_messages:
-        db.add(ChatMessage(
-            id=uuid.uuid4(),
-            room_id=huddle_room.id,
-            sender_id=sender.id,
-            content=content,
-            message_type="text",
-            created_at=now + timedelta(minutes=mins_ago),
-        ))
-
-    # ── DA Room Messages ──────────────────────────────────────────────────────
-    da_messages = [
-        (doctor, "Mike, can you pull up Marcus's panoramic from last month?", -87),
-        (da, "Got it on screen 2. The lower right looks good — wire seats fully now.", -86),
-        (doctor, "Great. Let's keep current wire and reassess next visit.", -85),
-        (da, "Sounds good doc. Moving him to checkout after you sign off.", -80),
-        (doctor, "Signed. Tell Sarah to schedule him 6 weeks out.", -78),
-        (da, "Done ✅ Next appointment set for 6 weeks.", -76),
-    ]
-
-    for sender, content, mins_ago in da_messages:
-        db.add(ChatMessage(
-            id=uuid.uuid4(),
-            room_id=da_room.id,
-            sender_id=sender.id,
-            content=content,
-            message_type="text",
-            created_at=now + timedelta(minutes=mins_ago),
-        ))
-
-    await db.flush()
-    print(f"  ✅ Staff messaging: 2 rooms, {len(huddle_messages) + len(da_messages)} messages")
+    print("  ✅ Staff messaging: 2 rooms ready (AI auto-reply active for demo)")
 
 
 async def seed_patient_messages(db, patients: list) -> None:
@@ -502,7 +453,7 @@ async def seed_demo_flow():
     print("    • 1 patient in treatment (Aaliyah)")
     print("    • 2 patients in lobby (Devon, Jasmine)")
     print(f"  Today's Schedule: {len(DEMO_APPOINTMENTS)} appointments")
-    print("  Staff Chat: 2 rooms with active conversations")
+    print("  Staff Chat: 2 rooms (AI auto-reply responds to demo messages)")
     print("  Patient Comms: 10 SMS/email messages in log")
     print()
 
