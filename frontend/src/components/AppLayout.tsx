@@ -5,7 +5,7 @@ import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
   ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle, Clock,
-  FlaskConical, RefreshCw, BookOpen,
+  FlaskConical, RefreshCw, BookOpen, Mail,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -32,7 +32,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/insurance', icon: Shield, label: 'Insurance', section: 'finance' },
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
-  { to: '/communications', icon: MessageSquare, label: 'Patient Messages', section: 'comms' },
+  { to: '/communications', icon: MessageSquare, label: 'Reminders', section: 'comms' },
+  { to: '/patient-messages', icon: Mail, label: 'Patient Messages', section: 'comms' },
   { to: '/da-chat', icon: MessageSquare, label: 'Staff Messages', section: 'comms' },
   { to: '/reports', icon: BarChart3, label: 'Reports', section: 'insights' },
   { to: '/insights', icon: Lightbulb, label: 'Insights', section: 'insights' },
@@ -66,9 +67,9 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 // Nav labels visible per role
 const ROLE_NAV_ALLOWED: Record<string, string[]> = {
-  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Staff Messages', 'Patient Messages', 'Time Clock'],
-  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Staff Messages', 'Time Clock'],
-  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Staff Messages', 'Reports', 'Insights', 'Tools', 'Time Clock'],
+  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Staff Messages', 'Patient Messages', 'Reminders', 'Time Clock'],
+  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Reminders', 'Staff Messages', 'Time Clock'],
+  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Reminders', 'Staff Messages', 'Reports', 'Insights', 'Tools', 'Time Clock'],
   // doctor and owner get everything — no filter needed
 }
 
