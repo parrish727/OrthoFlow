@@ -12,6 +12,7 @@ from app.models.clinical import Patient, Appointment, Chair, DentalAssistant
 from app.models.workflow import PatientVisitStatus
 from app.models.messaging import ChatRoom, ChatRoomMember
 from app.models.communications import MessageLog
+from app.models.portal import PortalAccount, PortalForm, PortalMessage
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTS
@@ -22,6 +23,7 @@ TODAY = date.today()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
+    {"first_name": "Priscilla", "last_name": "Knowles", "dob": date(1992, 4, 15), "phone": "(414) 555-0200", "email": "priscilla.knowles@melanin-tech.com", "phase": "active"},
     {"first_name": "Marcus", "last_name": "Johnson", "dob": date(2010, 3, 15), "phone": "(414) 555-0101", "email": "marcus.j@example.com", "phase": "active"},
     {"first_name": "Aaliyah", "last_name": "Washington", "dob": date(2008, 7, 22), "phone": "(414) 555-0102", "email": "aaliyah.w@example.com", "phase": "bonding"},
     {"first_name": "Devon", "last_name": "Brooks", "dob": date(2012, 11, 8), "phone": "(414) 555-0103", "email": "devon.b@example.com", "phase": "observation_1"},
@@ -417,6 +419,226 @@ async def seed_patient_messages(db, patients: list) -> None:
     print(f"  ✅ Patient messages: {len(messages_data)} communication log entries")
 
 
+async def seed_portal_forms(db) -> list:
+    """Create intake, consent, and health history forms for MyOrthoChart."""
+    result = await db.execute(
+        select(PortalForm).where(PortalForm.practice_id == DEMO_PRACTICE_ID).limit(1)
+    )
+    if result.scalar_one_or_none():
+        print("  ✅ Portal forms: already seeded")
+        return []
+
+    forms_data = [
+        {
+            "name": "New Patient Intake Form",
+            "form_type": "intake",
+            "description": "Required for all new patients before their first appointment",
+            "is_required_new_patient": True,
+            "fields": [
+                {"name": "patient_name", "label": "Patient Full Name", "type": "text", "required": True},
+                {"name": "date_of_birth", "label": "Date of Birth", "type": "date", "required": True},
+                {"name": "parent_guardian", "label": "Parent/Guardian Name (if minor)", "type": "text", "required": False},
+                {"name": "address", "label": "Home Address", "type": "textarea", "required": True},
+                {"name": "phone", "label": "Phone Number", "type": "tel", "required": True},
+                {"name": "email", "label": "Email Address", "type": "email", "required": True},
+                {"name": "emergency_contact", "label": "Emergency Contact Name", "type": "text", "required": True},
+                {"name": "emergency_phone", "label": "Emergency Contact Phone", "type": "tel", "required": True},
+                {"name": "insurance_provider", "label": "Insurance Provider", "type": "text", "required": False},
+                {"name": "insurance_id", "label": "Insurance ID Number", "type": "text", "required": False},
+                {"name": "referred_by", "label": "How did you hear about us?", "type": "select", "required": False,
+                 "options": ["Google", "Referral from dentist", "Friend/Family", "Social Media", "Other"]},
+            ],
+        },
+        {
+            "name": "Medical & Dental History",
+            "form_type": "health_history",
+            "description": "Please provide your complete medical and dental history",
+            "is_required_new_patient": True,
+            "fields": [
+                {"name": "general_dentist", "label": "General Dentist Name", "type": "text", "required": False},
+                {"name": "last_dental_visit", "label": "Date of Last Dental Visit", "type": "date", "required": False},
+                {"name": "allergies", "label": "Known Allergies (medications, latex, etc.)", "type": "textarea", "required": False},
+                {"name": "medications", "label": "Current Medications", "type": "textarea", "required": False},
+                {"name": "medical_conditions", "label": "Medical Conditions", "type": "checkbox_group", "required": False,
+                 "options": ["Asthma", "Diabetes", "Heart condition", "Seizures", "Bleeding disorder", "None"]},
+                {"name": "previous_ortho", "label": "Have you had orthodontic treatment before?", "type": "select", "required": True,
+                 "options": ["No", "Yes - braces", "Yes - Invisalign", "Yes - other"]},
+                {"name": "chief_concern", "label": "What brings you in today? (chief concern)", "type": "textarea", "required": True},
+                {"name": "habits", "label": "Does the patient have any of these habits?", "type": "checkbox_group", "required": False,
+                 "options": ["Thumb sucking", "Mouth breathing", "Nail biting", "Teeth grinding", "None"]},
+            ],
+        },
+        {
+            "name": "Informed Consent for Treatment",
+            "form_type": "consent",
+            "description": "Consent for orthodontic examination and treatment",
+            "is_required_new_patient": True,
+            "fields": [
+                {"name": "consent_exam", "label": "I consent to an orthodontic examination including x-rays and photographs", "type": "checkbox", "required": True},
+                {"name": "consent_treatment", "label": "I understand that treatment results cannot be guaranteed and that treatment time is an estimate", "type": "checkbox", "required": True},
+                {"name": "consent_risks", "label": "I have been informed of the risks of orthodontic treatment including root resorption, decalcification, and gum disease", "type": "checkbox", "required": True},
+                {"name": "consent_cooperation", "label": "I understand that my cooperation (wearing elastics, keeping appointments, oral hygiene) directly affects treatment outcome", "type": "checkbox", "required": True},
+                {"name": "consent_financial", "label": "I understand my financial responsibility as outlined in the treatment agreement", "type": "checkbox", "required": True},
+                {"name": "signature", "label": "Patient/Guardian Signature", "type": "signature", "required": True},
+                {"name": "signature_date", "label": "Date", "type": "date", "required": True},
+            ],
+        },
+        {
+            "name": "Financial Agreement",
+            "form_type": "financial",
+            "description": "Payment plan agreement and financial policy acknowledgment",
+            "is_required_new_patient": False,
+            "fields": [
+                {"name": "responsible_party", "label": "Financially Responsible Party Name", "type": "text", "required": True},
+                {"name": "relationship", "label": "Relationship to Patient", "type": "select", "required": True,
+                 "options": ["Self", "Parent", "Guardian", "Spouse", "Other"]},
+                {"name": "payment_method", "label": "Preferred Payment Method", "type": "select", "required": True,
+                 "options": ["Monthly auto-pay", "Pay in full", "Insurance + monthly", "Third-party financing"]},
+                {"name": "acknowledge_policy", "label": "I acknowledge and agree to the office financial policy including cancellation fees and missed appointment charges", "type": "checkbox", "required": True},
+                {"name": "signature", "label": "Signature", "type": "signature", "required": True},
+            ],
+        },
+    ]
+
+    forms = []
+    for f_data in forms_data:
+        form = PortalForm(
+            id=uuid.uuid4(),
+            practice_id=DEMO_PRACTICE_ID,
+            name=f_data["name"],
+            form_type=f_data["form_type"],
+            description=f_data["description"],
+            fields=f_data["fields"],
+            is_active=True,
+            is_required_new_patient=f_data["is_required_new_patient"],
+            version=1,
+        )
+        db.add(form)
+        forms.append(form)
+
+    await db.flush()
+    print(f"  ✅ Portal forms: {len(forms)} created (intake, health history, consent, financial)")
+    return forms
+
+
+async def seed_portal_accounts(db, patients: list) -> list:
+    """Create MyOrthoChart patient portal accounts for demo patients."""
+    from app.core.auth import hash_password
+
+    result = await db.execute(
+        select(PortalAccount).where(PortalAccount.practice_id == DEMO_PRACTICE_ID).limit(1)
+    )
+    if result.scalar_one_or_none():
+        print("  ✅ Portal accounts: already seeded")
+        return []
+
+    # Create portal accounts for the first 6 patients (representing active portal users)
+    # First patient (Marcus) gets the branded demo login for client presentations
+    DEMO_PATIENT_EMAIL = "priscilla.knowles@melanin-tech.com"
+    DEMO_PATIENT_PASSWORD = "Demo2026!"
+
+    accounts = []
+    for i, patient in enumerate(patients[:6]):
+        if not patient.email:
+            continue
+
+        email = DEMO_PATIENT_EMAIL if i == 0 else patient.email
+        password = DEMO_PATIENT_PASSWORD if i == 0 else "Patient2026!"
+
+        account = PortalAccount(
+            id=uuid.uuid4(),
+            practice_id=DEMO_PRACTICE_ID,
+            patient_id=patient.id,
+            email=email,
+            password_hash=hash_password(password),
+            is_active=True,
+            is_verified=True,
+            last_login=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        db.add(account)
+        accounts.append(account)
+
+    await db.flush()
+    print(f"  ✅ Portal accounts: {len(accounts)} patients can log into MyOrthoChart")
+    print(f"     Demo patient login: {DEMO_PATIENT_EMAIL} / {DEMO_PATIENT_PASSWORD}")
+    return accounts
+
+
+async def seed_portal_messages(db, patients: list) -> None:
+    """Seed MyOrthoChart inbox with patient↔office conversations."""
+    result = await db.execute(
+        select(PortalMessage).where(PortalMessage.practice_id == DEMO_PRACTICE_ID).limit(1)
+    )
+    if result.scalar_one_or_none():
+        print("  ✅ Portal messages: already seeded")
+        return
+
+    # Get a staff user for sent_by_staff
+    result = await db.execute(
+        select(User).where(User.practice_id == DEMO_PRACTICE_ID, User.role == "office_manager")
+    )
+    manager = result.scalar_one_or_none()
+    staff_id = manager.id if manager else None
+
+    now = datetime.now(timezone.utc)
+
+    conversations = [
+        # Priscilla — asking about treatment timeline
+        (0, [
+            ("from_patient", "Treatment timeline question", "Hi! I was wondering how much longer I have in my active treatment phase. My teeth are looking great and I'm hoping to be done by the holidays. Is that realistic?", 36),
+            ("to_patient", "Re: Treatment timeline question", "Hi Priscilla! You're making excellent progress. Based on your last visit, I'd estimate 3-4 more months of active treatment before we move to retention. The holidays are definitely a realistic goal! We'll confirm at your next adjustment.", 34),
+            ("from_patient", "Re: Treatment timeline question", "That's amazing news! Thank you so much, I can't wait 😊", 33),
+        ]),
+        # Marcus — asking about elastics
+        (1, [
+            ("from_patient", "Elastics question", "Hi! My elastics keep snapping — am I supposed to double them up or just replace with a new one?", 48),
+            ("to_patient", "Re: Elastics question", "Hi Marcus! Just replace with a fresh elastic — no need to double up. If they're snapping more than 2-3 times a day, try opening your mouth a bit less wide when yawning. See you at your next adjustment!", 46),
+            ("from_patient", "Re: Elastics question", "Got it, thanks! See you next week 👍", 45),
+        ]),
+        # Aaliyah — excited about bonding day
+        (2, [
+            ("to_patient", "Your bonding appointment tomorrow!", "Hi Aaliyah! Just a reminder that your bonding appointment is tomorrow at 8:30 AM. Please brush well before coming in, and avoid eating anything sticky. This is an exciting day — you're officially starting your smile journey! 🎉", 24),
+            ("from_patient", "Re: Your bonding appointment tomorrow!", "Thank you!! I'm so excited!! My mom and I will be there early. Quick question — can I still play flute with braces?", 22),
+            ("to_patient", "Re: Your bonding appointment tomorrow!", "Great question! Yes, you can absolutely still play flute. It might feel a little different for the first week or two, but you'll adapt quickly. Some patients find orthodontic wax helpful on the front brackets while playing. See you tomorrow!", 20),
+        ]),
+        # Devon — mom asking about timing
+        (3, [
+            ("from_patient", "When will Devon need braces?", "Hi Dr. Williams, Devon's mom here. He's been in observation for a while now and I'm wondering when you think he'll be ready for braces. His front teeth are really crooked and kids at school are starting to notice.", 72),
+            ("to_patient", "Re: When will Devon need braces?", "Hi Mrs. Brooks! Great question. Devon's growth is tracking well and I want to discuss timing with you at tomorrow's observation appointment. The good news is his jaw growth is favorable — we just want to make sure we start at the optimal time for the best result. Let's chat tomorrow!", 70),
+        ]),
+        # Jasmine — retainer concern
+        (4, [
+            ("from_patient", "Retainer feels tight", "My retainer feels really tight when I put it in at night. Is that normal? I haven't worn it for about a week because I forgot to bring it on vacation.", 36),
+            ("to_patient", "Re: Retainer feels tight", "Hi Jasmine! It's normal for the retainer to feel tight after not wearing it for a few days — your teeth shift slightly. Please wear it as much as possible for the next few days (not just at night) to get things back on track. If it's painful or doesn't seat fully, call us and we'll get you in. Consistency is key! 😊", 34),
+            ("from_patient", "Re: Retainer feels tight", "Ok I'll wear it all day today and tomorrow. It went in ok just felt snug. Thank you!", 33),
+        ]),
+    ]
+
+    msg_count = 0
+    for patient_idx, messages in conversations:
+        if patient_idx >= len(patients):
+            continue
+        patient = patients[patient_idx]
+        for direction, subject, body, hours_ago in messages:
+            msg = PortalMessage(
+                id=uuid.uuid4(),
+                practice_id=DEMO_PRACTICE_ID,
+                patient_id=patient.id,
+                direction=direction,
+                subject=subject,
+                body=body,
+                is_read=True,
+                read_at=now - timedelta(hours=hours_ago - 1),
+                sent_by_staff=staff_id if direction == "to_patient" else None,
+                created_at=now - timedelta(hours=hours_ago),
+            )
+            db.add(msg)
+            msg_count += 1
+
+    await db.flush()
+    print(f"  ✅ Portal messages: {msg_count} messages across {len(conversations)} patient conversations")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -449,6 +671,9 @@ async def seed_demo_flow():
         await seed_visit_statuses(db, patients, appointments, chairs)
         await seed_staff_messaging(db)
         await seed_patient_messages(db, patients)
+        await seed_portal_forms(db)
+        await seed_portal_accounts(db, patients)
+        await seed_portal_messages(db, patients)
 
         await db.commit()
 
@@ -460,6 +685,7 @@ async def seed_demo_flow():
     print(f"  Today's Schedule: {len(DEMO_APPOINTMENTS)} appointments")
     print("  Staff Chat: 2 rooms (AI auto-reply responds to demo messages)")
     print("  Patient Comms: 10 SMS/email messages in log")
+    print("  MyOrthoChart: 4 forms, 6 patient accounts, 4 conversations")
     print()
 
 
