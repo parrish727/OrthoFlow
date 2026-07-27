@@ -163,6 +163,7 @@ export default function Login() {
           </p>
 
           {/* Demo Role Picker — for client demonstrations */}
+          {import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false' && (
           <div className="mt-8 pt-6 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center mb-3 font-medium">Try a demo account by role:</p>
             <div className="grid grid-cols-2 gap-2">
@@ -185,6 +186,7 @@ export default function Login() {
                         const data = await res.json()
                         localStorage.setItem('token', data.access_token)
                         localStorage.setItem('practice_id', data.practice_id)
+                        try { await api.request('/api/v1/time-clock/clock-in', { method: 'POST' }) } catch { /* best effort */ }
                         navigate('/')
                       } else {
                         setError('Demo account not available. Contact support.')
@@ -199,6 +201,7 @@ export default function Login() {
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
