@@ -23,6 +23,7 @@ TODAY = date.today()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
+    {"first_name": "Priscilla", "last_name": "Knowles", "dob": date(1992, 4, 15), "phone": "(414) 555-0200", "email": "priscilla.knowles@melanin-tech.com", "phase": "active"},
     {"first_name": "Marcus", "last_name": "Johnson", "dob": date(2010, 3, 15), "phone": "(414) 555-0101", "email": "marcus.j@example.com", "phase": "active"},
     {"first_name": "Aaliyah", "last_name": "Washington", "dob": date(2008, 7, 22), "phone": "(414) 555-0102", "email": "aaliyah.w@example.com", "phase": "bonding"},
     {"first_name": "Devon", "last_name": "Brooks", "dob": date(2012, 11, 8), "phone": "(414) 555-0103", "email": "devon.b@example.com", "phase": "observation_1"},
@@ -533,7 +534,7 @@ async def seed_portal_accounts(db, patients: list) -> list:
 
     # Create portal accounts for the first 6 patients (representing active portal users)
     # First patient (Marcus) gets the branded demo login for client presentations
-    DEMO_PATIENT_EMAIL = "patient@orthoflowsolutions.com"
+    DEMO_PATIENT_EMAIL = "priscilla.knowles@melanin-tech.com"
     DEMO_PATIENT_PASSWORD = "Demo2026!"
 
     accounts = []
@@ -582,25 +583,31 @@ async def seed_portal_messages(db, patients: list) -> None:
     now = datetime.now(timezone.utc)
 
     conversations = [
-        # Marcus — asking about elastics
+        # Priscilla — asking about treatment timeline
         (0, [
+            ("from_patient", "Treatment timeline question", "Hi! I was wondering how much longer I have in my active treatment phase. My teeth are looking great and I'm hoping to be done by the holidays. Is that realistic?", 36),
+            ("to_patient", "Re: Treatment timeline question", "Hi Priscilla! You're making excellent progress. Based on your last visit, I'd estimate 3-4 more months of active treatment before we move to retention. The holidays are definitely a realistic goal! We'll confirm at your next adjustment.", 34),
+            ("from_patient", "Re: Treatment timeline question", "That's amazing news! Thank you so much, I can't wait 😊", 33),
+        ]),
+        # Marcus — asking about elastics
+        (1, [
             ("from_patient", "Elastics question", "Hi! My elastics keep snapping — am I supposed to double them up or just replace with a new one?", 48),
             ("to_patient", "Re: Elastics question", "Hi Marcus! Just replace with a fresh elastic — no need to double up. If they're snapping more than 2-3 times a day, try opening your mouth a bit less wide when yawning. See you at your next adjustment!", 46),
             ("from_patient", "Re: Elastics question", "Got it, thanks! See you next week 👍", 45),
         ]),
         # Aaliyah — excited about bonding day
-        (1, [
+        (2, [
             ("to_patient", "Your bonding appointment tomorrow!", "Hi Aaliyah! Just a reminder that your bonding appointment is tomorrow at 8:30 AM. Please brush well before coming in, and avoid eating anything sticky. This is an exciting day — you're officially starting your smile journey! 🎉", 24),
             ("from_patient", "Re: Your bonding appointment tomorrow!", "Thank you!! I'm so excited!! My mom and I will be there early. Quick question — can I still play flute with braces?", 22),
             ("to_patient", "Re: Your bonding appointment tomorrow!", "Great question! Yes, you can absolutely still play flute. It might feel a little different for the first week or two, but you'll adapt quickly. Some patients find orthodontic wax helpful on the front brackets while playing. See you tomorrow!", 20),
         ]),
         # Devon — mom asking about timing
-        (2, [
+        (3, [
             ("from_patient", "When will Devon need braces?", "Hi Dr. Williams, Devon's mom here. He's been in observation for a while now and I'm wondering when you think he'll be ready for braces. His front teeth are really crooked and kids at school are starting to notice.", 72),
             ("to_patient", "Re: When will Devon need braces?", "Hi Mrs. Brooks! Great question. Devon's growth is tracking well and I want to discuss timing with you at tomorrow's observation appointment. The good news is his jaw growth is favorable — we just want to make sure we start at the optimal time for the best result. Let's chat tomorrow!", 70),
         ]),
         # Jasmine — retainer concern
-        (3, [
+        (4, [
             ("from_patient", "Retainer feels tight", "My retainer feels really tight when I put it in at night. Is that normal? I haven't worn it for about a week because I forgot to bring it on vacation.", 36),
             ("to_patient", "Re: Retainer feels tight", "Hi Jasmine! It's normal for the retainer to feel tight after not wearing it for a few days — your teeth shift slightly. Please wear it as much as possible for the next few days (not just at night) to get things back on track. If it's painful or doesn't seat fully, call us and we'll get you in. Consistency is key! 😊", 34),
             ("from_patient", "Re: Retainer feels tight", "Ok I'll wear it all day today and tomorrow. It went in ok just felt snug. Thank you!", 33),
