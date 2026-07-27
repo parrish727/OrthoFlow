@@ -1,4 +1,4 @@
-"""OrthoFlow API — Patient Messages (MyChart-style threaded messaging).
+"""OrthoFlow API — Patient Messages (MyOrthoChart-style threaded messaging).
 
 Staff endpoints for viewing patient message threads grouped by patient,
 reading full conversations, sending replies, and marking messages as read.

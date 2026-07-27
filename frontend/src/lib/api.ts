@@ -233,7 +233,7 @@ export const api = {
   revokeInvite: (inviteId: string) =>
     request(`/api/v1/team/invites/${inviteId}`, { method: 'DELETE' }),
 
-  // Patient Messages — MyChart-style threaded messaging
+  // Patient Messages — MyOrthoChart-style threaded messaging
   getPatientMessageThreads: (params?: { filter?: string }) => {
     const q = new URLSearchParams()
     if (params?.filter) q.set('filter', params.filter)
