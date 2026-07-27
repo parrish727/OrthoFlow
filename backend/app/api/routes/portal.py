@@ -146,10 +146,11 @@ async def register_patient(
     await audit_log(
         db,
         practice_id=str(account.practice_id),
-        user_id=str(account.patient_id),
+        user_id=None,
         action="portal_account.register",
         resource_type="portal_account",
         resource_id=str(account.id),
+        details=f"Patient {account.patient_id} registered portal account",
     )
 
     logger.info("Patient portal account registered: %s", str(account.id))
@@ -205,10 +206,11 @@ async def login_patient(
     await audit_log(
         db,
         practice_id=str(account.practice_id),
-        user_id=str(account.patient_id),
+        user_id=None,
         action="portal_account.login",
         resource_type="portal_account",
         resource_id=str(account.id),
+        details=f"Patient {account.patient_id} logged in",
     )
 
     return PatientLoginResponse(
