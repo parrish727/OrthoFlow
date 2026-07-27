@@ -233,6 +233,19 @@ export const api = {
   revokeInvite: (inviteId: string) =>
     request(`/api/v1/team/invites/${inviteId}`, { method: 'DELETE' }),
 
+  // Patient Messages — MyChart-style threaded messaging
+  getPatientMessageThreads: (params?: { filter?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.filter) q.set('filter', params.filter)
+    return request(`/api/v1/patient-messages/threads?${q.toString()}`)
+  },
+  getPatientMessageThread: (patientId: string) =>
+    request(`/api/v1/patient-messages/threads/${patientId}`),
+  sendPatientMessage: (patientId: string, data: { body: string; subject?: string }) =>
+    request(`/api/v1/patient-messages/threads/${patientId}`, { method: 'POST', body: JSON.stringify(data) }),
+  markThreadRead: (patientId: string) =>
+    request(`/api/v1/patient-messages/threads/${patientId}/read`, { method: 'PATCH' }),
+
   // Time Tracking & Payroll
   clockIn: () => request('/api/v1/time/clock-in', { method: 'POST' }),
   clockOut: () => request('/api/v1/time/clock-out', { method: 'POST' }),

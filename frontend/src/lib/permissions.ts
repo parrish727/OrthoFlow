@@ -37,7 +37,7 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermissions> = {
     allowedRoutes: [
       '/', '/schedule', '/patients', '/patients/:id', '/time-tracking',
       '/imaging', '/imaging/alerts', '/appliances', '/recall', '/cdt-codes',
-      '/da-chat', '/communications',
+      '/da-chat', '/communications', '/patient-messages',
       '/help',
     ],
     homePage: '/',
@@ -48,7 +48,7 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermissions> = {
     allowedRoutes: [
       '/', '/schedule', '/patients', '/patients/:id', '/time-tracking',
       '/ledger', '/invoices', '/insurance', '/claims', '/payments',
-      '/communications', '/da-chat',
+      '/communications', '/patient-messages', '/da-chat',
       '/portal-admin', '/help',
     ],
     homePage: '/',
