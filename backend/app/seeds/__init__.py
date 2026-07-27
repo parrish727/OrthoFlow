@@ -133,6 +133,7 @@ APPOINTMENT_TYPES = [
 
     # Orthodontic
     ("Ortho Consultation", "ortho", "consultation", 45, "D8660", "#0D9488", True, False, False),
+    ("Observation", "ortho", "diagnostic", 20, "D0120", "#0EA5E9", True, False, False),
     ("Records Appointment", "ortho", "diagnostic", 60, "D0340,D0330,D0470", "#0D9488", True, True, False),
     ("Bonding", "ortho", "treatment", 90, "D8080", "#0D9488", True, True, False),
     ("Adjustment", "ortho", "treatment", 20, "D8670", "#0D9488", True, True, False),

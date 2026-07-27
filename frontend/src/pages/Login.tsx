@@ -32,6 +32,8 @@ export default function Login() {
       const data = await res.json()
       localStorage.setItem('token', data.access_token)
       localStorage.setItem('practice_id', data.practice_id)
+      // Auto clock-in on login
+      try { await api.request('/api/v1/time-clock/clock-in', { method: 'POST' }) } catch { /* best effort */ }
       navigate('/')
     } catch {
       setError('Unable to connect. Please try again.')
@@ -159,6 +161,44 @@ export default function Login() {
               {isRegister ? 'Sign In' : 'Create one'}
             </button>
           </p>
+
+          {/* Demo Role Picker — for client demonstrations */}
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center mb-3 font-medium">Try a demo account by role:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: '👩‍⚕️ Doctor', email: 'demo-doctor@orthoflowsolutions.com', color: 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200' },
+                { label: '📋 Manager', email: 'demo-manager@orthoflowsolutions.com', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700 border-violet-200' },
+                { label: '🦷 Dental Asst', email: 'demo-da@orthoflowsolutions.com', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200' },
+                { label: '🖥️ Front Desk', email: 'demo-frontdesk@orthoflowsolutions.com', color: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200' },
+              ].map(demo => (
+                <button
+                  key={demo.email}
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    setLoading(true)
+                    setError('')
+                    try {
+                      const res = await api.login(demo.email, 'Demo2026!')
+                      if (res.ok) {
+                        const data = await res.json()
+                        localStorage.setItem('token', data.access_token)
+                        localStorage.setItem('practice_id', data.practice_id)
+                        navigate('/')
+                      } else {
+                        setError('Demo account not available. Contact support.')
+                      }
+                    } catch { setError('Connection error') }
+                    setLoading(false)
+                  }}
+                  className={`px-3 py-2.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${demo.color}`}
+                >
+                  {demo.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

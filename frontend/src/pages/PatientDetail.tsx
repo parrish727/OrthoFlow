@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import RestorativeChartView from '../components/RestorativeChartView'
+import PerioChartView from '../components/PerioChartView'
 
 interface Patient {
   id: string
@@ -55,6 +56,14 @@ const PHASE_CONFIG: Record<string, { label: string; color: string }> = {
   active_treatment: { label: 'Active Treatment', color: 'bg-violet-100 text-violet-700' },
   retention: { label: 'Retention', color: 'bg-emerald-100 text-emerald-700' },
   completed: { label: 'Completed', color: 'bg-green-100 text-green-700' },
+  observation_1: { label: 'Observation 1', color: 'bg-sky-100 text-sky-700' },
+  observation_2: { label: 'Observation 2', color: 'bg-sky-100 text-sky-700' },
+  observation_3: { label: 'Observation 3', color: 'bg-sky-200 text-sky-800' },
+  observation_4: { label: 'Observation 4', color: 'bg-sky-200 text-sky-800' },
+  bonding: { label: 'Bonding', color: 'bg-teal-100 text-teal-700' },
+  active: { label: 'Active Ortho', color: 'bg-teal-100 text-teal-700' },
+  finishing: { label: 'Finishing', color: 'bg-teal-50 text-teal-600' },
+  complete: { label: 'Complete', color: 'bg-green-100 text-green-700' },
 }
 
 function renderNoteText(text: string) {
@@ -85,7 +94,7 @@ export default function PatientDetail() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [notes, setNotes] = useState<TreatmentNote[]>([])
   const [chart, setChart] = useState<ChartData | null>(null)
-  const [chartTab, setChartTab] = useState<'ortho' | 'restorative'>('ortho')
+  const [chartTab, setChartTab] = useState<'ortho' | 'restorative' | 'perio'>('ortho')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
@@ -255,6 +264,14 @@ export default function PatientDetail() {
                   >
                     🏥 Restorative Chart
                   </button>
+                  <button
+                    onClick={() => setChartTab('perio')}
+                    className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
+                      chartTab === 'perio' ? 'bg-orange-50 text-orange-700 border-b-2 border-orange-600' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    🦠 Perio Chart
+                  </button>
                 </div>
 
                 {chartTab === 'ortho' ? (
@@ -267,8 +284,10 @@ export default function PatientDetail() {
                     appliances={chart.appliances || []}
                     onUpdate={handleChartUpdate}
                   />
-                ) : (
+                ) : chartTab === 'restorative' ? (
                   <RestorativeChartView patientId={patient.id} />
+                ) : (
+                  <PerioChartView patientId={patient.id} />
                 )}
               </div>
             )}
@@ -508,8 +527,41 @@ function WireTrackingSection({ patientId, chart, onChartUpdated }: {
 }
 
 function NextVisitSection({ patientId, patientName }: { patientId: string; patientName: string }) {
-  const [nextNotes, setNextNotes] = useState('')
+  const [appointmentType, setAppointmentType] = useState('')
   const [weeks, setWeeks] = useState(4)
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const navigate = useNavigate()
+
+  const handleSave = async () => {
+    if (!appointmentType) return
+    setSaving(true)
+    try {
+      // Calculate target date from weeks out
+      const targetDate = new Date()
+      targetDate.setDate(targetDate.getDate() + weeks * 7)
+      const dateStr = targetDate.toISOString().split('T')[0]
+
+      // Create the next appointment
+      await api.request('/api/v1/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          patient_id: patientId,
+          appointment_date: dateStr,
+          appointment_type: appointmentType,
+          start_time: '09:00',
+          end_time: '09:30',
+          status: 'scheduled',
+          notes: notes || null,
+        }),
+      })
+      setSaved(true)
+      // Redirect to Dashboard so DA can move to next patient
+      setTimeout(() => navigate('/'), 800)
+    } catch { /* silent */ }
+    setSaving(false)
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
@@ -518,38 +570,68 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
         <h3 className="text-sm font-semibold text-gray-800">Next Visit</h3>
       </div>
       <div className="px-5 py-4 space-y-3">
-        <div>
-          <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Next visit notes</label>
-          <textarea
-            value={nextNotes}
-            onChange={e => setNextNotes(e.target.value)}
-            placeholder="What to do next time..."
-            rows={5}
-            className="w-full mt-1 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Weeks out</label>
-            <select
-              value={weeks}
-              onChange={e => setWeeks(Number(e.target.value))}
-              className="w-full mt-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(w => (
-                <option key={w} value={w}>{w} week{w > 1 ? 's' : ''}</option>
-              ))}
-            </select>
+        {saved ? (
+          <div className="text-center py-4">
+            <CheckCircle size={20} className="mx-auto text-green-500 mb-1" />
+            <p className="text-sm text-green-700 font-medium">Scheduled!</p>
+            <p className="text-xs text-gray-400">Returning to Dashboard...</p>
           </div>
-          <div className="flex-1 flex items-end">
-            <Link
-              to={`/schedule`}
-              className="w-full mt-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-lg transition-colors text-center block"
+        ) : (
+          <>
+            <div>
+              <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Appointment Type</label>
+              <select
+                value={appointmentType}
+                onChange={e => setAppointmentType(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+              >
+                <option value="">Select type...</option>
+                <option value="Adjustment">Adjustment</option>
+                <option value="Observation">Observation</option>
+                <option value="Wire Change">Wire Change</option>
+                <option value="Elastic Check">Elastic Check</option>
+                <option value="IPR">IPR</option>
+                <option value="Progress Photos">Progress Photos</option>
+                <option value="Deband">Deband</option>
+                <option value="Retainer Check">Retainer Check</option>
+                <option value="Retainer Delivery">Retainer Delivery</option>
+                <option value="Records">Records</option>
+                <option value="Bonding">Bonding</option>
+                <option value="Consultation">Consultation</option>
+                <option value="Emergency">Emergency</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Weeks out</label>
+              <select
+                value={weeks}
+                onChange={e => setWeeks(Number(e.target.value))}
+                className="w-full mt-1 px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white"
+              >
+                {Array.from({ length: 16 }, (_, i) => i + 1).map(w => (
+                  <option key={w} value={w}>{w} week{w > 1 ? 's' : ''} ({new Date(Date.now() + w * 7 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Notes (optional)</label>
+              <input
+                type="text"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="e.g. Check elastics wear, take progress photos"
+                className="w-full mt-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+              />
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={!appointmentType || saving}
+              className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
             >
-              Schedule
-            </Link>
-          </div>
-        </div>
+              {saving ? 'Saving...' : <>Schedule & Return to Dashboard</>}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

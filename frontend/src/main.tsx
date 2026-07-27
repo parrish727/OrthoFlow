@@ -40,10 +40,28 @@ import TimeTracking from './pages/TimeTracking'
 import ApplianceTracker from './pages/ApplianceTracker'
 import Help from './pages/Help'
 import StaffMessaging from './pages/StaffMessaging'
+import HygieneRecall from './pages/HygieneRecall'
+import CDTCodeBrowser from './pages/CDTCodeBrowser'
+
+import { useAuth } from './hooks/useAuth'
+import { canAccessRoute, Role } from './lib/permissions'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token')
   return token ? <>{children}</> : <Navigate to="/login" />
+}
+
+function RoleGuard({ children }: { children: React.ReactNode }) {
+  const { role } = useAuth()
+  const location = window.location.pathname
+
+  if (!role) return <>{children}</>
+
+  if (!canAccessRoute(role as Role, location)) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -57,7 +75,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/portal" element={<PatientPortal />} />
 
         {/* App routes (inside shared layout with sidebar) */}
-        <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
+        <Route element={<PrivateRoute><RoleGuard><AppLayout /></RoleGuard></PrivateRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/patients" element={<Patients />} />
@@ -85,6 +103,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/appliances" element={<ApplianceTracker />} />
           <Route path="/help" element={<Help />} />
           <Route path="/da-chat" element={<StaffMessaging />} />
+          <Route path="/recall" element={<HygieneRecall />} />
+          <Route path="/cdt-codes" element={<CDTCodeBrowser />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -48,6 +48,26 @@ services:
       timeout: 3s
       retries: 5
 
+  # ── Connection Pooler (PgBouncer) ───────────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    volumes:
+      - ./scripts/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./scripts/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - orthoflow
+    ports:
+      - "6432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # ── Object Storage (S3-compatible) ──────────────────────────────────────────
   minio:
     image: minio/minio:latest
@@ -98,7 +118,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-orthoflow}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@pgbouncer:5432/${POSTGRES_DB:-orthoflow}
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
@@ -133,7 +153,7 @@ services:
     command: ["python", "-m", "app.workers.main"]
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-orthoflow}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@pgbouncer:5432/${POSTGRES_DB:-orthoflow}
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
@@ -158,6 +178,8 @@ services:
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=true
       - DOCKER_API_VERSION=1.43
       - DOCKER_CONFIG=/config
       # Notification via orchestrator webhook (Shoutrrr generic format)

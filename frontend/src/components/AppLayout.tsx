@@ -5,10 +5,11 @@ import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
   ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle, Clock,
-  FlaskConical,
+  FlaskConical, RefreshCw, BookOpen,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import { canSeeSection, Role } from '../lib/permissions'
 
 interface NavItem {
   to: string
@@ -24,7 +25,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/time-tracking', icon: Clock, label: 'Time Clock', section: 'main' },
   { to: '/imaging', icon: Image, label: 'Imaging', section: 'clinical' },
   { to: '/appliances', icon: FlaskConical, label: 'Appliances', section: 'clinical' },
+  { to: '/recall', icon: RefreshCw, label: 'Hygiene Recall', section: 'clinical' },
+  { to: '/cdt-codes', icon: BookOpen, label: 'CDT Codes', section: 'clinical' },
   { to: '/ledger', icon: Receipt, label: 'Ledger', section: 'finance' },
+  { to: '/invoices', icon: FileText, label: 'Invoices', section: 'finance' },
   { to: '/insurance', icon: Shield, label: 'Insurance', section: 'finance' },
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
@@ -62,9 +66,9 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 // Nav labels visible per role
 const ROLE_NAV_ALLOWED: Record<string, string[]> = {
-  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Insights', 'Tools', 'Time Clock'],
-  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Messages', 'Payments', 'Portal', 'Time Clock'],
-  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Ledger', 'Insurance', 'Claims', 'Payments', 'Messages', 'Reports', 'Insights', 'Portal', 'Alerts', 'Time Clock'],
+  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Staff Messages', 'Patient Messages', 'Time Clock'],
+  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Staff Messages', 'Time Clock'],
+  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Hygiene Recall', 'CDT Codes', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Staff Messages', 'Reports', 'Insights', 'Tools', 'Time Clock'],
   // doctor and owner get everything — no filter needed
 }
 
@@ -104,6 +108,8 @@ export default function AppLayout() {
   }, [])
 
   function handleLogout() {
+    // Auto clock-out on logout
+    api.request('/api/v1/time-clock/clock-out', { method: 'POST' }).catch(() => {})
     localStorage.clear()
     navigate('/login')
   }

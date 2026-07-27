@@ -40,6 +40,11 @@ class TreatmentPhase(str, enum.Enum):
     finishing = "finishing"
     retention = "retention"
     complete = "complete"
+    observation_1 = "observation_1"
+    observation_2 = "observation_2"
+    observation_3 = "observation_3"
+    observation_4 = "observation_4"
+    pending = "pending"
 
 
 class PatientStatus(str, enum.Enum):

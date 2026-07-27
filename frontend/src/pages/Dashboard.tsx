@@ -79,17 +79,22 @@ export default function Dashboard() {
       if (res.ok) {
         const data = await res.json()
         const appointments = data.appointments || data || []
+        // Huddle summary: show ALL today's appointments as a preview of the day
         const notes: ClinicalNote[] = []
         for (const appt of appointments) {
-          if (appt.status === 'completed' && appt.notes) {
-            notes.push({
-              patient_name: appt.patient_name || `${appt.patient_first_name || ''} ${appt.patient_last_name || ''}`.trim(),
-              patient_id: appt.patient_id,
-              note_preview: (appt.notes || '').slice(0, 100),
-              timestamp: appt.end_time || appt.start_time || today,
-            })
-          }
+          const name = appt.patient_name || `${appt.patient_first_name || ''} ${appt.patient_last_name || ''}`.trim()
+          if (!name) continue
+          notes.push({
+            patient_name: name,
+            patient_id: appt.patient_id,
+            note_preview: appt.appointment_type
+              ? `${appt.appointment_type}${appt.notes ? ' — ' + appt.notes.slice(0, 60) : ''}`
+              : appt.notes ? appt.notes.slice(0, 80) : 'Scheduled',
+            timestamp: appt.start_time || today,
+          })
         }
+        // Sort by start time
+        notes.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
         setTodaysNotes(notes)
       } else {
         setTodaysNotes([])
@@ -258,21 +263,22 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Today's Clinical Notes */}
+      {/* Daily Huddle Summary */}
       <div className="mt-8 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
           <FileText size={16} className="text-teal-600" />
-          <h3 className="font-medium text-gray-800">Today's Clinical Notes</h3>
+          <h3 className="font-medium text-gray-800">Today's Huddle</h3>
+          <span className="text-xs text-gray-400 ml-auto">{todaysNotes?.length || 0} patients scheduled</span>
         </div>
         {notesLoading ? (
           <div className="px-6 py-10 text-center">
             <Loader2 size={20} className="animate-spin text-gray-400 mx-auto" />
-            <p className="text-sm text-gray-400 mt-2">Loading notes...</p>
+            <p className="text-sm text-gray-400 mt-2">Loading schedule...</p>
           </div>
         ) : !todaysNotes || todaysNotes.length === 0 ? (
           <div className="px-6 py-10 text-center">
             <FileText size={28} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-sm text-gray-400">No clinical notes recorded today</p>
+            <p className="text-sm text-gray-400">No appointments scheduled today</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">

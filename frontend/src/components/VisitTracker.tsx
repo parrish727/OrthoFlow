@@ -15,12 +15,14 @@ interface VisitEntry {
 const STATUS_COLUMNS = [
   {
     key: 'waiting' as const,
-    label: 'Waiting',
+    label: 'Lobby',
     icon: Clock,
     bg: 'bg-amber-50',
     border: 'border-amber-200',
     badge: 'bg-amber-100 text-amber-700',
     dot: 'bg-amber-400',
+    next: 'seated' as const,
+    nextLabel: 'Seat Patient',
   },
   {
     key: 'seated' as const,
@@ -30,24 +32,30 @@ const STATUS_COLUMNS = [
     border: 'border-blue-200',
     badge: 'bg-blue-100 text-blue-700',
     dot: 'bg-blue-400',
+    next: 'in_treatment' as const,
+    nextLabel: 'Ready for Checkout',
   },
   {
     key: 'in_treatment' as const,
-    label: 'In Treatment',
+    label: 'Checkout',
     icon: Stethoscope,
     bg: 'bg-purple-50',
     border: 'border-purple-200',
     badge: 'bg-purple-100 text-purple-700',
     dot: 'bg-purple-400',
+    next: 'checked_out' as const,
+    nextLabel: 'Dismiss',
   },
   {
     key: 'checked_out' as const,
-    label: 'Checked Out',
+    label: 'Dismissed',
     icon: CheckCircle2,
     bg: 'bg-emerald-50',
     border: 'border-emerald-200',
     badge: 'bg-emerald-100 text-emerald-700',
     dot: 'bg-emerald-400',
+    next: null,
+    nextLabel: null,
   },
 ]
 
@@ -83,6 +91,16 @@ export default function VisitTracker() {
     const interval = setInterval(loadVisits, 30000)
     return () => clearInterval(interval)
   }, [loadVisits])
+
+  const movePatient = async (visitId: number, newStatus: string) => {
+    try {
+      await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      loadVisits()
+    } catch { /* silent */ }
+  }
 
   const grouped = STATUS_COLUMNS.map(col => ({
     ...col,
@@ -139,11 +157,21 @@ export default function VisitTracker() {
                       <p className="text-sm font-medium text-gray-800 group-hover:text-teal-700 transition-colors truncate">
                         {patient.patient_name}
                       </p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
-                        <span className="text-xs text-gray-400">
-                          {timeAgo(patient.status_changed_at)}
-                        </span>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
+                          <span className="text-xs text-gray-400">
+                            {timeAgo(patient.status_changed_at)}
+                          </span>
+                        </div>
+                        {col.next && (
+                          <span
+                            onClick={(e) => { e.stopPropagation(); movePatient(patient.id, col.next!) }}
+                            className="text-[9px] font-medium text-teal-600 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                          >
+                            {col.nextLabel} →
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))

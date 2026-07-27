@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -60,6 +60,7 @@ const APPT_TYPE_COLORS: Record<string, string> = {
   'Deband': 'border-l-orange-400 bg-orange-50',
   'Bonding': 'border-l-green-500 bg-green-50',
   'Consultation': 'border-l-yellow-400 bg-yellow-50',
+  'Observation': 'border-l-sky-400 bg-sky-50',
   'Retainer Check': 'border-l-pink-400 bg-pink-50',
   'Invisalign': 'border-l-purple-500 bg-purple-50',
   'Priority': 'border-l-blue-800 bg-blue-50',
@@ -592,6 +593,37 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange 
             {loadingPrep ? 'Loading...' : 'Prep Brief'}
           </button>
         )}
+
+        {/* Cancel Appointment */}
+        {(appointment.status === 'scheduled' || appointment.status === 'checked_in') && (
+          <button
+            onClick={async (e) => { e.stopPropagation(); await api.updateAppointment(appointment.id, { status: 'cancelled' }); onUpdate() }}
+            className="flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-md transition-colors"
+          >
+            <X size={11} />
+            Cancel
+          </button>
+        )}
+
+        {/* Dismiss (mark complete + move off board) */}
+        {(appointment.status === 'scheduled' || appointment.status === 'checked_in' || appointment.status === 'in_progress') && (
+          <button
+            onClick={async (e) => { e.stopPropagation(); await api.updateAppointment(appointment.id, { status: 'completed' }); onUpdate() }}
+            className="flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-md transition-colors"
+          >
+            <CheckCircle2 size={11} />
+            Dismiss
+          </button>
+        )}
+
+        {/* Schedule Next — opens patient detail for next visit scheduling */}
+        <button
+          onClick={(e) => { e.stopPropagation(); window.location.href = `/patients/${appointment.patient_id}#next-visit` }}
+          className="flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-md transition-colors"
+        >
+          <CalendarPlus size={11} />
+          Schedule Next
+        </button>
       </div>
 
       {/* Reschedule time picker */}
@@ -649,7 +681,7 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const APPT_TYPES = ['Adjustment', 'Bonding', 'Consultation', 'Deband', 'Elastic Check', 'Emergency', 'IPR', 'Progress Photos', 'Records', 'Retainer Check', 'Wire Change']
+  const APPT_TYPES = ['Adjustment', 'Bonding', 'Consultation', 'Deband', 'Elastic Check', 'Emergency', 'IPR', 'Observation', 'Progress Photos', 'Records', 'Retainer Check', 'Wire Change']
 
   // Fetch specialty appointment types from catalog
   interface ApptTypeTemplate { id: string; name: string; specialty: string; default_duration_minutes: number; color: string | null; requires_da: boolean }

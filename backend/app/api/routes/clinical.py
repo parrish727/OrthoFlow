@@ -584,12 +584,17 @@ def _chart_dict(c: ToothChart) -> dict:
 
 # Rules: appointment_type (lowercase) → new phase (only if patient is in expected prior phase)
 PHASE_ADVANCEMENT_RULES = {
-    "records": {"new_phase": "records", "from_phases": ["consultation"]},
-    "initial records": {"new_phase": "records", "from_phases": ["consultation"]},
-    "bonding": {"new_phase": "active", "from_phases": ["records", "bonding"]},
+    "records": {"new_phase": "records", "from_phases": ["consultation", "observation_1", "observation_2", "observation_3", "observation_4", "pending"]},
+    "initial records": {"new_phase": "records", "from_phases": ["consultation", "observation_1", "observation_2", "observation_3", "observation_4", "pending"]},
+    "bonding": {"new_phase": "active", "from_phases": ["records", "bonding", "pending"]},
     "deband": {"new_phase": "retention", "from_phases": ["active", "finishing"]},
     "retainer delivery": {"new_phase": "retention", "from_phases": ["active", "finishing"]},
     "final records": {"new_phase": "complete", "from_phases": ["retention"]},
+    "observation": {"new_phase": "observation_1", "from_phases": ["consultation"]},
+    "observation 1": {"new_phase": "observation_1", "from_phases": ["consultation"]},
+    "observation 2": {"new_phase": "observation_2", "from_phases": ["observation_1"]},
+    "observation 3": {"new_phase": "observation_3", "from_phases": ["observation_2"]},
+    "observation 4": {"new_phase": "observation_4", "from_phases": ["observation_3"]},
 }
 
 

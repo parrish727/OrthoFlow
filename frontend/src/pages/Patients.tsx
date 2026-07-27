@@ -30,6 +30,11 @@ const PHASE_LABELS: Record<string, string> = {
   active_treatment: 'Active Treatment',
   retention: 'Retention',
   completed: 'Completed',
+  // Observation phases
+  observation_1: 'Observation 1',
+  observation_2: 'Observation 2',
+  observation_3: 'Observation 3',
+  observation_4: 'Observation 4',
   // GP
   new_patient: 'New Patient',
   active_gp: 'Active GP',
@@ -170,6 +175,12 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="archived">Archived</option>
+            <option value="observation_1">Observation 1</option>
+            <option value="observation_2">Observation 2</option>
+            <option value="observation_3">Observation 3</option>
+            <option value="observation_4">Observation 4</option>
+            <option value="pending">Pending</option>
+            <option value="retention">Retention</option>
           </select>
         </div>
 
@@ -212,7 +223,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       {/* Specialty badge */}
-                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending'].includes(patient.treatment_phase) ? (
+                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending', 'observation_1', 'observation_2', 'observation_3', 'observation_4'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
                       ) : patient.treatment_phase && ['cosmetic_consult', 'cosmetic_active'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 font-medium">Cosmetic</span>
@@ -354,6 +365,10 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     <optgroup label="🦷 Orthodontics">
                       <option value="consultation">Ortho Consultation</option>
                       <option value="pending">Pending Start</option>
+                      <option value="observation_1">Observation 1</option>
+                      <option value="observation_2">Observation 2</option>
+                      <option value="observation_3">Observation 3</option>
+                      <option value="observation_4">Observation 4</option>
                       <option value="records">Records</option>
                       <option value="bonding">Bonding</option>
                       <option value="active">Active Ortho Treatment</option>

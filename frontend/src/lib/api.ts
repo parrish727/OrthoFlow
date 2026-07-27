@@ -2,8 +2,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 async function request(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token')
-  const res = await fetch(`${API_URL}${path}`, {
+  // Strip trailing slashes before query params to prevent FastAPI 307 redirect
+  // which drops Authorization headers during CORS redirect
+  const normalizedPath = path.replace(/\/(\?|$)/, '$1')
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
+    redirect: 'follow',
     headers: {
       ...options.headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
