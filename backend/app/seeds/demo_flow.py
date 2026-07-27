@@ -532,16 +532,24 @@ async def seed_portal_accounts(db, patients: list) -> list:
         return []
 
     # Create portal accounts for the first 6 patients (representing active portal users)
+    # First patient (Marcus) gets the branded demo login for client presentations
+    DEMO_PATIENT_EMAIL = "patient@orthoflowsolutions.com"
+    DEMO_PATIENT_PASSWORD = "Demo2026!"
+
     accounts = []
-    for patient in patients[:6]:
+    for i, patient in enumerate(patients[:6]):
         if not patient.email:
             continue
+
+        email = DEMO_PATIENT_EMAIL if i == 0 else patient.email
+        password = DEMO_PATIENT_PASSWORD if i == 0 else "Patient2026!"
+
         account = PortalAccount(
             id=uuid.uuid4(),
             practice_id=DEMO_PRACTICE_ID,
             patient_id=patient.id,
-            email=patient.email,
-            password_hash=hash_password("Patient2026!"),
+            email=email,
+            password_hash=hash_password(password),
             is_active=True,
             is_verified=True,
             last_login=datetime.now(timezone.utc) - timedelta(days=1),
@@ -550,7 +558,8 @@ async def seed_portal_accounts(db, patients: list) -> list:
         accounts.append(account)
 
     await db.flush()
-    print(f"  ✅ Portal accounts: {len(accounts)} patients can log into MyOrthoChart (password: Patient2026!)")
+    print(f"  ✅ Portal accounts: {len(accounts)} patients can log into MyOrthoChart")
+    print(f"     Demo patient login: {DEMO_PATIENT_EMAIL} / {DEMO_PATIENT_PASSWORD}")
     return accounts
 
 
