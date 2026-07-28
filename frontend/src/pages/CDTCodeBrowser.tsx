@@ -59,7 +59,10 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
   const fetchCategories = useCallback(async () => {
     try {
       const res = await authFetch('/api/v1/catalog/cdt-codes/categories')
-      if (res.ok) setCategories(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(data.categories || [])
+      }
     } catch { /* silent */ }
   }, [])
 

@@ -16,18 +16,19 @@ interface PortalDashboard {
 interface Appointment {
   id: string
   date: string
-  time: string
-  type: string
-  provider: string
+  start_time: string
+  end_time: string
+  type: string | null
+  status: string
 }
 
 interface Message {
   id: string
-  from: string
-  subject: string
+  direction: string
+  subject: string | null
   body: string
-  sent_at: string
-  is_from_patient: boolean
+  is_read: boolean
+  created_at: string
 }
 
 interface FormItem {
@@ -366,12 +367,12 @@ export default function PatientPortal() {
                         </div>
                         <div>
                           <p className="font-medium text-gray-800 text-sm">{appt.type || 'Appointment'}</p>
-                          <p className="text-xs text-gray-500">{appt.provider}</p>
+                          <p className="text-xs text-gray-500">{appt.status}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-gray-700">{formatDate(appt.date)}</p>
-                        <p className="text-xs text-gray-400">{formatTime(appt.time)}</p>
+                        <p className="text-xs text-gray-400">{formatTime(appt.start_time)}</p>
                       </div>
                     </div>
                   ))}
@@ -512,11 +513,11 @@ export default function PatientPortal() {
                       <div className="flex items-start justify-between mb-1">
                         <p className="text-sm font-medium text-gray-800">{msg.subject}</p>
                         <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
-                          {new Date(msg.sent_at).toLocaleDateString()}
+                          {new Date(msg.created_at).toLocaleDateString()}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mb-1">
-                        {msg.is_from_patient ? 'You' : msg.from}
+                        {msg.direction === 'from_patient' ? 'You' : 'Office'}
                       </p>
                       <p className="text-sm text-gray-600">{msg.body}</p>
                     </div>
