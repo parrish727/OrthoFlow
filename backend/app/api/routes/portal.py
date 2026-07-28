@@ -173,14 +173,15 @@ async def login_patient(
     account = result.scalar_one_or_none()
 
     if not account or not verify_password(payload.password, account.password_hash):
-        await audit_log(
-            db,
-            practice_id=str(account.practice_id) if account else "unknown",
-            user_id=None,
-            action="portal_account.login_failed",
-            resource_type="portal_account",
-            details=f"Failed login attempt for {payload.email}",
-        )
+        if account:
+            await audit_log(
+                db,
+                practice_id=str(account.practice_id),
+                user_id=None,
+                action="portal_account.login_failed",
+                resource_type="portal_account",
+                details=f"Failed login attempt for {payload.email}",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -427,10 +428,11 @@ async def send_patient_message(
     await audit_log(
         db,
         practice_id=practice_id,
-        user_id=patient_id,
+        user_id=None,
         action="portal_message.send",
         resource_type="portal_message",
         resource_id=str(message.id),
+        details=f"Patient {patient_id} sent message",
     )
 
     logger.info("Patient %s sent portal message %s", patient_id, str(message.id))
@@ -560,10 +562,11 @@ async def submit_form(
     await audit_log(
         db,
         practice_id=practice_id,
-        user_id=patient_id,
+        user_id=None,
         action="portal_form.submit",
         resource_type="portal_form_submission",
         resource_id=str(submission.id),
+        details=f"Patient {patient_id} submitted form {form_id}",
     )
 
     logger.info("Patient %s submitted form %s", patient_id, form_id)
