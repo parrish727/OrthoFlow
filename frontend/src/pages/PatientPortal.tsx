@@ -4,7 +4,6 @@ import {
   Calendar, Clock, MessageSquare, FileText, CheckCircle, Send,
   ChevronRight, LogOut, User, AlertCircle, Loader2,
 } from 'lucide-react'
-import { api } from '../lib/api'
 
 interface PortalDashboard {
   patient_name: string
@@ -60,7 +59,7 @@ export default function PatientPortal() {
   const [activeForm, setActiveForm] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [submittingForm, setSubmittingForm] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   // ── Patient Auth State ─────────────────────────────────────────────────────
@@ -117,10 +116,14 @@ export default function PatientPortal() {
 
   const loadDashboard = useCallback(async () => {
     setLoading(true)
-    const res = await portalRequest('/api/v1/portal/dashboard')
-    if (res.ok) {
-      const data = await res.json()
-      setDashboard(data)
+    try {
+      const res = await portalRequest('/api/v1/portal/dashboard')
+      if (res.ok) {
+        const data = await res.json()
+        setDashboard(data)
+      }
+    } catch {
+      // Network error — will show empty state
     }
     setLoading(false)
   }, [portalRequest])
