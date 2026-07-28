@@ -85,7 +85,16 @@ export default function PatientMessages() {
       const res = await api.getPatientMessageThreads(filterParam ? { filter: filterParam } : undefined)
       if (res.ok) {
         const data = await res.json()
-        setThreads(Array.isArray(data) ? data : data.items || [])
+        const rawThreads = data.threads || data.items || []
+        // Map API fields to component interface
+        setThreads(rawThreads.map((t: Record<string, unknown>) => ({
+          patient_id: t.patient_id,
+          patient_name: t.patient_name,
+          last_message: t.last_message_body || t.last_message || '',
+          last_message_at: t.last_message_at || '',
+          unread_count: t.unread_count || 0,
+          category: 'general' as const,
+        })))
       }
     } catch {
       // silent
@@ -100,7 +109,17 @@ export default function PatientMessages() {
       const res = await api.getPatientMessageThread(patientId)
       if (res.ok) {
         const data = await res.json()
-        setMessages(Array.isArray(data) ? data : data.messages || [])
+        const rawMessages = data.messages || []
+        setMessages(rawMessages.map((m: Record<string, unknown>) => ({
+          id: m.id,
+          patient_id: m.patient_id,
+          direction: m.direction === 'from_patient' ? 'inbound' : 'outbound',
+          subject: m.subject || null,
+          body: m.body || '',
+          is_read: m.is_read ?? true,
+          sender_name: m.direction === 'from_patient' ? (m.patient_name || 'Patient') : 'Staff',
+          created_at: m.created_at || '',
+        })))
       }
     } catch {
       // silent
