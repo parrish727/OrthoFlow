@@ -63,60 +63,116 @@ export default function PatientPortal() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
+  // ── Patient Auth State ─────────────────────────────────────────────────────
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('portal_token'))
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+
+  async function handlePatientLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setLoginError('')
+    setLoginLoading(true)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/portal/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setLoginError(data.detail || 'Invalid email or password')
+        return
+      }
+      const data = await res.json()
+      localStorage.setItem('portal_token', data.access_token)
+      localStorage.setItem('portal_patient_name', data.name)
+      setIsAuthenticated(true)
+    } catch {
+      setLoginError('Unable to connect. Please try again.')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  // Portal API helper — uses portal_token instead of staff token
+  const portalRequest = useCallback(async (path: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem('portal_token')
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+    })
+    if (res.status === 401) {
+      localStorage.removeItem('portal_token')
+      setIsAuthenticated(false)
+    }
+    return res
+  }, [])
+
   const loadDashboard = useCallback(async () => {
     setLoading(true)
-    const res = await api.portalDashboard()
+    const res = await portalRequest('/api/v1/portal/dashboard')
     if (res.ok) {
       const data = await res.json()
       setDashboard(data)
     }
     setLoading(false)
-  }, [])
+  }, [portalRequest])
 
   const loadAppointments = useCallback(async () => {
-    const res = await api.portalAppointments()
+    const res = await portalRequest('/api/v1/portal/appointments')
     if (res.ok) {
       const data = await res.json()
       setAppointments(data.appointments || [])
     }
-  }, [])
+  }, [portalRequest])
 
   const loadMessages = useCallback(async () => {
-    const res = await api.portalMessages()
+    const res = await portalRequest('/api/v1/portal/messages')
     if (res.ok) {
       const data = await res.json()
       setMessages(data.messages || [])
     }
-  }, [])
+  }, [portalRequest])
 
   const loadForms = useCallback(async () => {
-    const res = await api.portalForms()
+    const res = await portalRequest('/api/v1/portal/forms')
     if (res.ok) {
       const data = await res.json()
       setForms(data.forms || [])
     }
-  }, [])
+  }, [portalRequest])
 
   const loadProgress = useCallback(async () => {
-    const res = await api.portalTreatmentProgress()
+    const res = await portalRequest('/api/v1/portal/treatment-progress')
     if (res.ok) {
       const data = await res.json()
       setProgress(data)
     }
-  }, [])
+  }, [portalRequest])
 
   useEffect(() => {
+    if (!isAuthenticated) return
     loadDashboard()
     loadAppointments()
     loadMessages()
     loadForms()
     loadProgress()
-  }, [loadDashboard, loadAppointments, loadMessages, loadForms, loadProgress])
+  }, [isAuthenticated, loadDashboard, loadAppointments, loadMessages, loadForms, loadProgress])
 
   async function handleSendMessage() {
     if (!newMessage.subject.trim() || !newMessage.body.trim()) return
     setSendingMessage(true)
-    const res = await api.portalSendMessage(newMessage)
+    const res = await portalRequest('/api/v1/portal/messages', {
+      method: 'POST',
+      body: JSON.stringify(newMessage),
+    })
     if (res.ok) {
       setComposing(false)
       setNewMessage({ subject: '', body: '' })
@@ -127,7 +183,10 @@ export default function PatientPortal() {
 
   async function handleSubmitForm(formId: string) {
     setSubmittingForm(true)
-    const res = await api.portalSubmitForm(formId, formData)
+    const res = await portalRequest(`/api/v1/portal/forms/${formId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ responses: formData }),
+    })
     if (res.ok) {
       setActiveForm(null)
       setFormData({})
@@ -148,6 +207,62 @@ export default function PatientPortal() {
     return `${display}:${m} ${ampm}`
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <User size={24} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-semibold text-gray-900">MyOrthoChart</h1>
+            <p className="text-sm text-gray-500 mt-1">Patient Portal — Sign in to your account</p>
+          </div>
+          <form onSubmit={handlePatientLogin} className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-4">
+            {loginError && (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
+                <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-700">{loginError}</span>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {loginLoading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Powered by OrthoFlow Solutions
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
@@ -166,12 +281,12 @@ export default function PatientPortal() {
               <User size={16} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">My Portal</h1>
-              <p className="text-xs text-gray-500">OrthoFlow Patient Portal</p>
+              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">MyOrthoChart</h1>
+              <p className="text-xs text-gray-500">Patient Portal</p>
             </div>
           </div>
           <button
-            onClick={() => { localStorage.removeItem('portal_token'); navigate('/login') }}
+            onClick={() => { localStorage.removeItem('portal_token'); localStorage.removeItem('portal_patient_name'); setIsAuthenticated(false) }}
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <LogOut size={14} /> Sign Out
