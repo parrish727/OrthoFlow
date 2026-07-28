@@ -52,25 +52,26 @@ DEMO_DAS = [
 
 # Today's appointment schedule
 DEMO_APPOINTMENTS = [
-    {"patient_idx": 0, "start": time(8, 0), "end": time(8, 20), "duration": 20, "type": "Adjustment", "status": "completed", "chair_idx": 0, "da_idx": 0},
-    {"patient_idx": 1, "start": time(8, 30), "end": time(9, 30), "duration": 60, "type": "Bonding", "status": "in_progress", "chair_idx": 1, "da_idx": 1},
-    {"patient_idx": 2, "start": time(9, 0), "end": time(9, 20), "duration": 20, "type": "Observation", "status": "checked_in", "chair_idx": None, "da_idx": None},
-    {"patient_idx": 3, "start": time(9, 30), "end": time(9, 50), "duration": 20, "type": "Adjustment", "status": "checked_in", "chair_idx": None, "da_idx": 0},
-    {"patient_idx": 4, "start": time(10, 0), "end": time(10, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 2, "da_idx": 0},
-    {"patient_idx": 5, "start": time(10, 30), "end": time(10, 50), "duration": 20, "type": "Retainer Check", "status": "scheduled", "chair_idx": 3, "da_idx": 1},
-    {"patient_idx": 6, "start": time(11, 0), "end": time(11, 45), "duration": 45, "type": "Ortho Consultation", "status": "scheduled", "chair_idx": 0, "da_idx": None},
-    {"patient_idx": 7, "start": time(13, 0), "end": time(13, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 1, "da_idx": 0},
-    {"patient_idx": 8, "start": time(13, 30), "end": time(14, 30), "duration": 60, "type": "Records Appointment", "status": "scheduled", "chair_idx": 2, "da_idx": 1},
-    {"patient_idx": 9, "start": time(14, 0), "end": time(14, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 3, "da_idx": 0},
+    {"patient_idx": 1, "start": time(8, 0), "end": time(8, 20), "duration": 20, "type": "Adjustment", "status": "completed", "chair_idx": 0, "da_idx": 0},
+    {"patient_idx": 2, "start": time(8, 30), "end": time(9, 30), "duration": 60, "type": "Bonding", "status": "in_progress", "chair_idx": 1, "da_idx": 1},
+    {"patient_idx": 3, "start": time(9, 0), "end": time(9, 20), "duration": 20, "type": "Observation", "status": "checked_in", "chair_idx": None, "da_idx": None},
+    {"patient_idx": 4, "start": time(9, 30), "end": time(9, 50), "duration": 20, "type": "Adjustment", "status": "checked_in", "chair_idx": None, "da_idx": 0},
+    {"patient_idx": 5, "start": time(10, 0), "end": time(10, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 2, "da_idx": 0},
+    {"patient_idx": 6, "start": time(10, 30), "end": time(10, 50), "duration": 20, "type": "Retainer Check", "status": "scheduled", "chair_idx": 3, "da_idx": 1},
+    {"patient_idx": 7, "start": time(11, 0), "end": time(11, 45), "duration": 45, "type": "Ortho Consultation", "status": "scheduled", "chair_idx": 0, "da_idx": None},
+    {"patient_idx": 8, "start": time(13, 0), "end": time(13, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 1, "da_idx": 0},
+    {"patient_idx": 9, "start": time(13, 30), "end": time(14, 30), "duration": 60, "type": "Records Appointment", "status": "scheduled", "chair_idx": 2, "da_idx": 1},
+    {"patient_idx": 0, "start": time(14, 30), "end": time(14, 50), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 3, "da_idx": 0},
+    {"patient_idx": 10, "start": time(15, 0), "end": time(15, 20), "duration": 20, "type": "Adjustment", "status": "scheduled", "chair_idx": 0, "da_idx": 1},
 ]
 
 # Visit statuses for the Patient Flow board
 # patient_idx, status, minutes_ago_checked_in, minutes_ago_seated
 DEMO_VISITS = [
-    (0, "checked_out", 90, 75),   # Marcus — already done
-    (1, "in_treatment", 45, 30),  # Aaliyah — in chair being bonded
-    (2, "waiting", 15, None),     # Devon — lobby, waiting
-    (3, "waiting", 5, None),      # Jasmine — lobby, just arrived
+    (1, "checked_out", 90, 75),   # Marcus — already done
+    (2, "in_treatment", 45, 30),  # Aaliyah — in chair being bonded
+    (3, "waiting", 15, None),     # Devon — lobby, waiting
+    (4, "waiting", 5, None),      # Jasmine — lobby, just arrived
 ]
 
 
@@ -685,7 +686,7 @@ async def seed_demo_flow():
     print(f"  Today's Schedule: {len(DEMO_APPOINTMENTS)} appointments")
     print("  Staff Chat: 2 rooms (AI auto-reply responds to demo messages)")
     print("  Patient Comms: 10 SMS/email messages in log")
-    print("  MyOrthoChart: 4 forms, 6 patient accounts, 4 conversations")
+    print("  MyOrthoChart: 4 forms, 6 patient accounts, 5 conversations")
     print()
 
 
