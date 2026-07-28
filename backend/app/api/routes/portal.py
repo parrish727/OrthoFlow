@@ -283,6 +283,7 @@ async def get_patient_dashboard(
     pending_forms_count = pending_forms_result.scalar() or 0
 
     return {
+        "patient_name": f"{patient_record.first_name} {patient_record.last_name}" if patient_record else "Patient",
         "upcoming_appointments": [
             {
                 "id": str(a.id),
@@ -294,6 +295,11 @@ async def get_patient_dashboard(
             }
             for a in appointments
         ],
+        "next_appointment": {
+            "date": str(appointments[0].appointment_date),
+            "time": str(appointments[0].start_time),
+            "type": appointments[0].appointment_type or "Appointment",
+        } if appointments else None,
         "treatment_phase": patient_record.treatment_phase if patient_record else None,
         "unread_messages": unread_count,
         "pending_forms": pending_forms_count,
