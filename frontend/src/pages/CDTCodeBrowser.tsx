@@ -74,7 +74,10 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
       params.set('limit', '50')
 
       const res = await authFetch(`/api/v1/catalog/cdt-codes?${params.toString()}`)
-      if (res.ok) setCodes(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setCodes(data.codes || [])
+      }
     } catch { /* silent */ }
     setLoading(false)
   }, [query, selectedCategory, selectedSpecialty, commonOnly])
