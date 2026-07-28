@@ -404,6 +404,7 @@ export default function PatientPortal() {
                     </div>
                   </div>
                   {/* Milestones */}
+                  {progress.milestones && progress.milestones.length > 0 && (
                   <div className="space-y-2">
                     {progress.milestones.map((m, i) => (
                       <div key={i} className="flex items-center gap-2">
@@ -416,6 +417,7 @@ export default function PatientPortal() {
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
               </div>
             )}
