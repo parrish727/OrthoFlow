@@ -16,17 +16,20 @@ function authFetch(path: string, opts: RequestInit = {}) {
 }
 
 interface CDTCode {
-  id: string
   code: string
-  description: string
   category: string
-  specialty: string | null
-  fee: number | null
-  common: boolean
+  subcategory: string
+  description: string
+  short_description: string
+  specialty: string
+  is_common: boolean
+  avg_fee: number
+  tooth_specific: boolean
+  surface_specific: boolean
 }
 
 interface CDTCategory {
-  category: string
+  name: string
   count: number
 }
 
@@ -127,8 +130,8 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
         >
           <option value="">All Categories</option>
           {categories.map(cat => (
-            <option key={cat.category} value={cat.category}>
-              {cat.category} ({cat.count})
+            <option key={cat.name} value={cat.name}>
+              {cat.name} ({cat.count})
             </option>
           ))}
         </select>
@@ -172,7 +175,7 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
           <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
             {codes.map(code => (
               <div
-                key={code.id}
+                key={code.code}
                 onClick={onSelect ? () => onSelect(code) : undefined}
                 className={`flex items-center gap-3 px-4 py-2.5 ${
                   onSelect ? 'cursor-pointer hover:bg-teal-50' : 'hover:bg-gray-50'
@@ -190,14 +193,14 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
                         {code.specialty}
                       </span>
                     )}
-                    {code.common && (
+                    {code.is_common && (
                       <span className="text-[8px] text-teal-600">★ common</span>
                     )}
                   </div>
                 </div>
-                {code.fee !== null && (
+                {code.avg_fee > 0 && (
                   <div className="text-right shrink-0">
-                    <span className="text-xs font-medium text-gray-700">${code.fee.toFixed(0)}</span>
+                    <span className="text-xs font-medium text-gray-700">${(code.avg_fee / 100).toFixed(0)}</span>
                   </div>
                 )}
                 {onSelect && (
