@@ -85,30 +85,36 @@ Revenue model: SaaS monthly subscription per practice, three tiers based on prov
 
 ### Model
 
-Monthly SaaS subscription per practice. No per-provider upcharge on base features. Annual contracts get 2 months free.
+Monthly SaaS subscription per practice. No per-seat charges — unlimited users on every plan. Annual contracts get 2 months free.
 
-### Tiers
+### Tiers (Matches orthoflowsolutions.com)
 
 | Tier | Monthly Price | Includes | Target |
 |------|--------------|----------|--------|
-| **Essentials** | $499/mo | Scheduling, patient records, charting, basic claims, patient portal (up to 3 providers) | New/small practices transitioning from paper or basic systems |
-| **Professional** | $899/mo | Everything in Essentials + AI denial review, AI appeal generation, ERA auto-posting, denial analytics, communications (up to 5 providers) | Core ICP — practices losing revenue to denials |
-| **Enterprise** | $1,499/mo | Everything in Professional + multi-location, unlimited providers, API access, priority support, custom reporting, dedicated success manager | Growing practices and small DSOs |
+| **Starter** | $299/mo | AI invoice processing, QuickBooks sync, approval workflows, spend analytics, duplicate detection, staff time clock, payroll hours, email + SMS notifications | Solo/small practices focused on billing automation |
+| **Clinical** ⭐ Most Popular | $599/mo | Everything in Starter + column-based scheduler, DA assignment, patient charts, tooth charting, clinical note AI, imaging integration, appointment reminders, insurance & eligibility, patient portal, financial reporting, denial review & appeals | Core ICP — full practice management |
+| **Enterprise** | $999/mo | Everything in Clinical + multi-location dashboard, dedicated infrastructure, data migration included, custom form builder, priority support + onboarding, phone support | DSOs and multi-location groups |
 
 ### Add-Ons
 
 | Add-On | Price |
 |--------|-------|
-| Additional providers (beyond tier limit) | $99/mo per provider |
 | Data migration from legacy PMS | $2,500 one-time |
 | Custom integration development | $150/hr |
 | On-site training (travel + per diem) | $2,000/day |
 
+### Key Stats (from brochure/website)
+
+- **10 hours** given back weekly
+- **99%** AI classification accuracy
+- **30 seconds** to generate claim appeal letter
+- **5 → 1** apps eliminated (one platform replaces five)
+
 ### Pricing Rationale
 
-- **$499 Essentials** undercuts Ortho2 ($700–$1,200/mo) and Cloud 9 ($600–$1,000/mo) while providing equivalent base functionality.
-- **$899 Professional** pays for itself if it recovers even 2 denied claims per month (average ortho claim: $2,000–$6,000).
-- **$1,499 Enterprise** positions below enterprise competitors ($2,000–$5,000/mo) while offering AI features they lack entirely.
+- **$299 Starter** — lower barrier to entry, captures practices that only need billing automation. Undercuts most competitors who force full-platform purchase.
+- **$599 Clinical** — the core product. Replaces Ortho2 ($700–$1,200/mo) and Cloud 9 ($600–$1,000/mo) at lower cost with AI features they don't have.
+- **$999 Enterprise** — positions below enterprise competitors ($2,000–$5,000/mo) while offering AI + dedicated infrastructure.
 
 ---
 
@@ -205,9 +211,15 @@ Monthly SaaS subscription per practice. No per-provider upcharge on base feature
 
 ### Primary Message
 
-**"Stop losing revenue to denials."**
+**"One platform for your entire practice."** (Website headline)
+
+The Complete Orthodontic Platform — scheduling, clinical charting, imaging, patient portal, AI-powered billing, and practice intelligence. Built from scratch for orthodontic teams. One platform replaces five apps and gives your team hours back every day.
+
+**Secondary hook: "Stop losing revenue to denials."**
 
 Every orthodontic practice loses 5–12% of revenue to insurance denials that go uncontested. OrthoFlow's AI catches every denial, drafts the appeal, and puts your staff back in control — same day.
+
+**Brochure positioning:** "OrthoFlow fights back: full clinical evidence is packaged the way insurance AI review systems read it and denials are appealed the same day."
 
 ### Supporting Messages
 
@@ -224,7 +236,7 @@ Every orthodontic practice loses 5–12% of revenue to insurance denials that go
 |-----------|----------|
 | "We're locked into [competitor] for 2 years" | We offer free data migration and will match your renewal date. Start learning the system before your contract ends. |
 | "AI sounds scary for healthcare" | Staff approves every AI action. Nothing goes to a payer without human review. AI drafts; you decide. |
-| "We're too small" | Our Essentials tier starts at $499/mo — less than most practices spend on their current fragmented stack. |
+| "We're too small" | Our Starter tier is $299/mo with unlimited users — less than most practices spend on their current fragmented stack of tools. |
 | "What if you go out of business?" | Your data is yours. We provide full export at any time. No lock-in. |
 | "HIPAA concerns with AI" | All AI processing happens on our HIPAA-compliant, self-hosted infrastructure. No data sent to third-party cloud AI. |
 
