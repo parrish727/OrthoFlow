@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TreatmentJourney from '../components/TreatmentJourney'
+import OralCareReminders from '../components/OralCareReminders'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, Clock, MessageSquare, FileText, CheckCircle, Send,
@@ -517,6 +518,16 @@ export default function PatientPortal() {
                   {dashboard?.pending_forms || 0} pending
                 </p>
               </button>
+            </motion.div>
+
+            {/* Oral Care Reminders */}
+            <motion.div
+              variants={itemVariants}
+              initial="initial"
+              animate="animate"
+              transition={{ delay: 0.4 }}
+            >
+              <OralCareReminders treatmentPhase={dashboard?.treatment_phase} />
             </motion.div>
           </motion.div>
         )}
