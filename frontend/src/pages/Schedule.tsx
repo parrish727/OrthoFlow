@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Appointment {
@@ -503,6 +503,16 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange 
     onUpdate()
   }
 
+  async function handleCheckIn(e: React.MouseEvent) {
+    e.stopPropagation()
+    await api.request('/api/v1/visit-tracker', {
+      method: 'POST',
+      body: JSON.stringify({ patient_id: appointment.patient_id, appointment_id: appointment.id }),
+    })
+    await api.updateAppointment(appointment.id, { status: 'checked_in' })
+    onUpdate()
+  }
+
   async function handleMarkLate(e: React.MouseEvent) {
     e.stopPropagation()
     const res = await api.updateAppointment(appointment.id, { status: 'no_show' })
@@ -559,6 +569,17 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange 
           >
             <UserMinus size={11} />
             Unassign DA
+          </button>
+        )}
+
+        {/* Check In */}
+        {appointment.status === 'scheduled' && (
+          <button
+            onClick={handleCheckIn}
+            className="flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-md transition-colors"
+          >
+            <LogIn size={11} />
+            Check In
           </button>
         )}
 
