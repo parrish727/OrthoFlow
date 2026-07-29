@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, Armchair, Stethoscope, CheckCircle2, Loader2, Users, GripVertical } from 'lucide-react'
+import { CalendarClock, Clock, Armchair, Stethoscope, CheckCircle2, Loader2, Users, GripVertical, LogIn, LogOut } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface VisitEntry {
@@ -15,7 +15,16 @@ interface VisitEntry {
   created_at: string
 }
 
-const STATUS_COLUMNS = [
+interface ScheduledPatient {
+  id: string
+  patient_id: string
+  patient_name: string
+  start_time: string
+  appointment_type: string | null
+  status: string
+}
+
+const FLOW_COLUMNS = [
   {
     key: 'waiting' as const,
     label: 'Lobby',
@@ -76,19 +85,61 @@ function timeAgo(dateStr: string | null): string {
   return `${hrs}h ${mins % 60}m`
 }
 
+function formatTime(timeStr: string): string {
+  const [h, m] = timeStr.split(':')
+  const hour = parseInt(h, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const display = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+  return `${display}:${m} ${ampm}`
+}
+
 export default function VisitTracker() {
   const [visits, setVisits] = useState<VisitEntry[]>([])
+  const [scheduled, setScheduled] = useState<ScheduledPatient[]>([])
   const [loading, setLoading] = useState(true)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingVisit, setDraggingVisit] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  const loadVisits = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const res = await api.request('/api/v1/visit-tracker')
-      if (res.ok) {
-        const data = await res.json()
+      // Load visit tracker (patients in flow)
+      const visitRes = await api.request('/api/v1/visit-tracker')
+      if (visitRes.ok) {
+        const data = await visitRes.json()
         setVisits(data.visits || data || [])
+      }
+
+      // Load today's schedule to get "Scheduled" patients (not yet checked in)
+      const today = new Date().toISOString().split('T')[0]
+      const schedRes = await api.getSchedule(today)
+      if (schedRes.ok) {
+        const schedData = await schedRes.json()
+        // Flatten all appointments from all columns + unassigned
+        const allAppts: ScheduledPatient[] = []
+        for (const col of schedData.columns || []) {
+          for (const appt of col.appointments || []) {
+            allAppts.push({
+              id: appt.id,
+              patient_id: appt.patient_id,
+              patient_name: appt.patient_name,
+              start_time: appt.start_time,
+              appointment_type: appt.appointment_type,
+              status: appt.status,
+            })
+          }
+        }
+        for (const appt of schedData.unassigned || []) {
+          allAppts.push({
+            id: appt.id,
+            patient_id: appt.patient_id,
+            patient_name: appt.patient_name,
+            start_time: appt.start_time,
+            appointment_type: appt.appointment_type,
+            status: appt.status,
+          })
+        }
+        setScheduled(allAppts)
       }
     } catch {
       // silently handle
@@ -97,10 +148,40 @@ export default function VisitTracker() {
   }, [])
 
   useEffect(() => {
-    loadVisits()
-    const interval = setInterval(loadVisits, 30000)
+    loadData()
+    const interval = setInterval(loadData, 30000)
     return () => clearInterval(interval)
-  }, [loadVisits])
+  }, [loadData])
+
+  // Filter scheduled patients: only show those NOT already in the visit tracker
+  const checkedInPatientIds = new Set(visits.map(v => v.patient_id))
+  const notYetArrived = scheduled.filter(
+    s => !checkedInPatientIds.has(s.patient_id) && s.status === 'scheduled'
+  )
+
+  // ── Check In Patient (move from Scheduled → Lobby) ─────────────────────────
+
+  async function handleCheckIn(appointmentId: string, patientId: string) {
+    try {
+      await api.request('/api/v1/visit-tracker', {
+        method: 'POST',
+        body: JSON.stringify({ patient_id: patientId, appointment_id: appointmentId }),
+      })
+      await loadData()
+    } catch { /* silent */ }
+  }
+
+  // ── Dismiss Patient (quick action) ─────────────────────────────────────────
+
+  async function handleDismiss(visitId: string) {
+    try {
+      await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'checked_out' }),
+      })
+      await loadData()
+    } catch { /* silent */ }
+  }
 
   // ── Drag-and-Drop Handlers ─────────────────────────────────────────────────
 
@@ -133,26 +214,20 @@ export default function VisitTracker() {
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
       const visitId = data.id
-
-      // Find the current visit to check if transition is valid
       const visit = visits.find(v => v.id === visitId)
       if (!visit || visit.status === targetStatus) return
 
-      const res = await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
+      await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status: targetStatus }),
       })
-      if (res.ok) {
-        await loadVisits()
-      }
-    } catch {
-      // Invalid drop or transition not allowed — silently ignore
-    }
+      await loadData()
+    } catch { /* silent */ }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const grouped = STATUS_COLUMNS.map(col => ({
+  const grouped = FLOW_COLUMNS.map(col => ({
     ...col,
     patients: visits.filter(v => v.status === col.key),
   }))
@@ -176,11 +251,62 @@ export default function VisitTracker() {
           <h3 className="font-medium text-gray-800">Today's Patient Flow</h3>
         </div>
         <span className="text-xs text-gray-400">
-          {visits.length} patient{visits.length !== 1 ? 's' : ''} today · Drag to move between stages
+          {scheduled.length} scheduled · {visits.length} in flow · Drag to advance
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-0 divide-x divide-gray-100">
+        {/* ── SCHEDULED COLUMN (not yet arrived) ──────────────────────────── */}
+        <div className="min-h-[180px]">
+          <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <CalendarClock size={14} className="text-gray-500" />
+              <span className="text-xs font-medium text-gray-700">Scheduled</span>
+            </div>
+            <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+              {notYetArrived.length}
+            </span>
+          </div>
+          <div className="p-2 space-y-1.5">
+            {notYetArrived.length === 0 ? (
+              <p className="text-xs text-gray-300 text-center py-6">All patients arrived</p>
+            ) : (
+              notYetArrived.map(patient => (
+                <div
+                  key={patient.id}
+                  className="border-l-[3px] border-l-gray-300 bg-gray-50/50 rounded-lg px-3 py-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <button
+                        onClick={() => navigate(`/patients/${patient.patient_id}`)}
+                        className="text-sm font-medium text-gray-800 hover:text-teal-700 transition-colors truncate block text-left"
+                      >
+                        {patient.patient_name}
+                      </button>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-gray-400">{formatTime(patient.start_time)}</span>
+                        {patient.appointment_type && (
+                          <span className="text-[10px] text-gray-400">· {patient.appointment_type}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleCheckIn(patient.id, patient.patient_id)}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded transition-colors flex-shrink-0"
+                      title="Check In"
+                    >
+                      <LogIn size={10} />
+                      Check In
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ── FLOW COLUMNS (Lobby → Seated → Checkout → Dismissed) ────────── */}
         {grouped.map(col => {
           const Icon = col.icon
           const isDropTarget = dragOverColumn === col.key
@@ -238,6 +364,17 @@ export default function VisitTracker() {
                             </span>
                           </div>
                         </div>
+                        {/* Quick dismiss button for Lobby/Seated/Checkout */}
+                        {col.key !== 'checked_out' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDismiss(patient.id) }}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                            title="Dismiss patient"
+                          >
+                            <LogOut size={9} />
+                            Dismiss
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
