@@ -1,7 +1,6 @@
-FROM node:20-alpine AS build
+FROM node:20-slim AS build
 
 WORKDIR /app
-ARG CACHEBUST=1
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
