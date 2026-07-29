@@ -159,7 +159,9 @@ jobs:
               \"text\": \"🔴 *CI Pipeline FAILED* — OrthoFlow\n*Job:* ${FAILED_JOB}\n*Commit:* \`${{ github.sha }}\`\n*Message:* ${{ github.event.head_commit.message }}\n*Author:* ${{ github.actor }}\n\nDevOps/SRE agents: review and auto-fix if possible.\"
             }" || echo "Slack webhook not configured"
 
-          # Trigger orchestrator to route to DevOps agent for auto-fix
+          # Trigger orchestrator CI failure auto-fix pipeline
+          # ORCHESTRATOR_URL = DEPLOY_WEBHOOK_URL secret (points to orchestrator:9090)
+          # Local compose equivalent: http://localhost:8100 (DARIUS_URL)
           curl -sf -X POST "${ORCHESTRATOR_URL}/webhook/deploy" \
             -H "Content-Type: application/json" \
             -d "{
@@ -168,7 +170,10 @@ jobs:
               \"ref\": \"${{ github.sha }}\",
               \"failure_job\": \"${FAILED_JOB}\",
               \"failure_type\": \"pipeline\",
-              \"commit_message\": \"${{ github.event.head_commit.message }}\"
+              \"commit_message\": \"${{ github.event.head_commit.message }}\",
+              \"run_id\": \"${{ github.run_id }}\",
+              \"actor\": \"${{ github.actor }}\",
+              \"branch\": \"${{ github.ref_name }}\"
             }" || echo "Orchestrator webhook not configured"
 
   # ── Auto-fix: Frontend Alpine CVEs ─────────────────────────────────────────
