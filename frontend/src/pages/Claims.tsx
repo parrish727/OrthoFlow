@@ -348,7 +348,20 @@ export default function Claims() {
                                 </div>
                                 <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed max-h-[300px] overflow-y-auto">{appealLetter[claim.id]}</pre>
                                 <div className="mt-3 flex items-center gap-2">
-                                  <button className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={async () => {
+                                      const res = await api.request('/api/v1/ai/claims/submit-appeal', {
+                                        method: 'POST',
+                                        body: JSON.stringify({ claim_id: claim.id }),
+                                      })
+                                      if (res.ok) {
+                                        const data = await res.json()
+                                        alert(`✅ ${data.message}\n\nTracking #: ${data.tracking_number}`)
+                                        loadClaims()
+                                      }
+                                    }}
+                                    className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                                  >
                                     <Send size={12} /> Submit Appeal to Payer
                                   </button>
                                   <button className="px-3 py-2 bg-white border border-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-50 transition-colors">
