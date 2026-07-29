@@ -59,7 +59,16 @@ export default function Claims() {
   const [expandedClaim, setExpandedClaim] = useState<string | null>(null)
   const [submittingClaim, setSubmittingClaim] = useState<string | null>(null)
   const [reviewingDenial, setReviewingDenial] = useState<string | null>(null)
-  const [denialReview, setDenialReview] = useState<Record<string, string>>({})
+  const [denialReview, setDenialReview] = useState<Record<string, {
+    category: string
+    explanation: string
+    appeal_recommended: boolean
+    success_likelihood: string
+    corrective_actions: string[]
+    supporting_docs: string[]
+  }>>({})
+  const [appealLetter, setAppealLetter] = useState<Record<string, string>>({})
+  const [generatingAppeal, setGeneratingAppeal] = useState<string | null>(null)
   const loadClaims = useCallback(async () => {
     setLoading(true)
     try {
@@ -97,12 +106,39 @@ export default function Claims() {
       const res = await api.aiDenialReview({ claim_id: claimId })
       if (res.ok) {
         const data = await res.json()
-        setDenialReview(prev => ({ ...prev, [claimId]: data.review || data.recommendation || '' }))
+        setDenialReview(prev => ({
+          ...prev,
+          [claimId]: {
+            category: data.denial_category || 'other',
+            explanation: data.denial_explanation || '',
+            appeal_recommended: data.appeal_recommended ?? false,
+            success_likelihood: data.appeal_success_likelihood || 'unknown',
+            corrective_actions: data.corrective_actions || [],
+            supporting_docs: data.supporting_docs_needed || [],
+          },
+        }))
       }
     } catch {
       // silently handle
     }
     setReviewingDenial(null)
+  }
+
+  async function handleGenerateAppeal(claimId: string) {
+    setGeneratingAppeal(claimId)
+    try {
+      const res = await api.request(`/api/v1/ai/claims/generate-appeal`, {
+        method: 'POST',
+        body: JSON.stringify({ claim_id: claimId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAppealLetter(prev => ({ ...prev, [claimId]: data.appeal_letter || '' }))
+      }
+    } catch {
+      // silently handle
+    }
+    setGeneratingAppeal(null)
   }
 
   function formatCurrency(amount: number | null | undefined): string {
@@ -239,14 +275,88 @@ export default function Claims() {
                           </div>
                         )}
 
-                        {/* Denial Review Result */}
+                        {/* AI Denial Review Result */}
                         {denialReview[claim.id] && (
-                          <div className="mb-4 p-3 rounded-xl bg-purple-50 border border-purple-100">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <Search size={12} className="text-purple-600" />
-                              <p className="text-xs font-medium text-purple-700">Review</p>
+                          <div className="mb-4 space-y-3">
+                            <div className="p-4 rounded-xl bg-purple-50 border border-purple-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1.5">
+                                  <Search size={12} className="text-purple-600" />
+                                  <p className="text-xs font-semibold text-purple-700 uppercase">AI Denial Analysis</p>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  denialReview[claim.id].appeal_recommended
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {denialReview[claim.id].appeal_recommended ? '✓ APPEAL RECOMMENDED' : 'REVIEW NEEDED'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-purple-800 mb-3">{denialReview[claim.id].explanation.split('\n')[0]}</p>
+                              <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <p className="font-medium text-gray-600 mb-1">Category</p>
+                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">{denialReview[claim.id].category.replace(/_/g, ' ')}</span>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-600 mb-1">Success Likelihood</p>
+                                  <span className={`px-2 py-0.5 rounded-full ${
+                                    denialReview[claim.id].success_likelihood === 'high' ? 'bg-green-100 text-green-700' :
+                                    denialReview[claim.id].success_likelihood === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-red-100 text-red-700'
+                                  }`}>{denialReview[claim.id].success_likelihood}</span>
+                                </div>
+                              </div>
+                              {denialReview[claim.id].corrective_actions.length > 0 && (
+                                <div className="mt-3">
+                                  <p className="font-medium text-gray-600 text-xs mb-1">Corrective Actions</p>
+                                  <ul className="text-xs text-gray-700 space-y-0.5">
+                                    {denialReview[claim.id].corrective_actions.map((a, i) => (
+                                      <li key={i} className="flex items-start gap-1.5">
+                                        <span className="text-purple-400 mt-0.5">•</span> {a}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
-                            <p className="text-sm text-purple-700">{denialReview[claim.id]}</p>
+
+                            {/* Generate Appeal Button */}
+                            {!appealLetter[claim.id] && (
+                              <button
+                                onClick={() => handleGenerateAppeal(claim.id)}
+                                disabled={generatingAppeal === claim.id}
+                                className="w-full py-2.5 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                              >
+                                {generatingAppeal === claim.id ? (
+                                  <><Loader2 size={14} className="animate-spin" /> Generating Appeal Letter...</>
+                                ) : (
+                                  <><FileText size={14} /> Generate Appeal Letter</>
+                                )}
+                              </button>
+                            )}
+
+                            {/* Appeal Letter Display */}
+                            {appealLetter[claim.id] && (
+                              <div className="p-4 rounded-xl bg-teal-50 border border-teal-200">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <FileText size={12} className="text-teal-600" />
+                                    <p className="text-xs font-semibold text-teal-700 uppercase">Appeal Letter — Ready to Submit</p>
+                                  </div>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">SAME DAY</span>
+                                </div>
+                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed max-h-[300px] overflow-y-auto">{appealLetter[claim.id]}</pre>
+                                <div className="mt-3 flex items-center gap-2">
+                                  <button className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                                    <Send size={12} /> Submit Appeal to Payer
+                                  </button>
+                                  <button className="px-3 py-2 bg-white border border-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-50 transition-colors">
+                                    Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
