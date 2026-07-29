@@ -664,6 +664,31 @@ async def seed_demo_flow():
 
         print(f"  Practice: {practice.name}")
 
+        # Clean up stale date-dependent data (appointments/visits from previous days)
+        from sqlalchemy import delete, and_
+        from app.models.clinical import Appointment
+        stale_appts = await db.execute(
+            delete(PatientVisitStatus).where(
+                PatientVisitStatus.practice_id == DEMO_PRACTICE_ID,
+                PatientVisitStatus.created_at < datetime.combine(TODAY, time(0, 0), tzinfo=timezone.utc),
+            )
+        )
+        stale_visits_deleted = stale_appts.rowcount
+        # Delete demo appointments from past days (keep non-demo / Priscilla's history)
+        from app.models.clinical import Appointment as ApptModel
+        past_demo_appts = await db.execute(
+            delete(ApptModel).where(
+                and_(
+                    ApptModel.practice_id == DEMO_PRACTICE_ID,
+                    ApptModel.appointment_date < TODAY,
+                    ApptModel.appointment_date > TODAY - timedelta(days=3),  # only clean recent stale, keep older history
+                )
+            )
+        )
+        if stale_visits_deleted or past_demo_appts.rowcount:
+            await db.flush()
+            print(f"  🧹 Cleaned {stale_visits_deleted} stale visits, {past_demo_appts.rowcount} old appointments")
+
         # Seed in dependency order
         chairs = await seed_chairs(db)
         das = await seed_dental_assistants(db)

@@ -46,7 +46,16 @@ app.add_middleware(
 async def startup():
     import app.models  # noqa: ensure all models are registered
     # Schema managed by Alembic migrations — no create_all needed
-    pass
+
+    # Auto-seed demo data on startup (idempotent, ensures today's schedule/flow board populated)
+    import os
+    if os.environ.get("AUTO_SEED_DEMO", "true").lower() == "true":
+        try:
+            from app.seeds.demo_flow import seed_demo_flow
+            await seed_demo_flow()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Demo seed on startup skipped: {e}")
 
 app.include_router(health.router, tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
