@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Users, Plus, Clock, X, Loader2 } from 'lucide-react'
+import { Search, Users, Plus, Clock, X, Loader2, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Patient {
@@ -61,6 +61,7 @@ export default function Patients() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
   const navigate = useNavigate()
 
   // Create Patient Modal
@@ -207,21 +208,24 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
           ) : (
             <div className="divide-y divide-gray-100">
               {patients.map(patient => (
-                <button
-                  key={patient.id}
-                  onClick={() => navigate(`/patients/${patient.id}`)}
-                  className="w-full px-6 py-4 flex items-center gap-4 hover:bg-gray-50/80 transition-colors text-left"
-                >
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-semibold text-blue-700">
-                      {patient.first_name[0]}{patient.last_name[0]}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {patient.last_name}, {patient.first_name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                <div key={patient.id}>
+                  <div className="w-full px-6 py-4 flex items-center gap-4 hover:bg-gray-50/80 transition-colors text-left">
+                    <button
+                      onClick={() => navigate(`/patients/${patient.id}`)}
+                      className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center flex-shrink-0"
+                    >
+                      <span className="text-sm font-semibold text-blue-700">
+                        {patient.first_name[0]}{patient.last_name[0]}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => navigate(`/patients/${patient.id}`)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {patient.last_name}, {patient.first_name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
                       {/* Specialty badge */}
                       {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending', 'observation_1', 'observation_2', 'observation_3', 'observation_4'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
@@ -249,13 +253,74 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       })()}
                       {patient.phone && <span className="text-xs text-gray-400">• {patient.phone}</span>}
                     </div>
-                  </div>
+                  </button>
                   {patient.status && STATUS_BADGES[patient.status] && (
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGES[patient.status].color}`}>
                       {STATUS_BADGES[patient.status].label}
                     </span>
                   )}
-                </button>
+                    {/* Info Button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setExpandedPatient(expandedPatient === patient.id ? null : patient.id) }}
+                      className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                        expandedPatient === patient.id
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+                      }`}
+                      title="View patient info"
+                    >
+                      <Info size={16} />
+                    </button>
+                  </div>
+
+                  {/* Expanded Patient Info Panel */}
+                  {expandedPatient === patient.id && (
+                    <div className="px-6 py-4 bg-blue-50/50 border-t border-blue-100">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Full Name</p>
+                          <p className="text-gray-900 mt-0.5">{patient.first_name} {patient.last_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date of Birth</p>
+                          <p className="text-gray-900 mt-0.5">{patient.date_of_birth ? new Date(patient.date_of_birth + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p>
+                          <p className="text-gray-900 mt-0.5">{patient.phone || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</p>
+                          <p className="text-gray-900 mt-0.5 truncate">{patient.email || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
+                          <p className="text-gray-900 mt-0.5">{patient.status || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Treatment Phase</p>
+                          <p className="text-gray-900 mt-0.5">{PHASE_LABELS[patient.treatment_phase || ''] || patient.treatment_phase || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Referring Doctor</p>
+                          <p className="text-gray-900 mt-0.5">{patient.referring_doctor || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Chart #</p>
+                          <p className="text-gray-900 mt-0.5 font-mono">{patient.id.slice(0, 8).toUpperCase()}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          onClick={() => navigate(`/patients/${patient.id}`)}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          View Full Chart →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
