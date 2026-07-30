@@ -43,6 +43,8 @@ import StaffMessaging from './pages/StaffMessaging'
 import PatientMessages from './pages/PatientMessages'
 import HygieneRecall from './pages/HygieneRecall'
 import CDTCodeBrowser from './pages/CDTCodeBrowser'
+import StaffPermissions from './pages/StaffPermissions'
+import SetupWizard from './pages/SetupWizard'
 
 import { useAuth } from './hooks/useAuth'
 import { canAccessRoute, Role } from './lib/permissions'
@@ -107,6 +109,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/patient-messages" element={<PatientMessages />} />
           <Route path="/recall" element={<HygieneRecall />} />
           <Route path="/cdt-codes" element={<CDTCodeBrowser />} />
+          <Route path="/settings/permissions" element={<StaffPermissions />} />
+          <Route path="/setup" element={<SetupWizard />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -6,10 +6,14 @@ import { api } from '../lib/api'
 interface Patient {
   id: string
   first_name: string
+  middle_name: string | null
   last_name: string
   date_of_birth: string | null
+  gender: string | null
   email: string | null
   phone: string | null
+  address: string | null
+  responsible_party: string | null
   status: string | null
   treatment_phase: string | null
   referring_doctor: string | null
@@ -70,10 +74,13 @@ export default function Patients() {
   const [createError, setCreateError] = useState('')
   const [newPatient, setNewPatient] = useState({
     first_name: '',
+    middle_name: '',
     last_name: '',
     date_of_birth: '',
+    gender: '',
     email: '',
     phone: '',
+    responsible_party: '',
     treatment_phase: '',
     referring_doctor: '',
     sms_consent: true,
@@ -119,7 +126,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
       })
       if (res.ok) {
         setShowCreateModal(false)
-        setNewPatient({ first_name: '', last_name: '', date_of_birth: '', email: '', phone: '', treatment_phase: '', referring_doctor: '', sms_consent: true, email_consent: true })
+        setNewPatient({ first_name: '', middle_name: '', last_name: '', date_of_birth: '', gender: '', email: '', phone: '', responsible_party: '', treatment_phase: '', referring_doctor: '', sms_consent: true, email_consent: true })
         loadPatients()
       } else {
         const data = await res.json().catch(() => ({ detail: 'Failed to create patient' }))
@@ -226,7 +233,8 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                         {patient.last_name}, {patient.first_name}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                      {/* Specialty badge */}
+                      {/* Specialty badge — Cosmetic and Perio are BACKLOG specialties (moved 2026-07-30).
+                         Badge display retained for existing patients who may already have these phases. */}
                       {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending', 'observation_1', 'observation_2', 'observation_3', 'observation_4'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
                       ) : patient.treatment_phase && ['cosmetic_consult', 'cosmetic_active'].includes(patient.treatment_phase) ? (
@@ -278,12 +286,24 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     <div className="px-6 py-4 bg-blue-50/50 border-t border-blue-100">
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Full Name</p>
-                          <p className="text-gray-900 mt-0.5">{patient.first_name} {patient.last_name}</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">First Name</p>
+                          <p className="text-gray-900 mt-0.5">{patient.first_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Middle Name</p>
+                          <p className="text-gray-900 mt-0.5">{patient.middle_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Name</p>
+                          <p className="text-gray-900 mt-0.5">{patient.last_name}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date of Birth</p>
                           <p className="text-gray-900 mt-0.5">{patient.date_of_birth ? new Date(patient.date_of_birth + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Gender</p>
+                          <p className="text-gray-900 mt-0.5 capitalize">{patient.gender?.replace(/_/g, ' ') || '—'}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p>
@@ -294,16 +314,24 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                           <p className="text-gray-900 mt-0.5 truncate">{patient.email || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
-                          <p className="text-gray-900 mt-0.5">{patient.status || '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Treatment Phase</p>
-                          <p className="text-gray-900 mt-0.5">{PHASE_LABELS[patient.treatment_phase || ''] || patient.treatment_phase || '—'}</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Address</p>
+                          <p className="text-gray-900 mt-0.5 truncate">{patient.address || '—'}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Referring Doctor</p>
                           <p className="text-gray-900 mt-0.5">{patient.referring_doctor || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Responsible Party</p>
+                          <p className="text-gray-900 mt-0.5">{patient.responsible_party || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
+                          <p className="text-gray-900 mt-0.5 capitalize">{patient.status || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Treatment Phase</p>
+                          <p className="text-gray-900 mt-0.5">{PHASE_LABELS[patient.treatment_phase || ''] || patient.treatment_phase || '—'}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Chart #</p>
@@ -362,7 +390,7 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                 <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{createError}</div>
               )}
               <form onSubmit={handleCreatePatient} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">First Name <span style={{color:"#ef4444"}}>*</span></label>
                     <input
@@ -370,6 +398,15 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       required
                       value={newPatient.first_name}
                       onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Middle Name</label>
+                    <input
+                      type="text"
+                      value={newPatient.middle_name}
+                      onChange={e => setNewPatient(p => ({ ...p, middle_name: e.target.value }))}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
                     />
                   </div>
@@ -384,14 +421,31 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={newPatient.date_of_birth}
-                    onChange={e => setNewPatient(p => ({ ...p, date_of_birth: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={newPatient.date_of_birth}
+                      onChange={e => setNewPatient(p => ({ ...p, date_of_birth: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Gender</label>
+                    <select
+                      value={newPatient.gender}
+                      onChange={e => setNewPatient(p => ({ ...p, gender: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                    >
+                      <option value="">Select...</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="non_binary">Non-binary</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -412,6 +466,16 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Responsible Party (Parent/Guardian)</label>
+                  <input
+                    type="text"
+                    value={newPatient.responsible_party}
+                    onChange={e => setNewPatient(p => ({ ...p, responsible_party: e.target.value }))}
+                    placeholder="Required for patients under 18"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Patient Type</label>
@@ -440,14 +504,10 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       <option value="finishing">Finishing</option>
                       <option value="retention">Retention</option>
                     </optgroup>
-                    <optgroup label="✨ Cosmetic">
-                      <option value="cosmetic_consult">Cosmetic Consultation</option>
-                      <option value="cosmetic_active">Cosmetic Treatment (Veneers/Whitening)</option>
-                    </optgroup>
-                    <optgroup label="🩺 Periodontics">
-                      <option value="perio_active">Active Perio Treatment</option>
-                      <option value="perio_maintenance">Perio Maintenance</option>
-                    </optgroup>
+                    {/* BACKLOG: Cosmetic and Periodontics specialties moved to backlog.
+                       These optgroups are intentionally removed from new patient creation.
+                       Existing patients with cosmetic/perio phases are still displayed correctly.
+                       See: Multi-specialty scoping decision 2026-07-30 */}
                     <optgroup label="✅ Complete">
                       <option value="complete">Treatment Complete</option>
                     </optgroup>

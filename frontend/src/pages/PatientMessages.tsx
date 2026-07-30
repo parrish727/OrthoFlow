@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageSquare, Send, User, Clock, Filter, Inbox, Mail, ArrowLeft } from 'lucide-react'
+import { MessageSquare, Send, User, Clock, Filter, Inbox, Mail, ArrowLeft, Video } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import VideoRoom from '../components/VideoRoom'
 
 // --- Types ---
 
@@ -72,6 +73,9 @@ export default function PatientMessages() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
   const [mobileShowConversation, setMobileShowConversation] = useState(false)
+  const [showVideoRoom, setShowVideoRoom] = useState(false)
+  const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
+  const [startingCall, setStartingCall] = useState(false)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -215,6 +219,29 @@ export default function PatientMessages() {
     }
   }
 
+  async function handleStartVideoCall() {
+    if (!selectedPatientId || startingCall) return
+    setStartingCall(true)
+    try {
+      const res = await api.request('/api/v1/virtual-visits/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          appointment_id: `msg-${Date.now()}`,
+          patient_id: selectedPatientId,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setVideoRoomData({ room_name: data.room_name, token: data.staff_token })
+        setShowVideoRoom(true)
+      }
+    } catch {
+      // silent
+    } finally {
+      setStartingCall(false)
+    }
+  }
+
   // --- Filtered Threads ---
 
   const filteredThreads = threads
@@ -226,6 +253,7 @@ export default function PatientMessages() {
   // --- Render ---
 
   return (
+    <>
     <div className="h-[calc(100vh-7.5rem)] flex rounded-2xl border border-gray-200/80 bg-white shadow-sm overflow-hidden">
       {/* Thread List — Left Panel */}
       <div
@@ -318,6 +346,16 @@ export default function PatientMessages() {
                    selectedThread.category === 'appointment' ? 'Appointment' : 'General'}
                 </p>
               </div>
+              {/* Video Call Button */}
+              <button
+                onClick={handleStartVideoCall}
+                disabled={startingCall}
+                className="p-2 rounded-lg text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
+                title="Start virtual visit"
+                aria-label="Start virtual visit with patient"
+              >
+                <Video size={18} />
+              </button>
             </div>
 
             {/* Messages Area */}
@@ -373,6 +411,16 @@ export default function PatientMessages() {
         )}
       </div>
     </div>
+
+    {/* Video Room Modal */}
+    {showVideoRoom && videoRoomData && (
+      <VideoRoom
+        roomName={videoRoomData.room_name}
+        token={videoRoomData.token}
+        onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
+      />
+    )}
+    </>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MessageSquare, Users, FileText, Plus, Edit3, Eye, Send, X, Clock, Mail, Loader2, Inbox } from 'lucide-react'
+import { MessageSquare, Users, FileText, Plus, Edit3, Eye, Send, X, Clock, Mail, Loader2, Inbox, Video } from 'lucide-react'
 import { api } from '../lib/api'
+import VideoRoom from '../components/VideoRoom'
 
 interface PatientResult {
   id: string
@@ -55,6 +56,11 @@ export default function Communications() {
   const [showSendForm, setShowSendForm] = useState(false)
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [sendLoading, setSendLoading] = useState(false)
+
+  // Virtual visits state
+  const [activeVisits, setActiveVisits] = useState<{ visit_id: string; room_name: string; status: string; created_at: string; patient_id: string }[]>([])
+  const [showVideoRoom, setShowVideoRoom] = useState(false)
+  const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
 // Send form state
   const [sendPatient, setSendPatient] = useState('')
   const [sendTemplate, setSendTemplate] = useState('')
@@ -110,6 +116,22 @@ export default function Communications() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Fetch active virtual visits
+  useEffect(() => {
+    async function fetchActiveVisits() {
+      try {
+        const res = await api.request('/api/v1/virtual-visits/active')
+        if (res.ok) {
+          const data = await res.json()
+          setActiveVisits(data)
+        }
+      } catch { /* silent */ }
+    }
+    fetchActiveVisits()
+    const interval = setInterval(fetchActiveVisits, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Patient search debounce
   useEffect(() => {
@@ -253,6 +275,48 @@ export default function Communications() {
             </div>
           </div>
         )}
+
+        {/* Recent Messages — Conversation Log */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-6 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <Video size={16} className="text-teal-600" />
+              Active Virtual Visits
+            </h3>
+            <span className="text-xs text-gray-400">{activeVisits.length} active</span>
+          </div>
+          {activeVisits.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <Video size={24} className="mb-2 opacity-50" />
+              <p className="text-xs">No active virtual visits</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {activeVisits.map(visit => (
+                <div key={visit.visit_id} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50/50 transition-colors">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{visit.room_name}</p>
+                    <p className="text-xs text-gray-500">Started {new Date(visit.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const res = await api.request(`/api/v1/virtual-visits/${visit.visit_id}`)
+                      if (res.ok) {
+                        const data = await res.json()
+                        setVideoRoomData({ room_name: data.room_name, token: data.patient_token })
+                        setShowVideoRoom(true)
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors"
+                  >
+                    Join
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Recent Messages — Conversation Log */}
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-6 overflow-hidden">
@@ -596,6 +660,15 @@ export default function Communications() {
           </div>
         </div>
       )}
+
+    {/* Video Room Modal */}
+    {showVideoRoom && videoRoomData && (
+      <VideoRoom
+        roomName={videoRoomData.room_name}
+        token={videoRoomData.token}
+        onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
+      />
+    )}
     </>
   )
 }

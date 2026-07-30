@@ -68,10 +68,10 @@ DEMO_APPOINTMENTS = [
 # Visit statuses for the Patient Flow board
 # patient_idx, status, minutes_ago_checked_in, minutes_ago_seated
 DEMO_VISITS = [
-    (1, "checked_out", 90, 75),   # Marcus — already done
-    (2, "in_treatment", 45, 30),  # Aaliyah — in chair being bonded
-    (3, "waiting", 15, None),     # Devon — lobby, waiting
-    (4, "waiting", 5, None),      # Jasmine — lobby, just arrived
+    (1, "dismissed", 90, 75),   # Marcus — already done
+    (2, "seated", 45, 30),  # Aaliyah — in chair being bonded
+    (3, "lobby", 15, None),     # Devon — lobby, waiting
+    (4, "lobby", 5, None),      # Jasmine — lobby, just arrived
 ]
 
 
@@ -249,11 +249,11 @@ async def seed_visit_statuses(db, patients: list, appointments: list, chairs: li
 
         checked_in_at = now - timedelta(minutes=mins_checkin)
         seated_at = (now - timedelta(minutes=mins_seated)) if mins_seated else None
-        checked_out_at = (now - timedelta(minutes=5)) if visit_status == "checked_out" else None
+        checked_out_at = (now - timedelta(minutes=5)) if visit_status == "dismissed" else None
 
         # Assign a chair for seated/in_treatment/checked_out patients
         chair_id = None
-        if visit_status in ("seated", "in_treatment", "checked_out"):
+        if visit_status in ("seated", "checked_out", "dismissed"):
             chair_id = chairs[patient_idx % len(chairs)].id
 
         visit = PatientVisitStatus(

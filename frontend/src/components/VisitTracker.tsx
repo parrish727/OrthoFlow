@@ -7,7 +7,7 @@ interface VisitEntry {
   id: string
   patient_id: string
   patient_name: string | null
-  status: 'waiting' | 'seated' | 'in_treatment' | 'checked_out'
+  status: 'lobby' | 'seated' | 'checked_out' | 'dismissed'
   chair_id: string | null
   checked_in_at: string | null
   seated_at: string | null
@@ -26,7 +26,7 @@ interface ScheduledPatient {
 
 const FLOW_COLUMNS = [
   {
-    key: 'waiting' as const,
+    key: 'lobby' as const,
     label: 'Lobby',
     icon: Clock,
     headerBg: 'bg-amber-50',
@@ -50,8 +50,8 @@ const FLOW_COLUMNS = [
     dropActive: 'border-blue-400 ring-2 ring-blue-100',
   },
   {
-    key: 'in_treatment' as const,
-    label: 'Checkout',
+    key: 'checked_out' as const,
+    label: 'Checked Out',
     icon: Stethoscope,
     headerBg: 'bg-purple-50',
     headerBorder: 'border-purple-200',
@@ -62,7 +62,7 @@ const FLOW_COLUMNS = [
     dropActive: 'border-purple-400 ring-2 ring-purple-100',
   },
   {
-    key: 'checked_out' as const,
+    key: 'dismissed' as const,
     label: 'Dismissed',
     icon: CheckCircle2,
     headerBg: 'bg-emerald-50',
@@ -177,7 +177,7 @@ export default function VisitTracker() {
     try {
       await api.request(`/api/v1/visit-tracker/${visitId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: 'checked_out' }),
+        body: JSON.stringify({ status: 'dismissed' }),
       })
       await loadData()
     } catch { /* silent */ }
@@ -365,7 +365,7 @@ export default function VisitTracker() {
                           </div>
                         </div>
                         {/* Quick dismiss button for Lobby/Seated/Checkout */}
-                        {col.key !== 'checked_out' && (
+                        {col.key !== 'dismissed' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDismiss(patient.id) }}
                             className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"

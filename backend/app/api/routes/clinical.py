@@ -25,12 +25,15 @@ router = APIRouter(prefix="/api/v1", tags=["clinical"])
 
 class PatientCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
+    middle_name: str | None = None
     last_name: str = Field(..., min_length=1, max_length=100)
     date_of_birth: date | None = None
+    gender: str | None = None
     email: str | None = None
     phone: str | None = None
     phone_secondary: str | None = None
     address: str | None = None
+    responsible_party: str | None = None
     treatment_phase: TreatmentPhase = TreatmentPhase.consultation
     referring_doctor: str | None = None
     notes: str | None = None
@@ -38,12 +41,15 @@ class PatientCreate(BaseModel):
 
 class PatientUpdate(BaseModel):
     first_name: str | None = None
+    middle_name: str | None = None
     last_name: str | None = None
     date_of_birth: date | None = None
+    gender: str | None = None
     email: str | None = None
     phone: str | None = None
     phone_secondary: str | None = None
     address: str | None = None
+    responsible_party: str | None = None
     status: PatientStatus | None = None
     treatment_phase: TreatmentPhase | None = None
     referring_doctor: str | None = None
@@ -512,10 +518,14 @@ def _patient_dict(p: Patient) -> dict:
     return {
         "id": str(p.id),
         "first_name": p.first_name,
+        "middle_name": p.middle_name,
         "last_name": p.last_name,
         "date_of_birth": p.date_of_birth.isoformat() if p.date_of_birth else None,
+        "gender": p.gender,
         "email": p.email,
         "phone": p.phone,
+        "address": p.address,
+        "responsible_party": p.responsible_party,
         "status": p.status if p.status else None,
         "treatment_phase": p.treatment_phase if p.treatment_phase else None,
         "referring_doctor": p.referring_doctor,

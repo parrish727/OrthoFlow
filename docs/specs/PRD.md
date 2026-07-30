@@ -66,7 +66,7 @@ OrthoFlow is live in production, processing real clinical workflows with five ro
 ### Practice Profile
 
 - **Size:** 1–10 providers
-- **Specialties:** Orthodontics (primary), general dentistry, periodontics, pediatric dentistry
+- **Specialties:** Orthodontics (primary), general dentistry. Future: periodontics, pediatric dentistry (backlog)
 - **Geography:** United States
 - **Tech maturity:** Varies (OrthoFlow handles migration from legacy systems)
 

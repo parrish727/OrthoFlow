@@ -43,7 +43,7 @@ class VisitStatusCreate(BaseModel):
 
 
 class VisitStatusUpdate(BaseModel):
-    status: str = Field(..., pattern="^(waiting|seated|in_treatment|checked_out)$")
+    status: str = Field(..., pattern="^(lobby|seated|checked_out|dismissed)$")
     chair_id: str | None = None
 
 
@@ -107,10 +107,10 @@ def _ts(dt: datetime | None) -> str | None:
 
 
 VALID_STATUS_TRANSITIONS = {
-    "waiting": ["seated", "checked_out"],
-    "seated": ["in_treatment", "checked_out"],
-    "in_treatment": ["checked_out"],
-    "checked_out": [],
+    "lobby": ["seated", "dismissed"],
+    "seated": ["checked_out", "dismissed"],
+    "checked_out": ["dismissed"],
+    "dismissed": [],
 }
 
 
@@ -170,7 +170,7 @@ async def create_visit_status(
         practice_id=uuid.UUID(user["practice_id"]),
         patient_id=uuid.UUID(payload.patient_id),
         appointment_id=uuid.UUID(payload.appointment_id),
-        status="waiting",
+        status="lobby",
         chair_id=uuid.UUID(payload.chair_id) if payload.chair_id else None,
         checked_in_at=now,
         created_at=now,
@@ -232,6 +232,9 @@ async def update_visit_status(
             visit.chair_id = uuid.UUID(payload.chair_id)
     elif payload.status == "checked_out":
         visit.checked_out_at = now
+    elif payload.status == "dismissed":
+        if not visit.checked_out_at:
+            visit.checked_out_at = now
 
     # Allow chair assignment on any transition
     if payload.chair_id and payload.status != "seated":

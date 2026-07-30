@@ -1,4 +1,5 @@
-import { ArrowLeft, Link2, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react'
+import { ArrowLeft, Link2, CheckCircle, AlertCircle, HelpCircle, Shield } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import Tooltip from '../components/Tooltip'
 import { api } from '../lib/api'
 
@@ -11,8 +12,30 @@ const integrations = [
 ]
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
 return (
     <>
+        {/* Staff Permissions */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
+                <Shield size={18} className="text-teal-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-800">Staff Permissions</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Configure access levels for each team member</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/settings/permissions')}
+              className="px-4 py-2 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+            >
+              Manage Permissions
+            </button>
+          </div>
+        </div>
+
         {/* Practice Info */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-4">Practice Information</h3>
