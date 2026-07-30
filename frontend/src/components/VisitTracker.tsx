@@ -162,13 +162,31 @@ export default function VisitTracker() {
   // ── Check In Patient (move from Scheduled → Lobby) ─────────────────────────
 
   async function handleCheckIn(appointmentId: string, patientId: string) {
+    // Optimistic UI: move patient from Scheduled → Lobby immediately
+    const patient = scheduled.find(s => s.id === appointmentId)
+    if (patient) {
+      setScheduled(prev => prev.filter(s => s.id !== appointmentId))
+      setVisits(prev => [...prev, {
+        id: `temp-${appointmentId}`,
+        patient_id: patient.patient_id,
+        patient_name: patient.patient_name,
+        status: 'lobby' as const,
+        chair_id: null,
+        checked_in_at: new Date().toISOString(),
+        seated_at: null,
+        checked_out_at: null,
+        created_at: new Date().toISOString(),
+      }])
+    }
     try {
       await api.request('/api/v1/visit-tracker', {
         method: 'POST',
         body: JSON.stringify({ patient_id: patientId, appointment_id: appointmentId }),
       })
-      await loadData()
-    } catch { /* silent */ }
+      await loadData() // Reconcile with server state
+    } catch {
+      await loadData() // Rollback on failure
+    }
   }
 
   // ── Dismiss Patient (quick action) ─────────────────────────────────────────
