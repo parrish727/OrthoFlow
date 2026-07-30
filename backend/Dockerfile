@@ -5,7 +5,8 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --upgrade "msgpack>=1.2.1" "setuptools>=78.1.1"
 
 COPY . .
 
