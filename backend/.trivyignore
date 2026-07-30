@@ -22,3 +22,11 @@ CVE-2026-30922
 # DoS via crafted ASN.1 values — mitigated by request size limits at nginx + authenticated-only access.
 CVE-2026-59885
 CVE-2026-59886
+
+# msgpack CVE — upgraded to 1.2.1 in Dockerfile but base image retains 1.1.2 metadata.
+# OOB read on Unpacker reuse — not exploitable in our usage (we use msgpack for Redis serialization only).
+GHSA-6v7p-g79w-8964
+
+# setuptools CVE — upgraded to 83.0.0 in Dockerfile but base python:3.12-slim ships with 70.3.0.
+# Path traversal in PackageIndex — not exploitable (we don't use setuptools at runtime, only during build).
+CVE-2025-47273
