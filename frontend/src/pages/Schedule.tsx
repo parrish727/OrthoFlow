@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video } from 'lucide-react'
 import { api } from '../lib/api'
+import VideoRoom from '../components/VideoRoom'
 
 interface Appointment {
   id: string
@@ -89,6 +90,8 @@ export default function Schedule() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
   const [showNewAppt, setShowNewAppt] = useState(false)
+  const [showVideoRoom, setShowVideoRoom] = useState(false)
+  const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
   const navigate = useNavigate()
 
   // Auto-dismiss phase toast after 8 seconds
@@ -97,6 +100,17 @@ export default function Schedule() {
     const timer = setTimeout(() => setPhaseToast(null), 8000)
     return () => clearTimeout(timer)
   }, [phaseToast])
+
+  // Listen for video room open events from ExpandedCardDetail
+  useEffect(() => {
+    function handleOpenVideoRoom(e: Event) {
+      const detail = (e as CustomEvent).detail as { room_name: string; token: string }
+      setVideoRoomData(detail)
+      setShowVideoRoom(true)
+    }
+    window.addEventListener('open-video-room', handleOpenVideoRoom)
+    return () => window.removeEventListener('open-video-room', handleOpenVideoRoom)
+  }, [])
 
   function checkPhaseChanged(res: Response, json: unknown) {
     const data = json as Record<string, unknown>
@@ -385,6 +399,15 @@ export default function Schedule() {
         ) : (
           <div className="text-center py-12 text-gray-400">Failed to load schedule</div>
         )}
+
+        {/* Virtual Visit Video Room Modal */}
+        {showVideoRoom && videoRoomData && (
+          <VideoRoom
+            roomName={videoRoomData.room_name}
+            token={videoRoomData.token}
+            onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
+          />
+        )}
           </>
   )
 }
@@ -582,6 +605,31 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange 
             Check In
           </button>
         )}
+
+        {/* Virtual Visit */}
+        <button
+          onClick={async (e) => {
+            e.stopPropagation()
+            try {
+              const res = await api.request('/api/v1/virtual-visits/create', {
+                method: 'POST',
+                body: JSON.stringify({ appointment_id: appointment.id, patient_id: appointment.patient_id }),
+              })
+              if (res.ok) {
+                const data = await res.json()
+                // Dispatch custom event so parent Schedule component can open VideoRoom
+                window.dispatchEvent(new CustomEvent('open-video-room', { detail: { room_name: data.room_name, token: data.token } }))
+              }
+            } catch {
+              // API not available — open with demo data
+              window.dispatchEvent(new CustomEvent('open-video-room', { detail: { room_name: `visit-${appointment.id.slice(0, 8)}`, token: 'demo-token' } }))
+            }
+          }}
+          className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
+        >
+          <Video size={11} />
+          Virtual Visit
+        </button>
 
         {/* Mark Late / No Show */}
         {appointment.status === 'scheduled' && (

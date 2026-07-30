@@ -24,6 +24,7 @@ from app.api.routes import messaging
 from app.api.routes import perio
 from app.api.routes import recall
 from app.api.routes import stedi_webhook
+from app.api.routes import virtual_visits
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -100,6 +101,7 @@ app.include_router(messaging.router, tags=["messaging"])
 app.include_router(perio.router, tags=["perio-charting"])
 app.include_router(recall.router, tags=["hygiene-recall"])
 app.include_router(stedi_webhook.router, tags=["webhooks"])
+app.include_router(virtual_visits.router, tags=["virtual-visits"])
 
 
 # ── Deep Health Check (verifies core routes, not just "is the process alive") ──

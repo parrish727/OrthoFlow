@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TreatmentJourney from '../components/TreatmentJourney'
 import OralCareReminders from '../components/OralCareReminders'
+import VideoRoom from '../components/VideoRoom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, Clock, MessageSquare, FileText, CheckCircle, Send,
   ChevronRight, LogOut, User, AlertCircle, Loader2, Smile,
-  Inbox, CalendarCheck, Home,
+  Inbox, CalendarCheck, Home, Video,
 } from 'lucide-react'
 
 interface PortalDashboard {
@@ -65,6 +66,8 @@ export default function PatientPortal() {
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [submittingForm, setSubmittingForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showVideoRoom, setShowVideoRoom] = useState(false)
+  const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
   const navigate = useNavigate()
 
   // ── Patient Auth State ─────────────────────────────────────────────────────
@@ -422,6 +425,39 @@ export default function PatientPortal() {
               </div>
             </div>
 
+            {/* Join Virtual Visit — shown when doctor is ready */}
+            <motion.div
+              variants={itemVariants}
+              initial="initial"
+              animate="animate"
+              transition={{ delay: 0.05 }}
+              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200/80 shadow-sm p-4 sm:p-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <Video size={18} className="text-blue-600" />
+                    </div>
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Virtual Visit Ready</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Your doctor is ready to see you</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setVideoRoomData({ room_name: 'patient-visit', token: 'demo-patient-token' })
+                    setShowVideoRoom(true)
+                  }}
+                  className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors active:scale-95"
+                >
+                  Join Now
+                </button>
+              </div>
+            </motion.div>
+
             {/* Upcoming Appointments */}
             <motion.div
               variants={itemVariants}
@@ -761,6 +797,15 @@ export default function PatientPortal() {
         )}
         </AnimatePresence>
       </main>
+
+      {/* Virtual Visit Video Room Modal */}
+      {showVideoRoom && videoRoomData && (
+        <VideoRoom
+          roomName={videoRoomData.room_name}
+          token={videoRoomData.token}
+          onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
+        />
+      )}
     </div>
   )
 }
