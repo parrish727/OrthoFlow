@@ -153,6 +153,15 @@ async def seed_patients(db) -> list:
         )
         existing = result.scalar_one_or_none()
         if existing:
+            # Update demographic fields if seed has new data the DB doesn't
+            if p_data.get("middle_name") and not existing.middle_name:
+                existing.middle_name = p_data["middle_name"]
+            if p_data.get("gender") and not existing.gender:
+                existing.gender = p_data["gender"]
+            if p_data.get("address") and not existing.address:
+                existing.address = p_data["address"]
+            if p_data.get("responsible_party") and not existing.responsible_party:
+                existing.responsible_party = p_data["responsible_party"]
             patients.append(existing)
         else:
             patient = Patient(
