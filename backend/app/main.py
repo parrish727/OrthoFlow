@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.routes import invoices, auth, practices, health
 from app.api.routes import quickbooks, notifications, payments, pms, spend
@@ -25,8 +26,22 @@ from app.api.routes import perio
 from app.api.routes import recall
 from app.api.routes import stedi_webhook
 from app.api.routes import virtual_visits
+from app.api.routes import staff_permissions
+from app.api.routes import onboarding
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.logging import (
+    setup_logging,
+    get_logger,
+    CorrelationIDMiddleware,
+    RequestLoggingMiddleware,
+    build_error_context,
+    correlation_id_var,
+)
+
+# ── Initialize structured logging before anything else ────────────────────────
+setup_logging(level="INFO")
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="OrthoFlow AI",
@@ -34,6 +49,8 @@ app = FastAPI(
     description="AI-Powered Accounts Payable Automation for Orthodontic Practices",
 )
 
+# ── Middleware (order matters: first added = outermost) ───────────────────────
+# CORS must be outermost to handle preflight requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -41,6 +58,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Request logging wraps the route handlers
+app.add_middleware(RequestLoggingMiddleware)
+# Correlation ID is innermost — sets context for everything above
+app.add_middleware(CorrelationIDMiddleware)
+
+
+# ── Global Exception Handler ─────────────────────────────────────────────────
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch all unhandled exceptions, log with full context, return safe 500."""
+    error_context = build_error_context(exc, request=request, max_frames=5)
+    logger.error(
+        f"Unhandled exception: {type(exc).__name__}: {exc}",
+        extra={"context": error_context},
+    )
+
+    # Return correlation ID so the client can reference it in support requests
+    cid = correlation_id_var.get("none")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "correlation_id": cid,
+            "error_type": type(exc).__name__,
+        },
+    )
 
 
 @app.on_event("startup")
@@ -48,15 +92,20 @@ async def startup():
     import app.models  # noqa: ensure all models are registered
     # Schema managed by Alembic migrations — no create_all needed
 
+    logger.info("OrthoFlow backend starting up", extra={"context": {"event": "startup"}})
+
     # Auto-seed demo data on startup (idempotent, ensures today's schedule/flow board populated)
     import os
     if os.environ.get("AUTO_SEED_DEMO", "true").lower() == "true":
         try:
             from app.seeds.demo_flow import seed_demo_flow
             await seed_demo_flow()
+            logger.info("Demo seed completed", extra={"context": {"event": "seed_complete"}})
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Demo seed on startup skipped: {e}")
+            logger.warning(
+                f"Demo seed on startup skipped: {e}",
+                extra={"context": {"event": "seed_skipped", "reason": str(e)}},
+            )
 
 app.include_router(health.router, tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -102,6 +151,8 @@ app.include_router(perio.router, tags=["perio-charting"])
 app.include_router(recall.router, tags=["hygiene-recall"])
 app.include_router(stedi_webhook.router, tags=["webhooks"])
 app.include_router(virtual_visits.router, tags=["virtual-visits"])
+app.include_router(staff_permissions.router, tags=["staff-permissions"])
+app.include_router(onboarding.router, tags=["onboarding"])
 
 
 # ── Deep Health Check (verifies core routes, not just "is the process alive") ──

@@ -18,6 +18,14 @@ interface NavItem {
   section?: string
 }
 
+const SECTION_LABELS: Record<string, string> = {
+  main: 'Main',
+  clinical: 'Clinical',
+  finance: 'Finance',
+  comms: 'Communications',
+  insights: 'Insights',
+}
+
 const NAV_ITEMS: NavItem[] = [
   { to: '/', icon: Layout, label: 'Dashboard', section: 'main' },
   { to: '/schedule', icon: CalendarDays, label: 'Schedule', section: 'main' },
@@ -145,13 +153,22 @@ export default function AppLayout() {
         {/* Nav Items */}
         <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
           {filteredNav.map((item, i) => {
-            // Section divider
+            // Section divider with label
             const prevSection = i > 0 ? filteredNav[i - 1].section : null
             const showDivider = item.section !== prevSection && i > 0
 
             return (
               <div key={item.to}>
-                {showDivider && <div className="my-2 mx-2 border-t border-gray-200" />}
+                {showDivider && (
+                  <div className="mt-3 mb-1.5 mx-2">
+                    <div className="border-t border-gray-200" />
+                    {!collapsed && item.section && SECTION_LABELS[item.section] && (
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-2 px-1">
+                        {SECTION_LABELS[item.section]}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <SidebarLink item={item} collapsed={collapsed} />
               </div>
             )

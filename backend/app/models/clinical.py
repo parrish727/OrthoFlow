@@ -63,12 +63,15 @@ class Patient(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    middle_name: Mapped[str | None] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     date_of_birth: Mapped[date | None] = mapped_column(Date)
+    gender: Mapped[str | None] = mapped_column(String(20))  # male, female, non_binary, other, prefer_not_to_say
     email: Mapped[str | None] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(20))
     phone_secondary: Mapped[str | None] = mapped_column(String(20))
     address: Mapped[str | None] = mapped_column(Text)
+    responsible_party: Mapped[str | None] = mapped_column(String(255))  # Parent/guardian for minors
     status: Mapped[str] = mapped_column(String(20), default="active")
     treatment_phase: Mapped[str] = mapped_column(String(20), default="consultation")
     referring_doctor: Mapped[str | None] = mapped_column(String(255))

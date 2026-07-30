@@ -4,6 +4,7 @@ Run via: docker compose exec backend python -m app.seeds.demo_flow
 import asyncio
 import uuid
 from datetime import datetime, date, time, timezone, timedelta
+from decimal import Decimal
 
 from sqlalchemy import select
 from app.core.database import SessionLocal
@@ -23,7 +24,7 @@ TODAY = date.today()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
-    {"first_name": "Priscilla", "last_name": "Knowles", "dob": date(1992, 4, 15), "phone": "(414) 555-0200", "email": "priscilla.knowles@melanin-tech.com", "phase": "active"},
+    {"first_name": "Priscilla", "last_name": "Knowles", "dob": date(1992, 4, 15), "phone": "(414) 555-0200", "email": "priscilla.knowles@melanin-tech.com", "phase": "active", "middle_name": "Marie", "gender": "female", "responsible_party": None, "address": "742 Evergreen Terrace, Milwaukee, WI 53202"},
     {"first_name": "Marcus", "last_name": "Johnson", "dob": date(2010, 3, 15), "phone": "(414) 555-0101", "email": "marcus.j@example.com", "phase": "active"},
     {"first_name": "Aaliyah", "last_name": "Washington", "dob": date(2008, 7, 22), "phone": "(414) 555-0102", "email": "aaliyah.w@example.com", "phase": "bonding"},
     {"first_name": "Devon", "last_name": "Brooks", "dob": date(2012, 11, 8), "phone": "(414) 555-0103", "email": "devon.b@example.com", "phase": "observation_1"},
@@ -68,10 +69,10 @@ DEMO_APPOINTMENTS = [
 # Visit statuses for the Patient Flow board
 # patient_idx, status, minutes_ago_checked_in, minutes_ago_seated
 DEMO_VISITS = [
-    (1, "checked_out", 90, 75),   # Marcus — already done
-    (2, "in_treatment", 45, 30),  # Aaliyah — in chair being bonded
-    (3, "waiting", 15, None),     # Devon — lobby, waiting
-    (4, "waiting", 5, None),      # Jasmine — lobby, just arrived
+    (1, "dismissed", 90, 75),   # Marcus — already done
+    (2, "seated", 45, 30),  # Aaliyah — in chair being bonded
+    (3, "lobby", 15, None),     # Devon — lobby, waiting
+    (4, "lobby", 5, None),      # Jasmine — lobby, just arrived
 ]
 
 
@@ -152,16 +153,29 @@ async def seed_patients(db) -> list:
         )
         existing = result.scalar_one_or_none()
         if existing:
+            # Update demographic fields if seed has new data the DB doesn't
+            if p_data.get("middle_name") and not existing.middle_name:
+                existing.middle_name = p_data["middle_name"]
+            if p_data.get("gender") and not existing.gender:
+                existing.gender = p_data["gender"]
+            if p_data.get("address") and not existing.address:
+                existing.address = p_data["address"]
+            if p_data.get("responsible_party") and not existing.responsible_party:
+                existing.responsible_party = p_data["responsible_party"]
             patients.append(existing)
         else:
             patient = Patient(
                 id=uuid.uuid4(),
                 practice_id=DEMO_PRACTICE_ID,
                 first_name=p_data["first_name"],
+                middle_name=p_data.get("middle_name"),
                 last_name=p_data["last_name"],
                 date_of_birth=p_data["dob"],
+                gender=p_data.get("gender"),
                 phone=p_data["phone"],
                 email=p_data["email"],
+                address=p_data.get("address"),
+                responsible_party=p_data.get("responsible_party"),
                 status="active",
                 treatment_phase=p_data["phase"],
             )
@@ -249,11 +263,11 @@ async def seed_visit_statuses(db, patients: list, appointments: list, chairs: li
 
         checked_in_at = now - timedelta(minutes=mins_checkin)
         seated_at = (now - timedelta(minutes=mins_seated)) if mins_seated else None
-        checked_out_at = (now - timedelta(minutes=5)) if visit_status == "checked_out" else None
+        checked_out_at = (now - timedelta(minutes=5)) if visit_status == "dismissed" else None
 
         # Assign a chair for seated/in_treatment/checked_out patients
         chair_id = None
-        if visit_status in ("seated", "in_treatment", "checked_out"):
+        if visit_status in ("seated", "checked_out", "dismissed"):
             chair_id = chairs[patient_idx % len(chairs)].id
 
         visit = PatientVisitStatus(
@@ -645,6 +659,111 @@ async def seed_portal_messages(db, patients: list) -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+async def seed_insurance_and_claims(db, patients: list) -> None:
+    """Seed insurance subscriber records and demo claims for Priscilla Knowles."""
+    from app.models.finance import InsuranceSubscriber
+    from app.models.claims import InsuranceClaim
+
+    # Find Priscilla
+    priscilla = next((p for p in patients if p.first_name == "Priscilla"), None)
+    if not priscilla:
+        print("  ⚠️ Priscilla not found, skipping insurance seed")
+        return
+
+    # Check if already seeded
+    existing = await db.execute(
+        select(InsuranceSubscriber).where(InsuranceSubscriber.patient_id == priscilla.id)
+    )
+    if existing.scalar_one_or_none():
+        print("  ✅ Insurance: already seeded")
+        return
+
+    # Create insurance subscriber
+    subscriber = InsuranceSubscriber(
+        id=uuid.uuid4(),
+        practice_id=DEMO_PRACTICE_ID,
+        patient_id=priscilla.id,
+        payer_name="Delta Dental of Wisconsin",
+        payer_id="DELTA-WI",
+        member_id="DDW-9204150001",
+        group_number="GRP-MELANIN-2026",
+        subscriber_name="Priscilla Knowles",
+        relationship="self",
+        effective_date=date(2025, 1, 1),
+        plan_type="PPO",
+        annual_max=Decimal("2000.00"),
+        remaining_benefit=Decimal("1450.00"),
+        deductible=Decimal("50.00"),
+        deductible_met=True,
+        ortho_lifetime_max=Decimal("2500.00"),
+        ortho_remaining=Decimal("1800.00"),
+    )
+    db.add(subscriber)
+
+    # Create demo claims
+    demo_claims = [
+        {
+            "patient_name": "Priscilla Knowles",
+            "subscriber_id": "DDW-9204150001",
+            "payer_id": "DELTA-WI",
+            "payer_type": "dental",
+            "claim_number": "CLM-2026-00142",
+            "status": "paid",
+            "cdt_codes": [{"code": "D8080", "description": "Comprehensive orthodontic treatment", "fee": 275.00}],
+            "total_billed": Decimal("275.00"),
+            "total_allowed": Decimal("250.00"),
+            "total_paid": Decimal("200.00"),
+            "patient_responsibility": Decimal("75.00"),
+            "service_date": date.today() - timedelta(days=30),
+            "submission_date": date.today() - timedelta(days=28),
+        },
+        {
+            "patient_name": "Priscilla Knowles",
+            "subscriber_id": "DDW-9204150001",
+            "payer_id": "DELTA-WI",
+            "payer_type": "dental",
+            "claim_number": "CLM-2026-00187",
+            "status": "submitted",
+            "cdt_codes": [{"code": "D8670", "description": "Periodic orthodontic visit", "fee": 185.00}],
+            "total_billed": Decimal("185.00"),
+            "total_allowed": None,
+            "total_paid": None,
+            "patient_responsibility": None,
+            "service_date": date.today() - timedelta(days=5),
+            "submission_date": date.today() - timedelta(days=3),
+        },
+        {
+            "patient_name": "Priscilla Knowles",
+            "subscriber_id": "DDW-9204150001",
+            "payer_id": "DELTA-WI",
+            "payer_type": "dental",
+            "claim_number": "CLM-2026-00195",
+            "status": "denied",
+            "cdt_codes": [{"code": "D0330", "description": "Panoramic radiographic image", "fee": 125.00}],
+            "total_billed": Decimal("125.00"),
+            "total_allowed": Decimal("0.00"),
+            "total_paid": Decimal("0.00"),
+            "patient_responsibility": Decimal("125.00"),
+            "service_date": date.today() - timedelta(days=14),
+            "submission_date": date.today() - timedelta(days=12),
+            "denial_reason": "Service not covered under current plan benefit period",
+            "denial_codes": ["CO-96"],
+        },
+    ]
+
+    for claim_data in demo_claims:
+        claim = InsuranceClaim(
+            id=uuid.uuid4(),
+            practice_id=DEMO_PRACTICE_ID,
+            patient_id=priscilla.id,
+            **claim_data,
+        )
+        db.add(claim)
+
+    await db.flush()
+    print("  ✅ Insurance: 1 subscriber + 3 claims (paid, submitted, denied)")
+
+
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     print("\n🌱 Seeding OrthoFlow demo data...\n")
@@ -700,6 +819,9 @@ async def seed_demo_flow():
         await seed_portal_forms(db)
         await seed_portal_accounts(db, patients)
         await seed_portal_messages(db, patients)
+
+        # ── Insurance & Claims Demo Data ──
+        await seed_insurance_and_claims(db, patients)
 
         await db.commit()
 

@@ -10,10 +10,14 @@ import PerioChartView from '../components/PerioChartView'
 interface Patient {
   id: string
   first_name: string
+  middle_name: string | null
   last_name: string
   date_of_birth: string | null
+  gender: string | null
   email: string | null
   phone: string | null
+  address: string | null
+  responsible_party: string | null
   status: string | null
   treatment_phase: string | null
   referring_doctor: string | null
@@ -228,10 +232,14 @@ export default function PatientDetail() {
               <h3 className="text-sm font-semibold text-gray-800 mb-4">Demographics</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="First Name" value={editForm.first_name || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, first_name: v }))} />
+                <Field label="Middle Name" value={editForm.middle_name || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, middle_name: v }))} />
                 <Field label="Last Name" value={editForm.last_name || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, last_name: v }))} />
                 <Field label="Date of Birth" value={editForm.date_of_birth || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, date_of_birth: v }))} type="date" />
+                <Field label="Gender" value={editForm.gender || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, gender: v }))} />
                 <Field label="Email" value={editForm.email || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, email: v }))} type="email" />
                 <Field label="Phone" value={editForm.phone || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, phone: v }))} />
+                <Field label="Address" value={editForm.address || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
+                <Field label="Responsible Party" value={editForm.responsible_party || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, responsible_party: v }))} />
                 <Field label="Referring Doctor" value={editForm.referring_doctor || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, referring_doctor: v }))} />
               </div>
               {(patient.notes || editing) && (

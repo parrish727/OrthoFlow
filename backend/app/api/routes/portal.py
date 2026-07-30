@@ -655,3 +655,34 @@ async def get_treatment_progress(
             "type": next_appointment.appointment_type,
         } if next_appointment else None,
     }
+
+
+# ── Virtual Visits (Patient-facing) ──────────────────────────────────────────
+
+@router.get("/virtual-visits/active")
+async def get_patient_active_visits(
+    patient: dict = Depends(get_current_patient),
+) -> dict:
+    """Get active virtual visits for this patient, including join token."""
+    from app.api.routes.virtual_visits import _visits, _build_join_url
+
+    patient_id = patient["patient_id"]
+    practice_id = patient["practice_id"]
+
+    active = []
+    for visit in _visits.values():
+        if (
+            visit["practice_id"] == practice_id
+            and visit["patient_id"] == patient_id
+            and visit["status"] == "active"
+        ):
+            join_url = _build_join_url(visit["room_name"], visit["patient_token"])
+            active.append({
+                "visit_id": visit["visit_id"],
+                "room_name": visit["room_name"],
+                "patient_token": visit["patient_token"],
+                "join_url": join_url,
+                "created_at": visit["created_at"],
+            })
+
+    return {"visits": active, "has_active": len(active) > 0}

@@ -20,14 +20,14 @@ def _utcnow() -> datetime:
 
 
 class PatientVisitStatus(Base):
-    """Tracks patient flow through the office: waiting → seated → in_treatment → checked_out."""
+    """Tracks patient flow through the office: lobby → seated → checked_out → dismissed."""
     __tablename__ = "patient_visit_status"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
     patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
     appointment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("appointments.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="waiting")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="lobby")
     chair_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("chairs.id"), nullable=True)
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     seated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

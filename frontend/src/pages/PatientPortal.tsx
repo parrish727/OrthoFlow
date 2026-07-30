@@ -68,6 +68,7 @@ export default function PatientPortal() {
   const [loading, setLoading] = useState(false)
   const [showVideoRoom, setShowVideoRoom] = useState(false)
   const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
+  const [activeVisit, setActiveVisit] = useState<{ visit_id: string; room_name: string; patient_token: string } | null>(null)
   const navigate = useNavigate()
 
   // ── Patient Auth State ─────────────────────────────────────────────────────
@@ -176,6 +177,27 @@ export default function PatientPortal() {
     loadForms()
     loadProgress()
   }, [isAuthenticated, loadDashboard, loadAppointments, loadMessages, loadForms, loadProgress])
+
+  // Poll for active virtual visits every 5 seconds
+  useEffect(() => {
+    if (!isAuthenticated) return
+    async function checkActiveVisits() {
+      try {
+        const res = await portalRequest('/api/v1/portal/virtual-visits/active')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.has_active && data.visits.length > 0) {
+            setActiveVisit(data.visits[0])
+          } else {
+            setActiveVisit(null)
+          }
+        }
+      } catch { /* silent */ }
+    }
+    checkActiveVisits()
+    const interval = setInterval(checkActiveVisits, 5000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated, portalRequest])
 
   async function handleSendMessage() {
     if (!newMessage.subject.trim() || !newMessage.body.trim()) return
@@ -425,7 +447,8 @@ export default function PatientPortal() {
               </div>
             </div>
 
-            {/* Join Virtual Visit — shown when doctor is ready */}
+            {/* Virtual Visit Waiting Room — patient enters first, waits for doctor */}
+            {activeVisit && (
             <motion.div
               variants={itemVariants}
               initial="initial"
@@ -442,21 +465,22 @@ export default function PatientPortal() {
                     <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">Virtual Visit Ready</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Your doctor is ready to see you</p>
+                    <p className="font-medium text-gray-900 text-sm">Virtual Visit Scheduled</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Join the waiting room — your doctor will be with you shortly</p>
                   </div>
                 </div>
                 <button
                   onClick={() => {
-                    setVideoRoomData({ room_name: 'patient-visit', token: 'demo-patient-token' })
+                    setVideoRoomData({ room_name: activeVisit.room_name, token: activeVisit.patient_token })
                     setShowVideoRoom(true)
                   }}
                   className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors active:scale-95"
                 >
-                  Join Now
+                  Enter Waiting Room
                 </button>
               </div>
             </motion.div>
+            )}
 
             {/* Upcoming Appointments */}
             <motion.div

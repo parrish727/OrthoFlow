@@ -50,7 +50,22 @@ class ClaimCreate(BaseModel):
 async def list_payers(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     practice_id = user["practice_id"]
     result = await db.execute(select(PracticePayerConfig).where(PracticePayerConfig.practice_id == practice_id))
-    return {"payers": [row.__dict__ for row in result.scalars().all()]}
+    payers = result.scalars().all()
+    return {"payers": [
+        {
+            "id": str(p.id),
+            "payer_id": p.payer_id,
+            "payer_name": p.payer_name,
+            "payer_type": p.payer_type,
+            "state_code": p.state_code,
+            "npi": p.npi,
+            "tax_id": p.tax_id,
+            "clearinghouse": p.clearinghouse,
+            "clearinghouse_id": p.clearinghouse_id,
+            "submission_method": p.submission_method,
+        }
+        for p in payers
+    ]}
 
 
 @router.post("/payers")
@@ -83,7 +98,32 @@ async def list_claims(status: str | None = None, db: AsyncSession = Depends(get_
     if status:
         q = q.where(InsuranceClaim.status == status)
     result = await db.execute(q.order_by(InsuranceClaim.created_at.desc()))
-    return {"claims": [row.__dict__ for row in result.scalars().all()]}
+    claims = result.scalars().all()
+    return {"claims": [
+        {
+            "id": str(c.id),
+            "patient_id": str(c.patient_id) if c.patient_id else None,
+            "patient_name": c.patient_name,
+            "subscriber_id": c.subscriber_id,
+            "payer_id": c.payer_id,
+            "payer_type": c.payer_type,
+            "state_code": c.state_code,
+            "claim_number": c.claim_number,
+            "status": c.status,
+            "cdt_codes": c.cdt_codes,
+            "total_billed": float(c.total_billed) if c.total_billed else 0,
+            "total_allowed": float(c.total_allowed) if c.total_allowed else None,
+            "total_paid": float(c.total_paid) if c.total_paid else None,
+            "patient_responsibility": float(c.patient_responsibility) if c.patient_responsibility else None,
+            "prior_auth_number": c.prior_auth_number,
+            "service_date": c.service_date.isoformat() if c.service_date else None,
+            "submission_date": c.submission_date.isoformat() if c.submission_date else None,
+            "denial_reason": c.denial_reason,
+            "denial_codes": c.denial_codes,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in claims
+    ]}
 
 
 @router.post("/claims")

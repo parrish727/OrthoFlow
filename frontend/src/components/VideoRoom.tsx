@@ -22,11 +22,8 @@ export default function VideoRoom({ roomName, token: _token, onEnd }: VideoRoomP
     return () => clearTimeout(timer)
   }, [])
 
-  // Simulate participant joining after 8s (demo only)
-  useEffect(() => {
-    const timer = setTimeout(() => setParticipantConnected(true), 8000)
-    return () => clearTimeout(timer)
-  }, [])
+  // participantConnected will be set to true when the doctor actually joins via LiveKit events
+  // No simulation — patient waits until the real connection is established
 
   // Start local camera
   useEffect(() => {
@@ -137,18 +134,24 @@ export default function VideoRoom({ roomName, token: _token, onEnd }: VideoRoomP
           {participantConnected ? (
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white text-2xl font-semibold">P</span>
+                <span className="text-white text-2xl font-semibold">Dr</span>
               </div>
-              <p className="text-white/90 text-sm font-medium">Patient Connected</p>
+              <p className="text-white/90 text-sm font-medium">Doctor Connected</p>
               <p className="text-white/40 text-xs mt-1">Audio & Video Active</p>
             </div>
           ) : (
             <div className="text-center">
-              <div className="w-16 h-16 border-2 border-dashed border-gray-600 rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse">
-                <Video size={24} className="text-gray-500" />
+              {/* Calming pulsing rings animation */}
+              <div className="relative w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-2 border-blue-400/20 animate-ping" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-2 rounded-full border-2 border-blue-400/30 animate-ping" style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
+                <div className="absolute inset-4 rounded-full border-2 border-blue-400/40 animate-ping" style={{ animationDuration: '3s', animationDelay: '1s' }} />
+                <div className="w-14 h-14 bg-blue-500/20 rounded-full flex items-center justify-center">
+                  <Video size={24} className="text-blue-400" />
+                </div>
               </div>
-              <p className="text-gray-400 text-sm">Waiting for patient...</p>
-              <p className="text-gray-600 text-xs mt-1">They'll appear here when they join</p>
+              <p className="text-white/80 text-sm font-medium">Waiting for your doctor to join...</p>
+              <p className="text-gray-500 text-xs mt-1.5">You're in the waiting room — sit tight</p>
             </div>
           )}
         </div>
