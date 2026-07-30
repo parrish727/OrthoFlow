@@ -685,18 +685,15 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
         patient_id=priscilla.id,
         payer_name="Delta Dental of Wisconsin",
         payer_id="DELTA-WI",
-        member_id="DDW-9204150001",
+        subscriber_id="DDW-9204150001",
         group_number="GRP-MELANIN-2026",
-        subscriber_name="Priscilla Knowles",
+        subscriber_first_name="Priscilla",
+        subscriber_last_name="Knowles",
         relationship="self",
         effective_date=date(2025, 1, 1),
         plan_type="PPO",
-        annual_max=Decimal("2000.00"),
-        remaining_benefit=Decimal("1450.00"),
-        deductible=Decimal("50.00"),
-        deductible_met=True,
-        ortho_lifetime_max=Decimal("2500.00"),
-        ortho_remaining=Decimal("1800.00"),
+        plan_name="Delta Dental PPO Plus",
+        coverage_type="primary",
     )
     db.add(subscriber)
 
@@ -714,8 +711,10 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
             "total_allowed": Decimal("250.00"),
             "total_paid": Decimal("200.00"),
             "patient_responsibility": Decimal("75.00"),
+            "rendering_provider_npi": "1234567890",
+            "billing_provider_npi": "1234567890",
             "service_date": date.today() - timedelta(days=30),
-            "submission_date": date.today() - timedelta(days=28),
+            "submission_date": datetime.now(timezone.utc) - timedelta(days=28),
         },
         {
             "patient_name": "Priscilla Knowles",
@@ -729,8 +728,10 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
             "total_allowed": None,
             "total_paid": None,
             "patient_responsibility": None,
+            "rendering_provider_npi": "1234567890",
+            "billing_provider_npi": "1234567890",
             "service_date": date.today() - timedelta(days=5),
-            "submission_date": date.today() - timedelta(days=3),
+            "submission_date": datetime.now(timezone.utc) - timedelta(days=3),
         },
         {
             "patient_name": "Priscilla Knowles",
@@ -744,8 +745,10 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
             "total_allowed": Decimal("0.00"),
             "total_paid": Decimal("0.00"),
             "patient_responsibility": Decimal("125.00"),
+            "rendering_provider_npi": "1234567890",
+            "billing_provider_npi": "1234567890",
             "service_date": date.today() - timedelta(days=14),
-            "submission_date": date.today() - timedelta(days=12),
+            "submission_date": datetime.now(timezone.utc) - timedelta(days=12),
             "denial_reason": "Service not covered under current plan benefit period",
             "denial_codes": ["CO-96"],
         },
@@ -755,7 +758,7 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
         claim = InsuranceClaim(
             id=uuid.uuid4(),
             practice_id=DEMO_PRACTICE_ID,
-            patient_id=priscilla.id,
+            patient_id=str(priscilla.id),
             **claim_data,
         )
         db.add(claim)
