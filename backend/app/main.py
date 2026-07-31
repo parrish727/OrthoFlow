@@ -107,6 +107,26 @@ async def startup():
                 extra={"context": {"event": "seed_skipped", "reason": str(e)}},
             )
 
+        # Background task: re-seed at midnight to keep today's schedule fresh
+        import asyncio
+        from datetime import datetime, timezone, timedelta
+
+        async def daily_reseed():
+            """Re-run seed at midnight each day so demo data stays current."""
+            while True:
+                now = datetime.now(timezone.utc)
+                tomorrow = (now + timedelta(days=1)).replace(hour=4, minute=0, second=0, microsecond=0)  # 4 AM UTC = midnight ET
+                wait_seconds = (tomorrow - now).total_seconds()
+                await asyncio.sleep(wait_seconds)
+                try:
+                    from app.seeds.demo_flow import seed_demo_flow
+                    await seed_demo_flow()
+                    logger.info("Daily reseed completed", extra={"context": {"event": "daily_reseed"}})
+                except Exception as e:
+                    logger.warning(f"Daily reseed failed: {e}", extra={"context": {"event": "reseed_failed", "reason": str(e)}})
+
+        asyncio.create_task(daily_reseed())
+
 app.include_router(health.router, tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(practices.router, prefix="/api/v1/practices", tags=["practices"])
