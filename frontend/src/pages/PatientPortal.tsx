@@ -178,24 +178,33 @@ export default function PatientPortal() {
     loadProgress()
   }, [isAuthenticated, loadDashboard, loadAppointments, loadMessages, loadForms, loadProgress])
 
-  // Poll for active virtual visits every 5 seconds
+  // Poll for active virtual visits every 2 seconds (near-instant feel)
+  const [visitNotification, setVisitNotification] = useState(false)
   useEffect(() => {
     if (!isAuthenticated) return
+    let hadVisit = false
     async function checkActiveVisits() {
       try {
         const res = await portalRequest('/api/v1/portal/virtual-visits/active')
         if (res.ok) {
           const data = await res.json()
           if (data.has_active && data.visits.length > 0) {
+            if (!hadVisit) {
+              // First time seeing a visit — trigger notification
+              setVisitNotification(true)
+              setTimeout(() => setVisitNotification(false), 5000)
+              hadVisit = true
+            }
             setActiveVisit(data.visits[0])
           } else {
+            hadVisit = false
             setActiveVisit(null)
           }
         }
       } catch { /* silent */ }
     }
     checkActiveVisits()
-    const interval = setInterval(checkActiveVisits, 5000)
+    const interval = setInterval(checkActiveVisits, 2000)
     return () => clearInterval(interval)
   }, [isAuthenticated, portalRequest])
 
@@ -446,6 +455,27 @@ export default function PatientPortal() {
                 )}
               </div>
             </div>
+
+            {/* Video Call Notification Toast */}
+            <AnimatePresence>
+              {visitNotification && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  className="bg-blue-600 text-white rounded-2xl p-4 shadow-lg flex items-center gap-3"
+                >
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+                    <Video size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Your doctor is ready!</p>
+                    <p className="text-xs text-white/80">A virtual visit has been started for you. Join the waiting room below.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Virtual Visit Waiting Room — patient enters first, waits for doctor */}
             {activeVisit && (
