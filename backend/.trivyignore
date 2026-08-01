@@ -20,6 +20,8 @@ CVE-2026-30922
 
 # pyasn1 CVEs (2026-07-22) — python-jose pins pyasn1<0.5.0, cannot upgrade independently.
 # DoS via crafted ASN.1 values — mitigated by request size limits at nginx + authenticated-only access.
+# NOTE: CVE-2026-59884 (same family, HIGH) has a fix in pyasn1>=0.6.4 — upgraded in Dockerfile.
+#       These two remain unfixed upstream as of 2026-08-01.
 CVE-2026-59885
 CVE-2026-59886
 
