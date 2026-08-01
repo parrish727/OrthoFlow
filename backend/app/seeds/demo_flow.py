@@ -789,21 +789,37 @@ async def seed_demo_flow():
         # Clean up stale date-dependent data (appointments/visits from previous days)
         from sqlalchemy import delete, and_
         from app.models.clinical import Appointment
-        stale_appts = await db.execute(
-            delete(PatientVisitStatus).where(
-                PatientVisitStatus.practice_id == DEMO_PRACTICE_ID,
-                PatientVisitStatus.created_at < datetime.combine(TODAY, time(0, 0), tzinfo=timezone.utc),
+        # First find the stale appointment IDs we're about to delete
+        stale_appt_ids_result = await db.execute(
+            select(Appointment.id).where(
+                and_(
+                    Appointment.practice_id == DEMO_PRACTICE_ID,
+                    Appointment.appointment_date < TODAY,
+                    Appointment.appointment_date > TODAY - timedelta(days=3),
+                )
             )
         )
-        stale_visits_deleted = stale_appts.rowcount
-        # Delete demo appointments from past days (keep non-demo / Priscilla's history)
+        stale_appt_ids = [row[0] for row in stale_appt_ids_result.fetchall()]
+
+        # Delete visit statuses referencing those appointments first (FK order)
+        stale_visits_deleted = 0
+        if stale_appt_ids:
+            stale_visits = await db.execute(
+                delete(PatientVisitStatus).where(
+                    PatientVisitStatus.appointment_id.in_(stale_appt_ids)
+                )
+            )
+            stale_visits_deleted = stale_visits.rowcount
+            await db.flush()
+
+        # Now safe to delete the appointments
         from app.models.clinical import Appointment as ApptModel
         past_demo_appts = await db.execute(
             delete(ApptModel).where(
                 and_(
                     ApptModel.practice_id == DEMO_PRACTICE_ID,
                     ApptModel.appointment_date < TODAY,
-                    ApptModel.appointment_date > TODAY - timedelta(days=3),  # only clean recent stale, keep older history
+                    ApptModel.appointment_date > TODAY - timedelta(days=3),
                 )
             )
         )
