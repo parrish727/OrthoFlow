@@ -100,6 +100,10 @@ export default function PatientDetail() {
   const [chartTab, setChartTab] = useState<'ortho' | 'restorative'>('ortho')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
+  const [insurance, setInsurance] = useState<string>('')
+  const [patientImages, setPatientImages] = useState<Array<{ id: string; image_type?: string; file_name?: string; created_at?: string; notes?: string }>>([])
+  const [imagesLoading, setImagesLoading] = useState(false)
+  const [showImagesPanel, setShowImagesPanel] = useState(false)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const loadPatient = useCallback(async () => {
@@ -128,6 +132,17 @@ export default function PatientDetail() {
       const data = await chartRes.json()
       setChart(data)
     }
+    // Load insurance plans
+    api.getInsurancePlans(id).then(res => res.json()).then(d => {
+      const plans = d.plans || d.insurance_plans || []
+      if (plans.length > 0) setInsurance(plans[0].payer_name || 'On file')
+      else setInsurance('')
+    }).catch(() => setInsurance(''))
+    // Load patient images
+    setImagesLoading(true)
+    api.getPatientImages(id).then(res => res.json()).then(d => {
+      setPatientImages(d.images || [])
+    }).catch(() => setPatientImages([])).finally(() => setImagesLoading(false))
     setLoading(false)
   }, [id])
 
@@ -166,6 +181,39 @@ export default function PatientDetail() {
 
   const phase = patient.treatment_phase ? PHASE_CONFIG[patient.treatment_phase] : null
 
+  const TREATMENT_PHASE_OPTIONS = [
+    { value: 'consultation', label: 'Consultation' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'observation_1', label: 'Observation 1' },
+    { value: 'observation_2', label: 'Observation 2' },
+    { value: 'observation_3', label: 'Observation 3' },
+    { value: 'observation_4', label: 'Observation 4' },
+    { value: 'records', label: 'Records' },
+    { value: 'bonding', label: 'Bonding' },
+    { value: 'active', label: 'Active Ortho' },
+    { value: 'finishing', label: 'Finishing' },
+    { value: 'retention', label: 'Retention' },
+    { value: 'complete', label: 'Complete' },
+    { value: 'new_patient', label: 'New Patient' },
+    { value: 'active_gp', label: 'Active GP' },
+    { value: 'hygiene_recall', label: 'Hygiene/Recall' },
+    { value: 'restorative', label: 'Restorative' },
+  ]
+
+  async function handlePhaseChange(newPhase: string) {
+    if (!patient || newPhase === patient.treatment_phase) return
+    // Optimistic update
+    setPatient(prev => prev ? { ...prev, treatment_phase: newPhase } : prev)
+    const res = await api.updatePatient(patient.id, { treatment_phase: newPhase })
+    if (res.ok) {
+      const updated = await res.json()
+      setPatient(updated)
+    } else {
+      // Revert on failure
+      setPatient(prev => prev ? { ...prev, treatment_phase: patient.treatment_phase } : prev)
+    }
+  }
+
   return (
     <>
         {/* Back + Patient Name */}
@@ -182,11 +230,18 @@ export default function PatientDetail() {
               {patient.first_name} {patient.last_name}
             </h2>
             <div className="flex items-center gap-2 mt-1">
-              {phase && (
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${phase.color}`}>
-                  {phase.label}
-                </span>
-              )}
+              <select
+                value={patient.treatment_phase || ''}
+                onChange={e => handlePhaseChange(e.target.value)}
+                className={`text-xs px-2.5 py-0.5 rounded-full font-medium border border-teal-300 bg-white cursor-pointer appearance-none pr-6 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 ${phase ? phase.color : 'text-gray-500'}`}
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230d9488' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                aria-label="Change treatment phase"
+              >
+                <option value="">No Phase</option>
+                {TREATMENT_PHASE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
               {patient.treatment_phase && ['active', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
                 const elapsed = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
                 const remaining = Math.max(0, 24 - elapsed)
@@ -228,7 +283,7 @@ export default function PatientDetail() {
           <div className="lg:col-span-2 space-y-6">
             {/* Demographics */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
-              <h3 className="text-sm font-semibold text-gray-800 mb-4">Demographics</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">Patient Info</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="First Name" value={editForm.first_name || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, first_name: v }))} />
                 <Field label="Middle Name" value={editForm.middle_name || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, middle_name: v }))} />
@@ -239,6 +294,10 @@ export default function PatientDetail() {
                 <Field label="Phone" value={editForm.phone || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, phone: v }))} />
                 <Field label="Address" value={editForm.address || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
                 <Field label="Responsible Party" value={editForm.responsible_party || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, responsible_party: v }))} />
+                <div>
+                  <p className="text-[10px] uppercase text-gray-400 font-medium tracking-wider">Insurance</p>
+                  <p className="text-sm text-gray-800 mt-0.5">{insurance || '— No insurance on file'}</p>
+                </div>
                 <Field label="Referring Doctor" value={editForm.referring_doctor || ''} editing={editing} onChange={v => setEditForm(f => ({ ...f, referring_doctor: v }))} />
               </div>
               {(patient.notes || editing) && (
@@ -303,9 +362,9 @@ export default function PatientDetail() {
           <div className="space-y-6">
             {/* Quick Actions */}
             <div className="flex gap-2 mb-4">
-              <Link to={`/imaging?patient=${id}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+              <button onClick={() => setShowImagesPanel(!showImagesPanel)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors ${showImagesPanel ? 'bg-teal-50 border-teal-300 text-teal-700' : 'bg-white border-gray-200 text-gray-700 hover:border-teal-300 hover:text-teal-700'}`}>
                 <Image size={13} /> Images
-              </Link>
+              </button>
               <Link to={`/schedule`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                 <CalendarDays size={13} /> Schedule
               </Link>
@@ -316,6 +375,34 @@ export default function PatientDetail() {
                 <Shield size={13} /> Insurance
               </Link>
             </div>
+
+            {/* Inline Images Panel */}
+            {showImagesPanel && (
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <Image size={14} className="text-gray-400" />
+                  <h3 className="text-sm font-semibold text-gray-800">Patient Images</h3>
+                  <span className="text-xs text-gray-400 ml-auto">{patientImages.length}</span>
+                </div>
+                <div className="p-4">
+                  {imagesLoading ? (
+                    <p className="text-xs text-gray-400 text-center py-4">Loading images...</p>
+                  ) : patientImages.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Image size={24} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-xs text-gray-500">No images uploaded yet</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Upload images from the Imaging page to see them here</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {patientImages.map(img => (
+                        <ImageThumbnail key={img.id} image={img} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Appointments */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
@@ -787,6 +874,42 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
           </div>
             </>
   )}
+    </div>
+  )
+}
+
+function ImageThumbnail({ image }: { image: { id: string; image_type?: string; file_name?: string; created_at?: string; notes?: string } }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api.getImageViewUrl(image.id).then(url => {
+      if (!cancelled) setSrc(url)
+    }).catch(() => {
+      if (!cancelled) setLoadError(true)
+    })
+    return () => { cancelled = true }
+  }, [image.id])
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden hover:border-teal-300 transition-colors">
+      <div className="aspect-square bg-gray-50 flex items-center justify-center">
+        {loadError || !src ? (
+          <div className="text-center p-2">
+            <Image size={20} className="mx-auto text-gray-300 mb-1" />
+            <p className="text-[10px] text-gray-400 truncate">{image.file_name || 'Image'}</p>
+          </div>
+        ) : (
+          <img src={src} alt={image.file_name || 'Patient image'} className="w-full h-full object-cover" />
+        )}
+      </div>
+      <div className="px-2 py-1.5 bg-white">
+        <p className="text-[10px] text-gray-600 font-medium truncate">{image.image_type || image.file_name || 'Image'}</p>
+        {image.created_at && (
+          <p className="text-[10px] text-gray-400">{new Date(image.created_at).toLocaleDateString()}</p>
+        )}
+      </div>
     </div>
   )
 }

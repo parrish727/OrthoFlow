@@ -34,7 +34,19 @@ export default function Login() {
       localStorage.setItem('practice_id', data.practice_id)
       // Auto clock-in on login
       try { await api.request('/api/v1/time-clock/clock-in', { method: 'POST' }) } catch { /* best effort */ }
-      navigate('/')
+      // Route based on role from JWT
+      const role = (() => {
+        try {
+          const parts = data.access_token.split('.')
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+          return payload.role || ''
+        } catch { return '' }
+      })()
+      if (role === 'dental_assistant' || role === 'office_manager') {
+        navigate('/schedule')
+      } else {
+        navigate('/')
+      }
     } catch {
       setError('Unable to connect. Please try again.')
     } finally {
@@ -187,7 +199,19 @@ export default function Login() {
                         localStorage.setItem('token', data.access_token)
                         localStorage.setItem('practice_id', data.practice_id)
                         try { await api.request('/api/v1/time-clock/clock-in', { method: 'POST' }) } catch { /* best effort */ }
-                        navigate('/')
+                        // Route based on role from JWT
+                        const role = (() => {
+                          try {
+                            const parts = data.access_token.split('.')
+                            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+                            return payload.role || ''
+                          } catch { return '' }
+                        })()
+                        if (role === 'dental_assistant' || role === 'office_manager') {
+                          navigate('/schedule')
+                        } else {
+                          navigate('/')
+                        }
                       } else {
                         setError('Demo account not available. Contact support.')
                       }

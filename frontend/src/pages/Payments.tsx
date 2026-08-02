@@ -49,6 +49,13 @@ const fileInputRef = useRef<HTMLInputElement>(null)
   const [newPayer, setNewPayer] = useState('')
   const [newCheckNumber, setNewCheckNumber] = useState('')
   const [newAmount, setNewAmount] = useState('')
+  const [newPaymentMethod, setNewPaymentMethod] = useState('')
+  const [newPaymentType, setNewPaymentType] = useState('')
+  const [newNotes, setNewNotes] = useState('')
+
+  // Monthly payment tracker (would come from patient data in production)
+  const monthsCompleted = 2
+  const totalMonths = 24
   const loadPostings = useCallback(async () => {
     setLoading(true)
     try {
@@ -68,7 +75,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleNewPayment(e: React.FormEvent) {
     e.preventDefault()
-    if (!newPayer || !newAmount) return
+    if (!newPayer || !newAmount || !newPaymentMethod || !newPaymentType) return
     setFormLoading(true)
     try {
       const res = await api.createPaymentPosting({
@@ -76,12 +83,18 @@ const fileInputRef = useRef<HTMLInputElement>(null)
         payer_name: newPayer,
         check_number: newCheckNumber || null,
         total_amount: parseFloat(newAmount),
+        payment_method: newPaymentMethod,
+        payment_type: newPaymentType,
+        notes: newNotes || null,
       })
       if (res.ok) {
         setNewSource('insurance')
         setNewPayer('')
         setNewCheckNumber('')
         setNewAmount('')
+        setNewPaymentMethod('')
+        setNewPaymentType('')
+        setNewNotes('')
         setShowNewForm(false)
         loadPostings()
       }
@@ -194,7 +207,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
               <select
                 value={newSource}
                 onChange={e => setNewSource(e.target.value as 'insurance' | 'patient' | 'other')}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               >
                 <option value="insurance">Insurance</option>
                 <option value="patient">Patient</option>
@@ -205,7 +218,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 placeholder="Payer Name"
                 value={newPayer}
                 onChange={e => setNewPayer(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
                 required
               />
               <input
@@ -213,7 +226,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 placeholder="Check / Reference #"
                 value={newCheckNumber}
                 onChange={e => setNewCheckNumber(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
               />
               <input
                 type="number"
@@ -222,8 +235,65 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 placeholder="Amount ($)"
                 value={newAmount}
                 onChange={e => setNewAmount(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
                 required
+              />
+              <select
+                value={newPaymentMethod}
+                onChange={e => setNewPaymentMethod(e.target.value)}
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                required
+              >
+                <option value="" disabled>Payment Method *</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="debit_card">Debit Card</option>
+                <option value="insurance_payment">Insurance Payment</option>
+                <option value="other">Other</option>
+              </select>
+              <select
+                value={newPaymentType}
+                onChange={e => setNewPaymentType(e.target.value)}
+                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                required
+              >
+                <option value="" disabled>Payment Type *</option>
+                <option value="monthly_payment">Monthly Payment Towards Treatment</option>
+                <option value="upper_essix_retainer">Upper Essix Retainer</option>
+                <option value="lower_essix_retainer">Lower Essix Retainer</option>
+                <option value="upper_lower_essix_retainer">Upper and Lower Essix Retainer</option>
+                <option value="loose_lingual_retainer_repair">Loose Lingual Retainer Repair</option>
+                <option value="broken_bracket_repair">Broken Bracket Repair</option>
+                <option value="office_visit_charge">Office Visit Charge</option>
+                <option value="missed_appointment_fee">Missed Appointment Fee</option>
+                <option value="late_payment_fee">Late Payment Fee</option>
+                <option value="retainer_check">Retainer Check</option>
+                <option value="records_fee">Records Fee</option>
+                <option value="consultation_fee">Consultation Fee</option>
+                <option value="other">Other</option>
+              </select>
+              {newPaymentType === 'monthly_payment' && (
+                <div className="sm:col-span-2 bg-teal-50 border border-teal-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-teal-800">Monthly Payment Tracker</span>
+                    <span className="text-sm font-semibold text-teal-700">{monthsCompleted}/{totalMonths} months completed</span>
+                  </div>
+                  <div className="w-full bg-teal-100 rounded-full h-2.5">
+                    <div
+                      className="bg-teal-600 h-2.5 rounded-full transition-all"
+                      style={{ width: `${(monthsCompleted / totalMonths) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-teal-600 mt-1.5">{totalMonths - monthsCompleted} payments remaining</p>
+                </div>
+              )}
+              <textarea
+                placeholder="Additional payment details..."
+                value={newNotes}
+                onChange={e => setNewNotes(e.target.value)}
+                rows={3}
+                className="sm:col-span-2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 resize-none"
               />
               <div className="sm:col-span-2 flex justify-end gap-3">
                 <button

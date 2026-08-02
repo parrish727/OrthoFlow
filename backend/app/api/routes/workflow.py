@@ -107,10 +107,10 @@ def _ts(dt: datetime | None) -> str | None:
 
 
 VALID_STATUS_TRANSITIONS = {
-    "lobby": ["seated", "dismissed"],
-    "seated": ["checked_out", "dismissed"],
-    "checked_out": ["dismissed"],
-    "dismissed": [],
+    "lobby": ["seated", "checked_out", "dismissed"],
+    "seated": ["lobby", "checked_out", "dismissed"],
+    "checked_out": ["seated", "lobby", "dismissed"],
+    "dismissed": ["lobby", "seated", "checked_out"],
 }
 
 

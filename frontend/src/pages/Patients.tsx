@@ -57,6 +57,25 @@ const PHASE_LABELS: Record<string, string> = {
   perio_maintenance: 'Perio Maintenance',
 }
 
+const TREATMENT_PHASE_OPTIONS = [
+  { value: 'consultation', label: 'Consultation' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'observation_1', label: 'Observation 1' },
+  { value: 'observation_2', label: 'Observation 2' },
+  { value: 'observation_3', label: 'Observation 3' },
+  { value: 'observation_4', label: 'Observation 4' },
+  { value: 'records', label: 'Records' },
+  { value: 'bonding', label: 'Bonding' },
+  { value: 'active', label: 'Active Ortho' },
+  { value: 'finishing', label: 'Finishing' },
+  { value: 'retention', label: 'Retention' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'new_patient', label: 'New Patient' },
+  { value: 'active_gp', label: 'Active GP' },
+  { value: 'hygiene_recall', label: 'Hygiene/Recall' },
+  { value: 'restorative', label: 'Restorative' },
+]
+
 export default function Patients() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [total, setTotal] = useState(0)
@@ -66,6 +85,7 @@ export default function Patients() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
+  const [phaseDropdownPatient, setPhaseDropdownPatient] = useState<string | null>(null)
   const navigate = useNavigate()
 
   // Create Patient Modal
@@ -107,6 +127,16 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { loadPatients() }, [loadPatients])
 
+  // Close phase dropdown when clicking outside
+  useEffect(() => {
+    if (!phaseDropdownPatient) return
+    function handleClickOutside() {
+      setPhaseDropdownPatient(null)
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [phaseDropdownPatient])
+
   function handleSearchChange(value: string) {
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
     searchTimeout.current = setTimeout(() => {
@@ -146,6 +176,21 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   }
 
   const totalPages = Math.ceil(total / 50)
+
+  async function handleQuickPhaseChange(patientId: string, newPhase: string) {
+    // Optimistic update
+    setPatients(prev => prev.map(p => p.id === patientId ? { ...p, treatment_phase: newPhase } : p))
+    setPhaseDropdownPatient(null)
+    try {
+      const res = await api.updatePatient(patientId, { treatment_phase: newPhase })
+      if (!res.ok) {
+        // Revert on failure
+        loadPatients()
+      }
+    } catch {
+      loadPatients()
+    }
+  }
 
   return (
     <>
@@ -247,7 +292,28 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">General</span>
                       )}
                       {patient.treatment_phase && (
-                        <span className="text-xs text-gray-500">{PHASE_LABELS[patient.treatment_phase] || patient.treatment_phase}</span>
+                        <div className="relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPhaseDropdownPatient(phaseDropdownPatient === patient.id ? null : patient.id) }}
+                            className="text-xs text-gray-500 hover:text-teal-700 hover:bg-teal-50 px-1.5 py-0.5 rounded border border-transparent hover:border-teal-200 transition-colors cursor-pointer"
+                            title="Change treatment phase"
+                          >
+                            {PHASE_LABELS[patient.treatment_phase] || patient.treatment_phase}
+                          </button>
+                          {phaseDropdownPatient === patient.id && (
+                            <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48 max-h-60 overflow-y-auto">
+                              {TREATMENT_PHASE_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  onClick={(e) => { e.stopPropagation(); handleQuickPhaseChange(patient.id, opt.value) }}
+                                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-teal-50 hover:text-teal-700 transition-colors ${patient.treatment_phase === opt.value ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-700'}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                       {patient.treatment_phase && ['active', 'finishing', 'retention'].includes(patient.treatment_phase) && patient.created_at && (() => {
                         const elapsed = Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
