@@ -405,6 +405,7 @@ export default function Schedule() {
           <VideoRoom
             roomName={videoRoomData.room_name}
             token={videoRoomData.token}
+            role="staff"
             onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
           />
         )}

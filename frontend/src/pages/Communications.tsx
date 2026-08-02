@@ -666,6 +666,7 @@ export default function Communications() {
       <VideoRoom
         roomName={videoRoomData.room_name}
         token={videoRoomData.token}
+        role="staff"
         onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
       />
     )}

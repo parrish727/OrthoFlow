@@ -417,6 +417,7 @@ export default function PatientMessages() {
       <VideoRoom
         roomName={videoRoomData.room_name}
         token={videoRoomData.token}
+        role="staff"
         onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
       />
     )}

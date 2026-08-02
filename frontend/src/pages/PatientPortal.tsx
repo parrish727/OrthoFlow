@@ -857,6 +857,7 @@ export default function PatientPortal() {
         <VideoRoom
           roomName={videoRoomData.room_name}
           token={videoRoomData.token}
+          role="patient"
           onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
         />
       )}
