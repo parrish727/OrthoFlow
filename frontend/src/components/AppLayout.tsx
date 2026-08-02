@@ -40,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/insurance', icon: Shield, label: 'Insurance', section: 'finance' },
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
+  { to: '/tc-proposals', icon: FileText, label: 'TC Proposals', section: 'finance' },
   { to: '/communications', icon: MessageSquare, label: 'Reminders', section: 'comms' },
   { to: '/patient-messages', icon: Mail, label: 'Patient Messages', section: 'comms' },
   { to: '/da-chat', icon: MessageSquare, label: 'Staff Messages', section: 'comms' },

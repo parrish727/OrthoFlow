@@ -348,6 +348,7 @@ def _claim_dict(c: InsuranceClaim) -> dict:
         "payer_type": c.payer_type,
         "claim_number": c.claim_number,
         "status": c.status,
+        "cdt_codes": c.cdt_codes,
         "total_billed": float(c.total_billed) if c.total_billed else None,
         "total_allowed": float(c.total_allowed) if c.total_allowed else None,
         "total_paid": float(c.total_paid) if c.total_paid else None,
