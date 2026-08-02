@@ -40,7 +40,7 @@ export default function Invoices() {
         setInvoices(data.invoices)
       }
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   const filtered = invoices.filter(i => {

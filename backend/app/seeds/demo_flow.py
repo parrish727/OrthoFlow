@@ -770,6 +770,49 @@ async def seed_insurance_and_claims(db, patients: list) -> None:
     print("  ✅ Insurance: 1 subscriber + 3 claims (paid, submitted, denied)")
 
 
+async def seed_invoices(db) -> None:
+    """Seed demo invoices showing AI classification capabilities."""
+    from app.models.models import Invoice
+
+    # Check if already seeded
+    existing = await db.execute(
+        select(Invoice).where(Invoice.practice_id == DEMO_PRACTICE_ID)
+    )
+    if existing.scalars().first():
+        print("  ✅ Invoices: already seeded")
+        return
+
+    demo_invoices = [
+        {"vendor_name": "Henry Schein Dental", "invoice_number": "INV-87342", "total_amount": 1247.50, "status": "approved", "raw_text": "Ortho brackets (3M Unitek) x20, Arch wires .016 NiTi x10, Elastics mixed bag x5", "coded_json": '{"category": "Clinical Supplies", "gl_code": "5100", "vendor_type": "dental_supply"}', "confidence_score": 0.987, "days_ago": 5},
+        {"vendor_name": "Patterson Dental", "invoice_number": "INV-29041", "total_amount": 892.00, "status": "approved", "raw_text": "Composite resin A2 x3, Bonding agent x2, Curing light tips x5", "coded_json": '{"category": "Clinical Supplies", "gl_code": "5100", "vendor_type": "dental_supply"}', "confidence_score": 0.994, "days_ago": 3},
+        {"vendor_name": "Benco Dental", "invoice_number": "INV-11205", "total_amount": 3450.00, "status": "pending", "raw_text": "Digital sensor replacement, Phosphor plates x4, Lead aprons x2", "coded_json": '{"category": "Equipment", "gl_code": "5200", "vendor_type": "equipment"}', "confidence_score": 0.972, "days_ago": 1},
+        {"vendor_name": "Ormco Corporation", "invoice_number": "INV-55891", "total_amount": 2180.00, "status": "approved", "raw_text": "Damon Q2 brackets upper/lower, Copper NiTi wires assorted, Ligature ties", "coded_json": '{"category": "Orthodontic Supplies", "gl_code": "5110", "vendor_type": "ortho_supply"}', "confidence_score": 0.991, "days_ago": 7},
+        {"vendor_name": "Staples Business", "invoice_number": "INV-40221", "total_amount": 156.80, "status": "approved", "raw_text": "Printer paper x5 reams, Toner cartridge HP, Sticky notes, Pens", "coded_json": '{"category": "Office Supplies", "gl_code": "5300", "vendor_type": "office"}', "confidence_score": 0.998, "days_ago": 2},
+        {"vendor_name": "Dentsply Sirona", "invoice_number": "INV-77012", "total_amount": 4800.00, "status": "paid", "raw_text": "Primescan AC quarterly maintenance, Calibration service", "coded_json": '{"category": "Equipment Service", "gl_code": "5210", "vendor_type": "equipment_service"}', "confidence_score": 0.985, "days_ago": 10},
+    ]
+
+    now = datetime.now(timezone.utc)
+    for inv in demo_invoices:
+        invoice = Invoice(
+            id=uuid.uuid4(),
+            practice_id=DEMO_PRACTICE_ID,
+            vendor_name=inv["vendor_name"],
+            invoice_number=inv["invoice_number"],
+            invoice_date=now - timedelta(days=inv["days_ago"]),
+            due_date=now + timedelta(days=30 - inv["days_ago"]),
+            total_amount=inv["total_amount"],
+            status=inv["status"],
+            raw_text=inv["raw_text"],
+            coded_json=inv["coded_json"],
+            confidence_score=inv["confidence_score"],
+            created_at=now - timedelta(days=inv["days_ago"]),
+        )
+        db.add(invoice)
+
+    await db.flush()
+    print("  ✅ Invoices: 6 demo invoices (AI classified, 97-99% confidence)")
+
+
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     print("\n🌱 Seeding OrthoFlow demo data...\n")
@@ -844,6 +887,7 @@ async def seed_demo_flow():
 
         # ── Insurance & Claims Demo Data ──
         await seed_insurance_and_claims(db, patients)
+        await seed_invoices(db)
 
         await db.commit()
 
