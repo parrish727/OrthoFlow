@@ -279,9 +279,7 @@ export default function PatientPortal() {
       <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <User size={24} className="text-white" />
-            </div>
+            <img src="/brand/mark-teal.svg" alt="MyOrthoChart" className="w-14 h-14 mx-auto mb-4" />
             <h1 className="text-2xl font-semibold text-gray-900">MyOrthoChart</h1>
             <p className="text-sm text-gray-500 mt-1">Patient Portal — Sign in to your account</p>
           </div>
@@ -299,7 +297,7 @@ export default function PatientPortal() {
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
                 placeholder="your.email@example.com"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
                 required
               />
             </div>
@@ -310,14 +308,14 @@ export default function PatientPortal() {
                 value={loginPassword}
                 onChange={e => setLoginPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
             >
               {loginLoading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -333,10 +331,8 @@ export default function PatientPortal() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f5f5f7] flex flex-col items-center justify-center gap-3">
-        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center animate-pulse">
-          <Smile size={20} className="text-white" />
-        </div>
-        <Loader2 size={24} className="animate-spin text-blue-500" />
+        <img src="/brand/mark-teal.svg" alt="" className="w-12 h-12 animate-pulse" />
+        <Loader2 size={24} className="animate-spin text-teal-500" />
         <p className="text-sm text-gray-400">Loading your portal...</p>
       </div>
     )
@@ -348,9 +344,7 @@ export default function PatientPortal() {
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <Smile size={18} className="text-white" />
-            </div>
+            <img src="/brand/mark-teal.svg" alt="" className="w-9 h-9 rounded-xl" />
             <div>
               <h1 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight">MyOrthoChart</h1>
               <p className="text-[11px] text-gray-500 hidden sm:block">Patient Portal</p>
@@ -379,14 +373,14 @@ export default function PatientPortal() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-teal-500 text-teal-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <tab.icon size={16} />
                 {tab.label}
                 {tab.id === 'messages' && dashboard && dashboard.unread_messages > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full">{dashboard.unread_messages}</span>
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-teal-100 text-teal-600 rounded-full">{dashboard.unread_messages}</span>
                 )}
                 {tab.id === 'forms' && dashboard && dashboard.pending_forms > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-600 rounded-full">{dashboard.pending_forms}</span>
@@ -409,13 +403,13 @@ export default function PatientPortal() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex flex-col items-center gap-0.5 py-2 px-4 min-h-[52px] min-w-[64px] transition-colors relative ${
-                activeTab === tab.id ? 'text-blue-600' : 'text-gray-400'
+                activeTab === tab.id ? 'text-teal-600' : 'text-gray-400'
               }`}
             >
               <tab.icon size={22} />
               <span className="text-[10px] font-medium">{tab.label}</span>
               {tab.id === 'messages' && dashboard && dashboard.unread_messages > 0 && (
-                <span className="absolute top-1.5 right-2 w-2 h-2 bg-blue-500 rounded-full" />
+                <span className="absolute top-1.5 right-2 w-2 h-2 bg-teal-500 rounded-full" />
               )}
               {tab.id === 'forms' && dashboard && dashboard.pending_forms > 0 && (
                 <span className="absolute top-1.5 right-2 w-2 h-2 bg-amber-500 rounded-full" />
@@ -444,7 +438,7 @@ export default function PatientPortal() {
                 Welcome back, {dashboard?.patient_name?.split(' ')[0] || 'Patient'}
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
                   {dashboard?.treatment_phase || 'Active Treatment'}
                 </span>
                 {appointments.length > 0 && (
@@ -464,7 +458,7 @@ export default function PatientPortal() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                  className="bg-blue-600 text-white rounded-2xl p-4 shadow-lg flex items-center gap-3"
+                  className="bg-teal-600 text-white rounded-2xl p-4 shadow-lg flex items-center gap-3"
                 >
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
                     <Video size={20} />
@@ -484,13 +478,13 @@ export default function PatientPortal() {
               initial="initial"
               animate="animate"
               transition={{ delay: 0.05 }}
-              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200/80 shadow-sm p-4 sm:p-5"
+              className="bg-gradient-to-r from-teal-50 to-teal-100 rounded-2xl border border-teal-200/80 shadow-sm p-4 sm:p-5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                      <Video size={18} className="text-blue-600" />
+                    <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
+                      <Video size={18} className="text-teal-600" />
                     </div>
                     <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                   </div>
@@ -504,7 +498,7 @@ export default function PatientPortal() {
                     setVideoRoomData({ room_name: activeVisit.room_name, token: activeVisit.patient_token })
                     setShowVideoRoom(true)
                   }}
-                  className="px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors active:scale-95"
+                  className="px-4 py-2.5 min-h-[44px] bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors active:scale-95"
                 >
                   Enter Waiting Room
                 </button>
@@ -526,8 +520,8 @@ export default function PatientPortal() {
               </div>
               {appointments.length === 0 ? (
                 <div className="px-5 py-10 text-center">
-                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <CalendarCheck size={24} className="text-blue-400" />
+                  <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <CalendarCheck size={24} className="text-teal-400" />
                   </div>
                   <p className="text-sm font-medium text-gray-600">You're all caught up!</p>
                   <p className="text-xs text-gray-400 mt-1">No upcoming appointments.</p>
@@ -544,8 +538,8 @@ export default function PatientPortal() {
                       className="px-4 sm:px-5 py-3.5 flex items-center justify-between min-h-[56px]"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <Clock size={16} className="text-blue-500" />
+                        <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Clock size={16} className="text-teal-500" />
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-gray-800 text-sm truncate">{appt.type || 'Appointment'}</p>
@@ -590,9 +584,9 @@ export default function PatientPortal() {
             >
               <button
                 onClick={() => setActiveTab('messages')}
-                className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4 text-left hover:border-blue-200 active:scale-[0.98] transition-all min-h-[88px]"
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4 text-left hover:border-teal-200 active:scale-[0.98] transition-all min-h-[88px]"
               >
-                <MessageSquare size={20} className="text-blue-500 mb-2" />
+                <MessageSquare size={20} className="text-teal-500 mb-2" />
                 <p className="text-sm font-medium text-gray-800">Messages</p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {dashboard?.unread_messages || 0} unread
@@ -637,7 +631,7 @@ export default function PatientPortal() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Messages</h2>
               <button
                 onClick={() => setComposing(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full text-sm font-medium transition-all active:scale-95 shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-full text-sm font-medium transition-all active:scale-95 shadow-sm"
               >
                 <Send size={14} /> New Message
               </button>
@@ -660,14 +654,14 @@ export default function PatientPortal() {
                     placeholder="Subject"
                     value={newMessage.subject}
                     onChange={e => setNewMessage(prev => ({ ...prev, subject: e.target.value }))}
-                    className="w-full px-3 py-2.5 min-h-[44px] border border-gray-200 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+                    className="w-full px-3 py-2.5 min-h-[44px] border border-gray-200 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
                   />
                   <textarea
                     placeholder="Type your message..."
                     value={newMessage.body}
                     onChange={e => setNewMessage(prev => ({ ...prev, body: e.target.value }))}
                     rows={4}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 resize-none"
                   />
                   <div className="flex gap-2 justify-end">
                     <button
@@ -679,7 +673,7 @@ export default function PatientPortal() {
                     <button
                       onClick={handleSendMessage}
                       disabled={sendingMessage}
-                      className="px-4 py-2.5 min-h-[44px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                      className="px-4 py-2.5 min-h-[44px] bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
                     >
                       {sendingMessage ? 'Sending...' : 'Send'}
                     </button>
@@ -693,8 +687,8 @@ export default function PatientPortal() {
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
               {messages.length === 0 ? (
                 <div className="px-5 py-12 text-center">
-                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <Inbox size={24} className="text-blue-400" />
+                  <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <Inbox size={24} className="text-teal-400" />
                   </div>
                   <p className="text-sm font-medium text-gray-600">Your inbox is clear.</p>
                   <p className="text-xs text-gray-400 mt-1">Message us anytime!</p>
@@ -773,7 +767,7 @@ export default function PatientPortal() {
                       onChange={e => setFormData(prev => ({ ...prev, response: e.target.value }))}
                       rows={6}
                       placeholder="Fill out your response here..."
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 resize-none"
                     />
                   </div>
                 </div>
@@ -781,7 +775,7 @@ export default function PatientPortal() {
                   <button
                     onClick={() => handleSubmitForm(activeForm)}
                     disabled={submittingForm}
-                    className="px-5 py-2.5 min-h-[44px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 active:scale-95"
+                    className="px-5 py-2.5 min-h-[44px] bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 active:scale-95"
                   >
                     {submittingForm ? 'Submitting...' : 'Submit Form'}
                   </button>
@@ -835,7 +829,7 @@ export default function PatientPortal() {
                         {form.status !== 'completed' && (
                           <button
                             onClick={() => setActiveForm(form.id)}
-                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium min-h-[44px] min-w-[44px] justify-center flex-shrink-0 ml-2"
+                            className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700 font-medium min-h-[44px] min-w-[44px] justify-center flex-shrink-0 ml-2"
                           >
                             Fill Out <ChevronRight size={14} />
                           </button>
