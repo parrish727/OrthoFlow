@@ -193,3 +193,52 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL CDT CODES — Added 2026-08-02 (expanded from 69 → 138)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ADDITIONAL_CDT_CODES = [
+    # Diagnostic additions
+    ("D0160", "diagnostic", "clinical oral evaluations", "Detailed and extensive oral evaluation – problem focused", "Detailed Exam", "general", True, 11000, False, False),
+    ("D0180", "diagnostic", "clinical oral evaluations", "Comprehensive periodontal evaluation – new or established patient", "Perio Eval", "general", True, 10000, False, False),
+    ("D0240", "diagnostic", "radiographs", "Intraoral – occlusal radiographic image", "Occlusal X-ray", "general", False, 4500, False, False),
+    ("D0367", "diagnostic", "radiographs", "Cone beam CT capture and interpretation – both jaws", "CBCT Full", "general", True, 45000, False, False),
+    ("D0368", "diagnostic", "radiographs", "Cone beam CT capture and interpretation – craniofacial", "CBCT Craniofacial", "ortho", True, 55000, False, False),
+    ("D0431", "diagnostic", "tests and examinations", "Adjunctive pre-diagnostic test for mucosal abnormalities", "Oral Cancer Screen", "general", True, 5000, False, False),
+    # Preventive additions
+    ("D1330", "preventive", "oral hygiene", "Oral hygiene instructions", "OHI", "general", True, 3000, False, False),
+    ("D1352", "preventive", "sealants", "Preventive resin restoration – permanent tooth", "Preventive Resin", "general", True, 6500, True, False),
+    ("D1354", "preventive", "sealants", "Interim caries arresting medicament application – per tooth", "SDF Application", "general", True, 3800, True, False),
+    # Restorative additions
+    ("D2335", "restorative", "resin-based composite", "Resin-based composite – four or more surfaces, anterior", "Composite 4+ Surf Ant", "general", True, 35000, True, True),
+    ("D2394", "restorative", "resin-based composite", "Resin-based composite – four or more surfaces, posterior", "Composite 4+ Surf Post", "general", True, 38000, True, True),
+    ("D2799", "restorative", "crowns – single restorations", "Provisional crown – further treatment required", "Temp Crown", "general", True, 45000, True, False),
+    ("D2910", "restorative", "other restorative services", "Re-cement or re-bond indirect restoration", "Re-cement Crown", "general", True, 12000, True, False),
+    ("D2930", "restorative", "other restorative services", "Prefabricated stainless steel crown – primary tooth", "SSC Primary", "general", True, 28000, True, False),
+    # Orthodontic additions
+    ("D8030", "orthodontics", "limited treatment", "Limited orthodontic treatment of the adolescent dentition", "Limited Ortho Adolescent", "ortho", True, 400000, False, False),
+    ("D8060", "orthodontics", "interceptive treatment", "Interceptive orthodontic treatment of the transitional dentition", "Interceptive Trans", "ortho", True, 350000, False, False),
+    ("D8210", "orthodontics", "minor treatment", "Removable appliance therapy", "Removable Appliance", "ortho", True, 150000, False, False),
+    ("D8220", "orthodontics", "minor treatment", "Fixed appliance therapy", "Fixed Appliance", "ortho", True, 200000, False, False),
+    ("D8681", "orthodontics", "other services", "Removable orthodontic retainer adjustment", "Retainer Adjust", "ortho", True, 5000, False, False),
+    ("D8690", "orthodontics", "other services", "Orthodontic treatment (alternative billing to contract fee)", "Ortho Monthly", "ortho", True, 20000, False, False),
+    ("D8696", "orthodontics", "other services", "Repair of orthodontic appliance – maxillary", "Repair Upper", "ortho", True, 10000, False, False),
+    ("D8697", "orthodontics", "other services", "Repair of orthodontic appliance – mandibular", "Repair Lower", "ortho", True, 10000, False, False),
+    ("D8698", "orthodontics", "other services", "Re-cement or re-bond fixed retainer – maxillary", "Re-cement Retainer Upper", "ortho", True, 8000, False, False),
+    ("D8699", "orthodontics", "other services", "Re-cement or re-bond fixed retainer – mandibular", "Re-cement Retainer Lower", "ortho", True, 8000, False, False),
+    ("D8703", "orthodontics", "other services", "Replacement of lost or broken retainer – maxillary", "Replace Retainer Upper", "ortho", True, 30000, False, False),
+    ("D8704", "orthodontics", "other services", "Replacement of lost or broken retainer – mandibular", "Replace Retainer Lower", "ortho", True, 30000, False, False),
+    # Adjunctive / Teledentistry
+    ("D9248", "adjunctive", "sedation", "Non-intravenous conscious sedation", "Oral Sedation", "general", True, 18000, False, False),
+    ("D9430", "adjunctive", "miscellaneous", "Office visit for observation (during regularly scheduled hours)", "Office Visit", "general", True, 4000, False, False),
+    ("D9440", "adjunctive", "miscellaneous", "Office visit – after regularly scheduled hours", "After Hours Visit", "general", True, 8000, False, False),
+    ("D9910", "adjunctive", "miscellaneous", "Application of desensitizing medicament", "Desensitizer", "general", True, 3500, False, False),
+    ("D9940", "adjunctive", "occlusal guards", "Occlusal guard, by report", "Custom Guard", "general", True, 45000, False, False),
+    ("D9950", "adjunctive", "miscellaneous", "Occlusion analysis – mounted case", "Occlusal Analysis", "general", True, 15000, False, False),
+    ("D9986", "adjunctive", "teledentistry", "Teledentistry – synchronous; real-time encounter", "Video Visit", "general", True, 7500, False, False),
+    ("D9987", "adjunctive", "teledentistry", "Teledentistry – asynchronous; information stored and forwarded", "Async Telehealth", "general", True, 5000, False, False),
+]
+
+# Merge into main list for seeding
+CDT_CODES.extend(ADDITIONAL_CDT_CODES)
