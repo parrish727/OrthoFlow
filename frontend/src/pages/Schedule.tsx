@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video } from 'lucide-react'
 import { api } from '../lib/api'
 import VideoRoom from '../components/VideoRoom'
+import ScheduleNextPopup from '../components/ScheduleNextPopup'
 
 interface Appointment {
   id: string
@@ -92,6 +93,7 @@ export default function Schedule() {
   const [showNewAppt, setShowNewAppt] = useState(false)
   const [showVideoRoom, setShowVideoRoom] = useState(false)
   const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
+  const [scheduleNextPatient, setScheduleNextPatient] = useState<{ id: string; name: string } | null>(null)
   const navigate = useNavigate()
 
   // Auto-dismiss phase toast after 8 seconds
@@ -349,6 +351,7 @@ export default function Schedule() {
                         onDADrop={e => handleApptDADrop(e, appt.id)}
                         onUpdate={loadSchedule}
                         onPhaseChange={setPhaseToast}
+                        onScheduleNext={() => setScheduleNextPatient({ id: appt.patient_id, name: appt.patient_name })}
                       />
                     ))
                   )}
@@ -390,6 +393,7 @@ export default function Schedule() {
                       onDADrop={e => handleApptDADrop(e, appt.id)}
                       onUpdate={loadSchedule}
                       onPhaseChange={setPhaseToast}
+                      onScheduleNext={() => setScheduleNextPatient({ id: appt.patient_id, name: appt.patient_name })}
                     />
                   ))
                 )}
@@ -409,11 +413,21 @@ export default function Schedule() {
             onEnd={() => { setShowVideoRoom(false); setVideoRoomData(null) }}
           />
         )}
+
+        {/* Schedule Next Visit Popup */}
+        {scheduleNextPatient && (
+          <ScheduleNextPopup
+            patientId={scheduleNextPatient.id}
+            patientName={scheduleNextPatient.name}
+            onClose={() => setScheduleNextPatient(null)}
+            onScheduled={() => { setScheduleNextPatient(null); loadSchedule() }}
+          />
+        )}
           </>
   )
 }
 
-function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop, onUpdate, onPhaseChange }: {
+function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onPatientClick, onDragStart, onDragEnd, onDADrop, onUpdate, onPhaseChange, onScheduleNext }: {
   appointment: Appointment
   das: DA[]
   expanded: boolean
@@ -425,6 +439,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   onDADrop: (e: React.DragEvent) => void
   onUpdate: () => void
   onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void
+  onScheduleNext: () => void
 }) {
   const [daDropHover, setDADropHover] = useState(false)
   const statusClass = appointment.status === 'completed'
@@ -486,7 +501,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
           </div>
 
           {expanded && (
-            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} onUpdate={onUpdate} onPhaseChange={onPhaseChange} />
+            <ExpandedCardDetail appointment={appointment} daDropHover={daDropHover} onUpdate={onUpdate} onPhaseChange={onPhaseChange} onScheduleNext={onScheduleNext} />
           )}
         </div>
       </div>
@@ -494,7 +509,7 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   )
 }
 
-function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange }: { appointment: Appointment; daDropHover: boolean; onUpdate: () => void; onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void }) {
+function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange, onScheduleNext }: { appointment: Appointment; daDropHover: boolean; onUpdate: () => void; onPhaseChange: (info: {patient_name: string, previous_phase: string, new_phase: string}) => void; onScheduleNext: () => void }) {
   const [prepBrief, setPrepBrief] = useState<{ today_expected: string; prep_items: string[] } | null>(null)
   const [loadingPrep, setLoadingPrep] = useState(false)
   const [showReschedule, setShowReschedule] = useState(false)
@@ -686,9 +701,9 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange 
           </button>
         )}
 
-        {/* Schedule Next — opens patient detail for next visit scheduling */}
+        {/* Schedule Next — opens scheduling popup */}
         <button
-          onClick={(e) => { e.stopPropagation(); window.location.href = `/patients/${appointment.patient_id}#next-visit` }}
+          onClick={(e) => { e.stopPropagation(); onScheduleNext() }}
           className="flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-md transition-colors"
         >
           <CalendarPlus size={11} />
