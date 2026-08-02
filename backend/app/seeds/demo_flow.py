@@ -439,13 +439,6 @@ async def seed_patient_messages(db, patients: list) -> None:
 
 async def seed_portal_forms(db) -> list:
     """Create intake, consent, and health history forms for MyOrthoChart."""
-    result = await db.execute(
-        select(PortalForm).where(PortalForm.practice_id == DEMO_PRACTICE_ID).limit(1)
-    )
-    if result.scalar_one_or_none():
-        print("  ✅ Portal forms: already seeded")
-        return []
-
     forms_data = [
         {
             "name": "New Patient Intake Form",
@@ -473,17 +466,27 @@ async def seed_portal_forms(db) -> list:
             "description": "Please provide your complete medical and dental history",
             "is_required_new_patient": True,
             "fields": [
-                {"name": "general_dentist", "label": "General Dentist Name", "type": "text", "required": False},
-                {"name": "last_dental_visit", "label": "Date of Last Dental Visit", "type": "date", "required": False},
-                {"name": "allergies", "label": "Known Allergies (medications, latex, etc.)", "type": "textarea", "required": False},
-                {"name": "medications", "label": "Current Medications", "type": "textarea", "required": False},
-                {"name": "medical_conditions", "label": "Medical Conditions", "type": "checkbox_group", "required": False,
-                 "options": ["Asthma", "Diabetes", "Heart condition", "Seizures", "Bleeding disorder", "None"]},
-                {"name": "previous_ortho", "label": "Have you had orthodontic treatment before?", "type": "select", "required": True,
-                 "options": ["No", "Yes - braces", "Yes - Invisalign", "Yes - other"]},
-                {"name": "chief_concern", "label": "What brings you in today? (chief concern)", "type": "textarea", "required": True},
-                {"name": "habits", "label": "Does the patient have any of these habits?", "type": "checkbox_group", "required": False,
-                 "options": ["Thumb sucking", "Mouth breathing", "Nail biting", "Teeth grinding", "None"]},
+                {"name": "section_medical", "label": "Medical History", "type": "section_header"},
+                {"name": "heart_disease", "label": "Heart disease or heart murmur", "type": "yes_no", "required": True},
+                {"name": "high_blood_pressure", "label": "High blood pressure", "type": "yes_no", "required": True},
+                {"name": "diabetes", "label": "Diabetes", "type": "yes_no", "required": True},
+                {"name": "asthma", "label": "Asthma or breathing problems", "type": "yes_no", "required": True},
+                {"name": "bleeding_disorder", "label": "Bleeding disorder", "type": "yes_no", "required": True},
+                {"name": "epilepsy", "label": "Epilepsy or seizures", "type": "yes_no", "required": True},
+                {"name": "hepatitis", "label": "Hepatitis or liver disease", "type": "yes_no", "required": True},
+                {"name": "hiv", "label": "HIV/AIDS", "type": "yes_no", "required": True},
+                {"name": "thyroid", "label": "Thyroid problems", "type": "yes_no", "required": True},
+                {"name": "joint_replacement", "label": "Joint replacement", "type": "yes_no", "required": True},
+                {"name": "pregnant", "label": "Are you pregnant or possibly pregnant?", "type": "yes_no", "required": True},
+                {"name": "tobacco", "label": "Do you use tobacco products?", "type": "yes_no", "required": True},
+                {"name": "medications", "label": "List current medications", "type": "textarea", "required": False, "placeholder": "List all medications, vitamins, and supplements"},
+                {"name": "allergies", "label": "List any allergies (medications, latex, foods)", "type": "textarea", "required": True, "placeholder": "List allergies or write None"},
+                {"name": "section_dental", "label": "Dental History", "type": "section_header"},
+                {"name": "previous_ortho", "label": "Have you had orthodontic treatment before?", "type": "yes_no", "required": True},
+                {"name": "tmj_problems", "label": "Do you have jaw pain or TMJ problems?", "type": "yes_no", "required": True},
+                {"name": "teeth_grinding", "label": "Do you grind or clench your teeth?", "type": "yes_no", "required": True},
+                {"name": "chief_concern", "label": "What is your main concern about your teeth?", "type": "textarea", "required": True, "placeholder": "Describe what you'd like to improve"},
+                {"name": "last_dental_visit", "label": "When was your last dental visit?", "type": "select", "required": True, "options": ["Within 6 months", "6-12 months ago", "1-2 years ago", "Over 2 years ago"]},
             ],
         },
         {
@@ -516,26 +519,68 @@ async def seed_portal_forms(db) -> list:
                 {"name": "signature", "label": "Signature", "type": "signature", "required": True},
             ],
         },
+        {
+            "name": "HIPAA Privacy Notice",
+            "form_type": "hipaa",
+            "description": "Acknowledgment of Notice of Privacy Practices",
+            "is_required_new_patient": True,
+            "fields": [
+                {"name": "hipaa_text", "label": "", "type": "paragraph", "content": "We are required by law to maintain the privacy of your health information. We will not use or disclose your health information without your written authorization, except as described in our Notice of Privacy Practices."},
+                {"name": "hipaa_acknowledge", "label": "I acknowledge that I have received or been given the opportunity to receive a copy of this practice's Notice of Privacy Practices.", "type": "checkbox", "required": True},
+                {"name": "hipaa_signature", "label": "Signature", "type": "signature", "required": True},
+                {"name": "hipaa_date", "label": "Date", "type": "date", "required": True},
+            ],
+        },
+        {
+            "name": "Photo & X-ray Consent",
+            "form_type": "consent_photo",
+            "description": "Consent for photographs, x-rays, and diagnostic imaging",
+            "is_required_new_patient": True,
+            "fields": [
+                {"name": "photo_text", "label": "", "type": "paragraph", "content": "I consent to the taking of photographs, x-rays, and other diagnostic images as part of my dental/orthodontic treatment. I understand these records are part of my confidential patient file."},
+                {"name": "photo_treatment", "label": "I consent to photographs and x-rays for treatment purposes", "type": "checkbox", "required": True},
+                {"name": "photo_education", "label": "I consent to use of my images for educational purposes (anonymized)", "type": "yes_no", "required": True},
+                {"name": "photo_marketing", "label": "I consent to use of my images for marketing/social media (with name)", "type": "yes_no", "required": True},
+                {"name": "photo_signature", "label": "Signature", "type": "signature", "required": True},
+                {"name": "photo_date", "label": "Date", "type": "date", "required": True},
+            ],
+        },
     ]
 
     forms = []
+    created_count = 0
     for f_data in forms_data:
-        form = PortalForm(
-            id=uuid.uuid4(),
-            practice_id=DEMO_PRACTICE_ID,
-            name=f_data["name"],
-            form_type=f_data["form_type"],
-            description=f_data["description"],
-            fields=f_data["fields"],
-            is_active=True,
-            is_required_new_patient=f_data["is_required_new_patient"],
-            version=1,
+        # Check if form already exists by name (idempotent per form)
+        result = await db.execute(
+            select(PortalForm).where(
+                PortalForm.practice_id == DEMO_PRACTICE_ID,
+                PortalForm.name == f_data["name"],
+            )
         )
-        db.add(form)
-        forms.append(form)
+        existing = result.scalar_one_or_none()
+        if existing:
+            forms.append(existing)
+        else:
+            form = PortalForm(
+                id=uuid.uuid4(),
+                practice_id=DEMO_PRACTICE_ID,
+                name=f_data["name"],
+                form_type=f_data["form_type"],
+                description=f_data["description"],
+                fields=f_data["fields"],
+                is_active=True,
+                is_required_new_patient=f_data["is_required_new_patient"],
+                version=1,
+            )
+            db.add(form)
+            forms.append(form)
+            created_count += 1
 
     await db.flush()
-    print(f"  ✅ Portal forms: {len(forms)} created (intake, health history, consent, financial)")
+    if created_count:
+        print(f"  ✅ Portal forms: {created_count} new forms created ({len(forms)} total)")
+    else:
+        print(f"  ✅ Portal forms: {len(forms)} already exist")
     return forms
 
 
@@ -899,7 +944,7 @@ async def seed_demo_flow():
     print(f"  Today's Schedule: {len(DEMO_APPOINTMENTS)} appointments")
     print("  Staff Chat: 2 rooms (AI auto-reply responds to demo messages)")
     print("  Patient Comms: 10 SMS/email messages in log")
-    print("  MyOrthoChart: 4 forms, 6 patient accounts, 5 conversations")
+    print("  MyOrthoChart: 6 forms, 6 patient accounts, 5 conversations")
     print()
 
 

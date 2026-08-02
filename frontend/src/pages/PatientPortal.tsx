@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TreatmentJourney from '../components/TreatmentJourney'
 import OralCareReminders from '../components/OralCareReminders'
 import VideoRoom from '../components/VideoRoom'
+import FormFieldRenderer from '../components/FormFieldRenderer'
+import type { FormField } from '../components/FormFieldRenderer'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, Clock, MessageSquare, FileText, CheckCircle, Send,
@@ -64,6 +66,9 @@ export default function PatientPortal() {
   const [sendingMessage, setSendingMessage] = useState(false)
   const [activeForm, setActiveForm] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
+  const [formFields, setFormFields] = useState<FormField[]>([])
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [formLoading, setFormLoading] = useState(false)
   const [submittingForm, setSubmittingForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showVideoRoom, setShowVideoRoom] = useState(false)
@@ -178,6 +183,33 @@ export default function PatientPortal() {
     loadProgress()
   }, [isAuthenticated, loadDashboard, loadAppointments, loadMessages, loadForms, loadProgress])
 
+  // Load form field definitions when a form is selected
+  const formContainerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!activeForm) {
+      setFormFields([])
+      setFormErrors({})
+      return
+    }
+    let cancelled = false
+    async function loadFormFields() {
+      setFormLoading(true)
+      setFormErrors({})
+      try {
+        const res = await portalRequest('/api/v1/portal/forms/' + activeForm)
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setFormFields(data.fields || [])
+        }
+      } catch {
+        // silent — form will show empty
+      }
+      if (!cancelled) setFormLoading(false)
+    }
+    loadFormFields()
+    return () => { cancelled = true }
+  }, [activeForm, portalRequest])
+
   // Poll for active virtual visits every 2 seconds (near-instant feel)
   const [visitNotification, setVisitNotification] = useState(false)
   useEffect(() => {
@@ -223,7 +255,43 @@ export default function PatientPortal() {
     setSendingMessage(false)
   }
 
+  function handleFieldChange(name: string, value: string) {
+    setFormData(prev => ({ ...prev, [name]: value }))
+    // Clear field error on change
+    if (formErrors[name]) {
+      setFormErrors(prev => {
+        const next = { ...prev }
+        delete next[name]
+        return next
+      })
+    }
+  }
+
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {}
+    for (const field of formFields) {
+      if (field.required && field.type !== 'section_header' && field.type !== 'paragraph') {
+        const val = formData[field.name]
+        if (!val || !val.trim()) {
+          errors[field.name] = 'This field is required'
+        }
+      }
+    }
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      // Scroll to first error
+      const firstErrorField = Object.keys(errors)[0]
+      const el = formContainerRef.current?.querySelector(`[data-field="${firstErrorField}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      return false
+    }
+    return true
+  }
+
   async function handleSubmitForm(formId: string) {
+    if (!validateForm()) return
     setSubmittingForm(true)
     const res = await portalRequest(`/api/v1/portal/forms/${formId}/submit`, {
       method: 'POST',
@@ -232,6 +300,8 @@ export default function PatientPortal() {
     if (res.ok) {
       setActiveForm(null)
       setFormData({})
+      setFormFields([])
+      setFormErrors({})
       loadForms()
     }
     setSubmittingForm(false)
@@ -750,7 +820,7 @@ export default function PatientPortal() {
                     {forms.find(f => f.id === activeForm)?.name || 'Form'}
                   </h3>
                   <button
-                    onClick={() => { setActiveForm(null); setFormData({}) }}
+                    onClick={() => { setActiveForm(null); setFormData({}); setFormFields([]); setFormErrors({}) }}
                     className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px] px-2 flex items-center"
                   >
                     Cancel
@@ -759,22 +829,27 @@ export default function PatientPortal() {
                 <p className="text-sm text-gray-500 mb-4">
                   {forms.find(f => f.id === activeForm)?.description}
                 </p>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Response</label>
-                    <textarea
-                      value={formData.response || ''}
-                      onChange={e => setFormData(prev => ({ ...prev, response: e.target.value }))}
-                      rows={6}
-                      placeholder="Fill out your response here..."
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 resize-none"
+                <div ref={formContainerRef}>
+                  {formLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 size={20} className="animate-spin text-teal-500" />
+                      <span className="ml-2 text-sm text-gray-500">Loading form...</span>
+                    </div>
+                  ) : formFields.length > 0 ? (
+                    <FormFieldRenderer
+                      fields={formFields}
+                      values={formData}
+                      onChange={handleFieldChange}
+                      errors={formErrors}
                     />
-                  </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 py-4 text-center">No fields configured for this form.</p>
+                  )}
                 </div>
-                <div className="flex justify-end mt-4">
+                <div className="flex justify-end mt-6">
                   <button
                     onClick={() => handleSubmitForm(activeForm)}
-                    disabled={submittingForm}
+                    disabled={submittingForm || formLoading}
                     className="px-5 py-2.5 min-h-[44px] bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 active:scale-95"
                   >
                     {submittingForm ? 'Submitting...' : 'Submit Form'}
