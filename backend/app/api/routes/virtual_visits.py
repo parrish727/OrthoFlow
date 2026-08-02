@@ -72,6 +72,7 @@ def _generate_token(identity: str, room_name: str, can_publish: bool = True, can
     if livekit_api is None:
         # Fallback: return a placeholder token when livekit-api not installed
         return f"demo-token-{identity}-{room_name}"
+    from datetime import timedelta
     token = (
         livekit_api.AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
         .with_identity(identity)
@@ -83,7 +84,7 @@ def _generate_token(identity: str, room_name: str, can_publish: bool = True, can
                 can_subscribe=can_subscribe,
             )
         )
-        .with_ttl(4 * 60 * 60)  # 4 hours in seconds
+        .with_ttl(timedelta(hours=4))
         .to_jwt()
     )
     return token
