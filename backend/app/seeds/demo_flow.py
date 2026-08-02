@@ -20,7 +20,10 @@ from app.models.portal import PortalAccount, PortalForm, PortalMessage
 # ═══════════════════════════════════════════════════════════════════════════════
 
 DEMO_PRACTICE_ID = uuid.UUID("82fe9d87-6250-4b15-ac7d-26de094a4be8")
-TODAY = date.today()
+# Use Eastern time for "today" since the practice is in US Eastern timezone
+_eastern_offset = timedelta(hours=-4)  # EDT
+_now_eastern = datetime.now(timezone(_eastern_offset))
+TODAY = _now_eastern.date()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
