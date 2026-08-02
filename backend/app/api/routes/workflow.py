@@ -179,7 +179,7 @@ async def create_visit_status(
     await db.commit()
     await db.refresh(visit)
 
-    await audit_log(db, user, "patient_check_in", "patient_visit_status", str(visit.id))
+    await audit_log(db, user["practice_id"], user["user_id"], "patient_check_in", "patient_visit_status", str(visit.id))
 
     return VisitStatusResponse(
         id=str(visit.id),
@@ -243,7 +243,7 @@ async def update_visit_status(
     await db.commit()
     await db.refresh(visit)
 
-    await audit_log(db, user, "visit_status_update", "patient_visit_status", str(visit.id))
+    await audit_log(db, user["practice_id"], user["user_id"], "visit_status_update", "patient_visit_status", str(visit.id))
 
     return VisitStatusResponse(
         id=str(visit.id),
@@ -387,7 +387,7 @@ async def create_patient_document(
     await db.commit()
     await db.refresh(doc)
 
-    await audit_log(db, user, "document_upload", "patient_documents", str(doc.id))
+    await audit_log(db, user["practice_id"], user["user_id"], "document_upload", "patient_documents", str(doc.id))
 
     return DocumentResponse(
         id=str(doc.id),
