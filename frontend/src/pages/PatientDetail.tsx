@@ -5,7 +5,6 @@ import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import RestorativeChartView from '../components/RestorativeChartView'
-import PerioChartView from '../components/PerioChartView'
 
 interface Patient {
   id: string
@@ -98,7 +97,7 @@ export default function PatientDetail() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [notes, setNotes] = useState<TreatmentNote[]>([])
   const [chart, setChart] = useState<ChartData | null>(null)
-  const [chartTab, setChartTab] = useState<'ortho' | 'restorative' | 'perio'>('ortho')
+  const [chartTab, setChartTab] = useState<'ortho' | 'restorative'>('ortho')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
@@ -272,14 +271,6 @@ export default function PatientDetail() {
                   >
                     🏥 Restorative Chart
                   </button>
-                  <button
-                    onClick={() => setChartTab('perio')}
-                    className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
-                      chartTab === 'perio' ? 'bg-orange-50 text-orange-700 border-b-2 border-orange-600' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    🦠 Perio Chart
-                  </button>
                 </div>
 
                 {chartTab === 'ortho' ? (
@@ -292,10 +283,8 @@ export default function PatientDetail() {
                     appliances={chart.appliances || []}
                     onUpdate={handleChartUpdate}
                   />
-                ) : chartTab === 'restorative' ? (
-                  <RestorativeChartView patientId={patient.id} />
                 ) : (
-                  <PerioChartView patientId={patient.id} />
+                  <RestorativeChartView patientId={patient.id} />
                 )}
               </div>
             )}

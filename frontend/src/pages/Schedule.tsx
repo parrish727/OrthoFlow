@@ -913,10 +913,10 @@ function NewAppointmentModal({ date, chairs, das, onClose, onCreated }: {
             <option value="">Select type...</option>
             {catalogTypes.length > 0 ? (
               <>
-                {['ortho', 'general', 'cosmetic', 'perio', 'surgery'].map(spec => {
+                {['ortho', 'general'].map(spec => {
                   const group = catalogTypes.filter(t => t.specialty === spec)
                   if (group.length === 0) return null
-                  const label = spec === 'ortho' ? '🦷 Orthodontics' : spec === 'general' ? '🏥 General' : spec === 'cosmetic' ? '✨ Cosmetic' : spec === 'perio' ? '🩺 Periodontics' : '🔪 Surgery'
+                  const label = spec === 'ortho' ? '🦷 Orthodontics' : spec === 'general' ? '🏥 General' : spec
                   return (
                     <optgroup key={spec} label={label}>
                       {group.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}

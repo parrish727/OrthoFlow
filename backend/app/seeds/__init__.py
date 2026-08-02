@@ -46,7 +46,7 @@ CDT_CODES = [
     ("D2391", "restorative", "resin-based composite", "Resin-based composite – one surface, posterior", "Composite 1 Surf Post", "general", True, 20500, True, True),
     ("D2392", "restorative", "resin-based composite", "Resin-based composite – two surfaces, posterior", "Composite 2 Surf Post", "general", True, 27000, True, True),
     ("D2393", "restorative", "resin-based composite", "Resin-based composite – three surfaces, posterior", "Composite 3 Surf Post", "general", False, 32000, True, True),
-    ("D2740", "restorative", "crowns – single restorations", "Crown – porcelain/ceramic substrate", "Porcelain Crown", "cosmetic", True, 130000, True, False),
+    ("D2740", "restorative", "crowns – single restorations", "Crown – porcelain/ceramic substrate", "Porcelain Crown", "general", True, 130000, True, False),
     ("D2750", "restorative", "crowns – single restorations", "Crown – porcelain fused to high noble metal", "PFM Crown", "general", True, 125000, True, False),
     ("D2950", "restorative", "other restorative services", "Core buildup, including any pins when required", "Core Buildup", "general", True, 35000, True, False),
     ("D2954", "restorative", "other restorative services", "Prefabricated post and core in addition to crown", "Post & Core", "general", False, 45000, True, False),
@@ -57,26 +57,22 @@ CDT_CODES = [
     ("D3330", "endodontics", "pulp therapy", "Endodontic therapy, molar tooth", "Root Canal Molar", "general", True, 125000, True, False),
 
     # ── D4000-D4999: Periodontics ─────────────────────────────────────────────
-    ("D4341", "periodontics", "surgical services", "Periodontal scaling and root planing – four or more teeth per quadrant", "SRP 4+ Teeth/Quad", "perio", True, 30000, False, False),
-    ("D4342", "periodontics", "surgical services", "Periodontal scaling and root planing – one to three teeth per quadrant", "SRP 1-3 Teeth/Quad", "perio", True, 22000, False, False),
-    ("D4355", "periodontics", "non-surgical services", "Full mouth debridement", "Full Mouth Debridement", "perio", True, 20000, False, False),
-    ("D4910", "periodontics", "non-surgical services", "Periodontal maintenance", "Perio Maintenance", "perio", True, 16000, False, False),
-    ("D4346", "periodontics", "non-surgical services", "Scaling in presence of generalized moderate or severe gingival inflammation", "Scaling Gingivitis", "perio", False, 15000, False, False),
+    ("D4341", "periodontics", "surgical services", "Periodontal scaling and root planing – four or more teeth per quadrant", "SRP 4+ Teeth/Quad", "general", True, 30000, False, False),
+    ("D4342", "periodontics", "surgical services", "Periodontal scaling and root planing – one to three teeth per quadrant", "SRP 1-3 Teeth/Quad", "general", True, 22000, False, False),
+    ("D4355", "periodontics", "non-surgical services", "Full mouth debridement", "Full Mouth Debridement", "general", True, 20000, False, False),
+    ("D4910", "periodontics", "non-surgical services", "Periodontal maintenance", "Perio Maintenance", "general", True, 16000, False, False),
+    ("D4346", "periodontics", "non-surgical services", "Scaling in presence of generalized moderate or severe gingival inflammation", "Scaling Gingivitis", "general", False, 15000, False, False),
 
     # ── D5000-D5999: Prosthodontics ───────────────────────────────────────────
-    ("D5110", "prosthodontics", "complete dentures", "Complete denture – maxillary", "Complete Denture Upper", "general", False, 180000, False, False),
-    ("D5120", "prosthodontics", "complete dentures", "Complete denture – mandibular", "Complete Denture Lower", "general", False, 180000, False, False),
     ("D5213", "prosthodontics", "partial dentures", "Maxillary partial denture – cast metal framework", "Partial Denture Upper", "general", False, 195000, False, False),
-    ("D6010", "prosthodontics", "implant services", "Surgical placement of implant body – endosteal implant", "Implant Placement", "surgery", True, 225000, True, False),
-    ("D6065", "prosthodontics", "implant services", "Implant supported porcelain/ceramic crown", "Implant Crown", "cosmetic", True, 175000, True, False),
 
     # ── D7000-D7999: Oral Surgery ─────────────────────────────────────────────
-    ("D7140", "oral_surgery", "extractions", "Extraction, erupted tooth or exposed root", "Simple Extraction", "surgery", True, 22000, True, False),
-    ("D7210", "oral_surgery", "extractions", "Extraction, erupted tooth requiring removal of bone", "Surgical Extraction", "surgery", True, 38000, True, False),
-    ("D7220", "oral_surgery", "extractions", "Removal of impacted tooth – soft tissue", "Impacted Soft Tissue", "surgery", True, 40000, True, False),
-    ("D7230", "oral_surgery", "extractions", "Removal of impacted tooth – partially bony", "Impacted Partial Bony", "surgery", True, 50000, True, False),
-    ("D7240", "oral_surgery", "extractions", "Removal of impacted tooth – completely bony", "Impacted Full Bony", "surgery", False, 60000, True, False),
-    ("D7953", "oral_surgery", "bone grafts", "Bone replacement graft for ridge preservation – per site", "Bone Graft", "surgery", True, 65000, True, False),
+    ("D7140", "oral_surgery", "extractions", "Extraction, erupted tooth or exposed root", "Simple Extraction", "general", True, 22000, True, False),
+    ("D7210", "oral_surgery", "extractions", "Extraction, erupted tooth requiring removal of bone", "Surgical Extraction", "general", True, 38000, True, False),
+    ("D7220", "oral_surgery", "extractions", "Removal of impacted tooth – soft tissue", "Impacted Soft Tissue", "general", True, 40000, True, False),
+    ("D7230", "oral_surgery", "extractions", "Removal of impacted tooth – partially bony", "Impacted Partial Bony", "general", True, 50000, True, False),
+    ("D7240", "oral_surgery", "extractions", "Removal of impacted tooth – completely bony", "Impacted Full Bony", "general", False, 60000, True, False),
+    ("D7953", "oral_surgery", "bone grafts", "Bone replacement graft for ridge preservation – per site", "Bone Graft", "general", True, 65000, True, False),
 
     # ── D8000-D8999: Orthodontics ─────────────────────────────────────────────
     ("D8010", "orthodontics", "limited treatment", "Limited orthodontic treatment of the primary dentition", "Limited Ortho Primary", "ortho", False, 250000, False, False),
@@ -91,9 +87,6 @@ CDT_CODES = [
     ("D8999", "orthodontics", "other services", "Unspecified orthodontic procedure, by report", "Ortho Other", "ortho", False, 0, False, False),
 
     # ── D9000-D9999: Adjunctive / Cosmetic ────────────────────────────────────
-    ("D2962", "cosmetic", "veneers", "Labial veneer (porcelain laminate) – laboratory", "Porcelain Veneer", "cosmetic", True, 150000, True, False),
-    ("D9972", "cosmetic", "whitening", "External bleaching – per arch", "Whitening Per Arch", "cosmetic", True, 30000, False, False),
-    ("D9975", "cosmetic", "whitening", "External bleaching for home application, per arch; includes materials and fabrication of custom trays", "Take-Home Whitening", "cosmetic", True, 25000, False, False),
     ("D9110", "adjunctive", "emergency", "Palliative treatment of dental pain – minor procedure", "Emergency/Palliative", "general", True, 12000, False, False),
     ("D9215", "adjunctive", "anesthesia", "Local anesthesia in conjunction with operative or surgical procedures", "Local Anesthesia", "general", True, 5000, False, False),
     ("D9230", "adjunctive", "anesthesia", "Inhalation of nitrous oxide/anxiolysis", "Nitrous Oxide", "general", True, 6000, False, False),
@@ -111,8 +104,8 @@ APPOINTMENT_TYPES = [
     ("Periodic Exam", "general", "diagnostic", 30, "D0120,D0274", "#3B82F6", True, False, False),
     ("Adult Cleaning", "general", "preventive", 60, "D1110,D0120", "#10B981", True, False, True),
     ("Child Cleaning", "general", "preventive", 45, "D1120,D0120", "#10B981", True, False, True),
-    ("Deep Cleaning (SRP)", "perio", "treatment", 90, "D4341", "#EF4444", True, True, False),
-    ("Perio Maintenance", "perio", "preventive", 60, "D4910", "#F97316", True, False, True),
+    ("Deep Cleaning (SRP)", "general", "treatment", 90, "D4341", "#EF4444", True, True, False),
+    ("Perio Maintenance", "general", "preventive", 60, "D4910", "#F97316", True, False, True),
     ("Emergency Visit", "general", "diagnostic", 30, "D9110,D0140", "#DC2626", True, False, False),
 
     # Restorative
@@ -120,16 +113,11 @@ APPOINTMENT_TYPES = [
     ("Crown Prep", "general", "restorative", 60, "D2750", "#8B5CF6", True, True, False),
     ("Crown Seat", "general", "restorative", 30, "D2750", "#8B5CF6", True, True, False),
     ("Root Canal", "general", "restorative", 90, "D3330", "#6366F1", True, True, False),
-    ("Extraction", "surgery", "treatment", 30, "D7140", "#DC2626", True, True, False),
-    ("Surgical Extraction", "surgery", "treatment", 60, "D7210", "#DC2626", True, True, False),
-    ("Implant Placement", "surgery", "treatment", 90, "D6010", "#6366F1", True, True, False),
-    ("Bone Graft", "surgery", "treatment", 45, "D7953", "#6366F1", True, True, False),
+    ("Extraction", "general", "treatment", 30, "D7140", "#DC2626", True, True, False),
+    ("Surgical Extraction", "general", "treatment", 60, "D7210", "#DC2626", True, True, False),
+    ("Bone Graft", "general", "treatment", 45, "D7953", "#6366F1", True, True, False),
 
     # Cosmetic
-    ("Veneer Prep", "cosmetic", "restorative", 90, "D2962", "#EC4899", True, True, False),
-    ("Veneer Delivery", "cosmetic", "restorative", 60, "D2962", "#EC4899", True, True, False),
-    ("Teeth Whitening", "cosmetic", "treatment", 60, "D9972", "#F59E0B", True, False, False),
-    ("Smile Consultation", "cosmetic", "consultation", 45, "D0150", "#EC4899", True, False, False),
 
     # Orthodontic
     ("Ortho Consultation", "ortho", "consultation", 45, "D8660", "#0D9488", True, False, False),

@@ -37,7 +37,6 @@ const SPECIALTY_COLORS: Record<string, string> = {
   general: 'bg-blue-50 text-blue-700',
   ortho: 'bg-teal-50 text-teal-700',
   perio: 'bg-orange-50 text-orange-700',
-  cosmetic: 'bg-pink-50 text-pink-700',
   surgery: 'bg-red-50 text-red-700',
   endo: 'bg-purple-50 text-purple-700',
   prosth: 'bg-amber-50 text-amber-700',
@@ -145,7 +144,6 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
           <option value="general">General</option>
           <option value="ortho">Orthodontics</option>
           <option value="perio">Periodontics</option>
-          <option value="cosmetic">Cosmetic</option>
           <option value="surgery">Oral Surgery</option>
           <option value="endo">Endodontics</option>
           <option value="prosth">Prosthodontics</option>
