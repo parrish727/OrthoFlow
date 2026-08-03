@@ -421,7 +421,7 @@ export default function PatientPortal() {
             </div>
           </div>
           <button
-            onClick={() => { localStorage.removeItem('portal_token'); localStorage.removeItem('portal_patient_name'); setIsAuthenticated(false) }}
+            onClick={() => { localStorage.removeItem('portal_token'); localStorage.removeItem('portal_patient_name'); setIsAuthenticated(false); setLoginEmail(''); setLoginPassword('') }}
             className="flex items-center gap-2 px-3 py-2 min-h-[44px] text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <LogOut size={16} /> <span className="hidden sm:inline">Sign Out</span>

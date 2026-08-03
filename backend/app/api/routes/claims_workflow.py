@@ -76,7 +76,8 @@ async def list_claims(
     user: dict = Depends(get_current_user),
 ):
     """List claims with optional filters."""
-    practice_id = user["practice_id"]
+    from uuid import UUID as _UUID
+    practice_id = _UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     q = select(InsuranceClaim).where(InsuranceClaim.practice_id == practice_id)
     if status:
         q = q.where(InsuranceClaim.status == status)

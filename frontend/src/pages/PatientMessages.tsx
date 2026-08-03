@@ -80,6 +80,8 @@ export default function PatientMessages() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const prevMessageCountRef = useRef<number>(0)
+  const isInitialLoadRef = useRef<boolean>(true)
 
   // --- Data Fetching ---
 
@@ -140,6 +142,8 @@ export default function PatientMessages() {
 
   useEffect(() => {
     if (selectedPatientId) {
+      isInitialLoadRef.current = true
+      prevMessageCountRef.current = 0
       fetchMessages(selectedPatientId)
       // Mark thread as read
       api.markThreadRead(selectedPatientId).catch(() => {})
@@ -147,7 +151,12 @@ export default function PatientMessages() {
   }, [selectedPatientId, fetchMessages])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Only scroll to bottom on initial load or when new messages arrive
+    if (messages.length > prevMessageCountRef.current || isInitialLoadRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: isInitialLoadRef.current ? 'instant' : 'smooth' })
+      isInitialLoadRef.current = false
+    }
+    prevMessageCountRef.current = messages.length
   }, [messages])
 
   // Poll for new messages every 5s

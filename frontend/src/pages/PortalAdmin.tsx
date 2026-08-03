@@ -83,8 +83,8 @@ export default function PortalAdmin() {
   }
 
   const filteredAccounts = accounts.filter(a =>
-    a.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (a.patient_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (a.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   return (
@@ -290,7 +290,7 @@ export default function PortalAdmin() {
                 {inviteSearch.length >= 2 && (
                   <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto mb-4">
                     {accounts
-                      .filter(a => a.patient_name.toLowerCase().includes(inviteSearch.toLowerCase()) && a.status !== 'active')
+                      .filter(a => (a.patient_name || '').toLowerCase().includes(inviteSearch.toLowerCase()) && a.status !== 'active')
                       .map(a => (
                         <button
                           key={a.id}
@@ -304,7 +304,7 @@ export default function PortalAdmin() {
                           </span>
                         </button>
                       ))}
-                    {accounts.filter(a => a.patient_name.toLowerCase().includes(inviteSearch.toLowerCase()) && a.status !== 'active').length === 0 && (
+                    {accounts.filter(a => (a.patient_name || '').toLowerCase().includes(inviteSearch.toLowerCase()) && a.status !== 'active').length === 0 && (
                       <p className="px-4 py-3 text-xs text-gray-500">No matching patients</p>
                     )}
                   </div>
