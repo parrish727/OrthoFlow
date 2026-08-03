@@ -67,9 +67,11 @@ async def list_invoices(
     db: AsyncSession = Depends(get_db),
 ):
     """List invoices for the authenticated practice."""
+    from uuid import UUID as _UUID
+    practice_id = _UUID(current_user["practice_id"]) if isinstance(current_user["practice_id"], str) else current_user["practice_id"]
     result = await db.execute(
         select(Invoice)
-        .where(Invoice.practice_id == current_user["practice_id"])
+        .where(Invoice.practice_id == practice_id)
         .order_by(Invoice.created_at.desc())
         .limit(50)
     )

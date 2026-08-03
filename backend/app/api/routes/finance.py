@@ -88,7 +88,7 @@ async def get_patient_ledger(
     user: dict = Depends(get_current_user),
 ):
     """Get a patient's financial ledger with running balance."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
     # Verify patient belongs to practice
     patient = (await db.execute(
@@ -143,7 +143,7 @@ async def create_ledger_entry(
     user: dict = Depends(get_current_user),
 ):
     """Post a charge, payment, or adjustment to a patient's ledger."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
     # Verify patient
     patient = (await db.execute(
@@ -183,7 +183,7 @@ async def get_ledger_summary(
     user: dict = Depends(get_current_user),
 ):
     """Get a patient's financial summary — total charges, payments, balance."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
     charges = (await db.execute(
         select(func.sum(PatientLedgerEntry.amount)).where(
@@ -227,7 +227,7 @@ async def get_patient_insurance(
     user: dict = Depends(get_current_user),
 ):
     """Get all insurance plans for a patient."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     result = await db.execute(
         select(InsuranceSubscriber).where(
             InsuranceSubscriber.practice_id == practice_id,
@@ -245,7 +245,7 @@ async def add_insurance_plan(
     user: dict = Depends(get_current_user),
 ):
     """Add an insurance plan to a patient."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
     # Verify patient
     patient = (await db.execute(
@@ -271,7 +271,7 @@ async def update_insurance_plan(
     user: dict = Depends(get_current_user),
 ):
     """Update an insurance plan's details or benefit tracking."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     sub = (await db.execute(
         select(InsuranceSubscriber).where(
             InsuranceSubscriber.id == subscriber_id,
@@ -297,7 +297,7 @@ async def remove_insurance_plan(
     user: dict = Depends(get_current_user),
 ):
     """Deactivate an insurance plan (soft delete)."""
-    practice_id = user["practice_id"]
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     sub = (await db.execute(
         select(InsuranceSubscriber).where(
             InsuranceSubscriber.id == subscriber_id,

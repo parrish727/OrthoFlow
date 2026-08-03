@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Video, VideoOff, Mic, MicOff, Monitor, PhoneOff, X, User } from 'lucide-react'
+import {
+  Room,
+  RoomEvent,
+  Track,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
+  LocalTrack,
+  createLocalTracks,
+  ConnectionState,
+} from 'livekit-client'
 
 interface VideoRoomProps {
   roomName: string
@@ -9,100 +20,256 @@ interface VideoRoomProps {
   patientName?: string
 }
 
-export default function VideoRoom({ roomName, token: _token, onEnd, role = 'staff', patientName }: VideoRoomProps) {
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.orthoflowsolutions.com'
+
+export default function VideoRoom({ roomName, token, onEnd, role = 'staff', patientName }: VideoRoomProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null)
-  const [stream, setStream] = useState<MediaStream | null>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
+  const roomRef = useRef<Room | null>(null)
+  const localTracksRef = useRef<LocalTrack[]>([])
+
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [screenSharing, setScreenSharing] = useState(false)
-  const [connected, setConnected] = useState(false)
+  const [connectionState, setConnectionState] = useState<ConnectionState>(ConnectionState.Disconnected)
   const [participantConnected, setParticipantConnected] = useState(false)
+  const [participantName, setParticipantName] = useState('')
+  const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Simulate WebSocket connection
+  // Connect to LiveKit room
   useEffect(() => {
-    const timer = setTimeout(() => setConnected(true), 1500)
-    return () => clearTimeout(timer)
-  }, [])
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+    })
+    roomRef.current = room
 
-  // Start local camera
-  useEffect(() => {
-    let activeStream: MediaStream | null = null
+    // Track connection state
+    room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+      setConnectionState(state)
+    })
 
-    async function startCamera() {
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        })
-        activeStream = mediaStream
-        setStream(mediaStream)
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = mediaStream
+    // Handle remote participant joining
+    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+      setParticipantConnected(true)
+      setParticipantName(participant.identity || '')
+    })
+
+    // Handle remote participant leaving
+    room.on(RoomEvent.ParticipantDisconnected, () => {
+      setParticipantConnected(false)
+      setParticipantName('')
+      setRemoteVideoEnabled(false)
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null
+      }
+    })
+
+    // Handle remote track subscribed
+    room.on(
+      RoomEvent.TrackSubscribed,
+      (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+        setParticipantConnected(true)
+        setParticipantName(participant.identity || '')
+
+        if (track.kind === Track.Kind.Video) {
+          setRemoteVideoEnabled(true)
+          const element = track.attach()
+          if (remoteVideoRef.current) {
+            // Replace existing content
+            remoteVideoRef.current.srcObject = null
+            remoteVideoRef.current.parentElement?.querySelectorAll('video[data-lk-remote]').forEach(el => el.remove())
+            element.setAttribute('data-lk-remote', 'true')
+            element.className = 'w-full h-full object-cover'
+            remoteVideoRef.current.parentElement?.appendChild(element)
+          }
+        } else if (track.kind === Track.Kind.Audio) {
+          const element = track.attach()
+          element.setAttribute('data-lk-remote-audio', 'true')
+          document.body.appendChild(element)
         }
-      } catch {
-        setCameraOn(false)
-        setMicOn(false)
+      }
+    )
+
+    // Handle remote track unsubscribed
+    room.on(
+      RoomEvent.TrackUnsubscribed,
+      (track: RemoteTrack) => {
+        track.detach().forEach(el => el.remove())
+        if (track.kind === Track.Kind.Video) {
+          setRemoteVideoEnabled(false)
+        }
+      }
+    )
+
+    // Handle track muted/unmuted
+    room.on(RoomEvent.TrackMuted, (publication: RemoteTrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        setRemoteVideoEnabled(false)
+      }
+    })
+
+    room.on(RoomEvent.TrackUnmuted, (publication: RemoteTrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        setRemoteVideoEnabled(true)
+      }
+    })
+
+    // Connect
+    async function connect() {
+      try {
+        // Create local tracks first
+        const tracks = await createLocalTracks({
+          audio: true,
+          video: true,
+        })
+        localTracksRef.current = tracks
+
+        // Attach local video to preview
+        const videoTrack = tracks.find(t => t.kind === Track.Kind.Video)
+        if (videoTrack && localVideoRef.current) {
+          const el = videoTrack.attach(localVideoRef.current)
+          el.style.transform = 'scaleX(-1)' // Mirror local video
+        }
+
+        // Connect to room and publish tracks
+        await room.connect(LIVEKIT_URL, token)
+        await Promise.all(tracks.map(track => room.localParticipant.publishTrack(track)))
+
+        // Check if remote participant already in room
+        room.remoteParticipants.forEach((participant: RemoteParticipant) => {
+          setParticipantConnected(true)
+          setParticipantName(participant.identity || '')
+          // Subscribe to existing tracks
+          participant.trackPublications.forEach(publication => {
+            if (publication.track && publication.isSubscribed) {
+              const track = publication.track as RemoteTrack
+              if (track.kind === Track.Kind.Video) {
+                setRemoteVideoEnabled(true)
+                const element = track.attach()
+                element.setAttribute('data-lk-remote', 'true')
+                element.className = 'w-full h-full object-cover'
+                remoteVideoRef.current?.parentElement?.appendChild(element)
+              } else if (track.kind === Track.Kind.Audio) {
+                const element = track.attach()
+                element.setAttribute('data-lk-remote-audio', 'true')
+                document.body.appendChild(element)
+              }
+            }
+          })
+        })
+      } catch (err) {
+        console.error('Failed to connect to video room:', err)
+        setError(err instanceof Error ? err.message : 'Failed to connect to video room')
+        // Fallback: still show local camera preview
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream
+          }
+        } catch {
+          setCameraOn(false)
+          setMicOn(false)
+        }
       }
     }
 
-    startCamera()
+    connect()
 
     return () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach(track => track.stop())
+      // Cleanup
+      localTracksRef.current.forEach(track => {
+        track.stop()
+        track.detach()
+      })
+      room.disconnect()
+      // Remove any attached remote audio elements
+      document.querySelectorAll('[data-lk-remote-audio]').forEach(el => el.remove())
+    }
+  }, [token])
+
+  const toggleCamera = useCallback(async () => {
+    const room = roomRef.current
+    if (!room || room.state !== ConnectionState.Connected) {
+      // Fallback for local-only mode
+      const videoTrack = localTracksRef.current.find(t => t.kind === Track.Kind.Video)
+      if (videoTrack) {
+        if (cameraOn) {
+          videoTrack.stop()
+        } else {
+          await videoTrack.restartTrack()
+        }
+        setCameraOn(!cameraOn)
       }
+      return
     }
-  }, [])
 
-  const toggleCamera = useCallback(() => {
-    if (!stream) return
-    const videoTrack = stream.getVideoTracks()[0]
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled
-      setCameraOn(videoTrack.enabled)
+    const publication = room.localParticipant.getTrackPublication(Track.Source.Camera)
+    if (publication?.track) {
+      if (cameraOn) {
+        await room.localParticipant.setCameraEnabled(false)
+      } else {
+        await room.localParticipant.setCameraEnabled(true)
+      }
+      setCameraOn(!cameraOn)
     }
-  }, [stream])
+  }, [cameraOn])
 
-  const toggleMic = useCallback(() => {
-    if (!stream) return
-    const audioTrack = stream.getAudioTracks()[0]
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled
-      setMicOn(audioTrack.enabled)
+  const toggleMic = useCallback(async () => {
+    const room = roomRef.current
+    if (!room || room.state !== ConnectionState.Connected) {
+      const audioTrack = localTracksRef.current.find(t => t.kind === Track.Kind.Audio)
+      if (audioTrack) {
+        if (micOn) {
+          audioTrack.stop()
+        } else {
+          await audioTrack.restartTrack()
+        }
+        setMicOn(!micOn)
+      }
+      return
     }
-  }, [stream])
+
+    if (micOn) {
+      await room.localParticipant.setMicrophoneEnabled(false)
+    } else {
+      await room.localParticipant.setMicrophoneEnabled(true)
+    }
+    setMicOn(!micOn)
+  }, [micOn])
 
   const toggleScreenShare = useCallback(async () => {
+    const room = roomRef.current
+    if (!room || room.state !== ConnectionState.Connected) return
+
     if (screenSharing) {
-      if (stream && localVideoRef.current) {
-        localVideoRef.current.srcObject = stream
-      }
+      await room.localParticipant.setScreenShareEnabled(false)
       setScreenSharing(false)
     } else {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = screenStream
-        }
+        await room.localParticipant.setScreenShareEnabled(true)
         setScreenSharing(true)
-        screenStream.getVideoTracks()[0].onended = () => {
-          if (stream && localVideoRef.current) {
-            localVideoRef.current.srcObject = stream
-          }
-          setScreenSharing(false)
-        }
       } catch {
-        // User cancelled
+        // User cancelled screen share picker
       }
     }
-  }, [screenSharing, stream])
+  }, [screenSharing])
 
-  const handleEndCall = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
+  const handleEndCall = useCallback(async () => {
+    const room = roomRef.current
+    if (room) {
+      localTracksRef.current.forEach(track => {
+        track.stop()
+        track.detach()
+      })
+      await room.disconnect()
     }
+    // Remove remote audio elements
+    document.querySelectorAll('[data-lk-remote-audio]').forEach(el => el.remove())
     onEnd()
-  }, [stream, onEnd])
+  }, [onEnd])
 
   // Role-specific content
   const isStaff = role === 'staff'
@@ -113,14 +280,15 @@ export default function VideoRoom({ roomName, token: _token, onEnd, role = 'staf
     ? 'The patient has been notified. They\'ll appear here when they enter the waiting room.'
     : 'You\'re in the waiting room — sit tight'
   const connectedLabel = isStaff
-    ? `${patientName || 'Patient'} Connected`
-    : 'Doctor Connected'
-  const connectedInitial = isStaff ? (patientName?.[0] || 'P') : 'Dr'
+    ? `${participantName || patientName || 'Patient'} Connected`
+    : `${participantName || 'Doctor'} Connected`
+  const connectedInitial = isStaff ? (participantName?.[0] || patientName?.[0] || 'P') : 'Dr'
   const connectedGradient = isStaff
     ? 'from-teal-500 to-teal-600'
     : 'from-blue-500 to-blue-600'
   const selfLabel = isStaff ? 'You (Provider)' : 'You'
   const roomStatus = isStaff ? 'Virtual Visit Room Open' : `Connected to ${roomName}`
+  const isConnected = connectionState === ConnectionState.Connected
 
   return (
     <div className="fixed inset-0 z-[9999] bg-gray-900/95 flex flex-col items-center justify-center">
@@ -135,28 +303,46 @@ export default function VideoRoom({ roomName, token: _token, onEnd, role = 'staf
 
       {/* Room info */}
       <div className="absolute top-4 left-4 flex items-center gap-3">
-        <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`} />
+        <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : connectionState === ConnectionState.Connecting ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`} />
         <span className="text-white/80 text-sm font-medium">
-          {connected ? roomStatus : 'Connecting...'}
+          {isConnected ? roomStatus : connectionState === ConnectionState.Connecting ? 'Connecting...' : error ? 'Connection failed' : 'Connecting...'}
         </span>
-        {isStaff && connected && !participantConnected && (
+        {isStaff && isConnected && !participantConnected && (
           <span className="ml-2 px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full font-medium">
             Patient notified
           </span>
         )}
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="absolute top-14 left-4 right-4 max-w-md mx-auto px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-xs text-center">
+          {error} — Showing local camera preview
+        </div>
+      )}
+
       {/* Main video area */}
       <div className="flex-1 w-full max-w-5xl px-6 py-16 flex items-center justify-center gap-6">
         {/* Remote participant area */}
         <div className="flex-1 h-full max-h-[70vh] bg-gray-800 rounded-2xl border border-gray-700/50 flex items-center justify-center relative overflow-hidden">
-          {participantConnected ? (
+          {/* Hidden ref for remote video attachment */}
+          <video ref={remoteVideoRef} className="hidden" />
+          <audio ref={remoteAudioRef} className="hidden" />
+
+          {participantConnected && remoteVideoEnabled ? (
+            // Remote video is rendered via attached elements
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute bottom-3 left-3 px-2 py-1 bg-black/60 rounded text-xs text-white/90">
+                {connectedLabel}
+              </div>
+            </div>
+          ) : participantConnected ? (
             <div className="text-center">
               <div className={`w-20 h-20 bg-gradient-to-br ${connectedGradient} rounded-full flex items-center justify-center mx-auto mb-3`}>
                 <span className="text-white text-2xl font-semibold">{connectedInitial}</span>
               </div>
               <p className="text-white/90 text-sm font-medium">{connectedLabel}</p>
-              <p className="text-white/40 text-xs mt-1">Audio & Video Active</p>
+              <p className="text-white/40 text-xs mt-1">Camera off — Audio connected</p>
             </div>
           ) : (
             <div className="text-center">
@@ -184,6 +370,7 @@ export default function VideoRoom({ roomName, token: _token, onEnd, role = 'staf
               muted
               playsInline
               className="w-full h-full object-cover"
+              style={{ transform: 'scaleX(-1)' }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-800">
