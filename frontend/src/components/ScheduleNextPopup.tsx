@@ -166,6 +166,18 @@ export default function ScheduleNextPopup({ patientId, patientName, onClose, onS
     const endM = (m + duration) % 60
     const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`
 
+    // DA creates appointment as 'proposed' — Front Desk can confirm/modify
+    // Front Desk and above create as 'scheduled' directly
+    const token = localStorage.getItem('token')
+    let userRole = ''
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        userRole = payload.role || ''
+      } catch {}
+    }
+    const isProposal = userRole === 'dental_assistant'
+
     const res = await api.request('/api/v1/appointments', {
       method: 'POST',
       body: JSON.stringify({
@@ -175,6 +187,7 @@ export default function ScheduleNextPopup({ patientId, patientName, onClose, onS
         end_time: endTime,
         duration_minutes: duration,
         appointment_type: appointmentType,
+        status: isProposal ? 'proposed' : 'scheduled',
       }),
     })
 

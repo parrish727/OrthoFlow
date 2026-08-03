@@ -18,11 +18,12 @@ interface VideoRoomProps {
   onEnd: () => void
   role?: 'staff' | 'patient'
   patientName?: string
+  visitId?: string
 }
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.orthoflowsolutions.com'
 
-export default function VideoRoom({ roomName, token, onEnd, role = 'staff', patientName }: VideoRoomProps) {
+export default function VideoRoom({ roomName, token, onEnd, role = 'staff', patientName, visitId }: VideoRoomProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
@@ -37,6 +38,8 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
   const [participantName, setParticipantName] = useState('')
   const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [visitEnded, setVisitEnded] = useState(false)
+  const [endingVisit, setEndingVisit] = useState(false)
 
   // Connect to LiveKit room
   useEffect(() => {
@@ -115,6 +118,13 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
       if (publication.kind === Track.Kind.Video) {
         setRemoteVideoEnabled(true)
       }
+    })
+
+    // Handle room disconnection (e.g., staff ended the visit and room was deleted)
+    room.on(RoomEvent.Disconnected, () => {
+      setVisitEnded(true)
+      // Auto-close after a brief message
+      setTimeout(() => onEnd(), 3000)
     })
 
     // Connect
@@ -258,6 +268,25 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
   }, [screenSharing])
 
   const handleEndCall = useCallback(async () => {
+    // For staff: formally end the visit via backend (deletes LiveKit room, notifies patient)
+    if (role === 'staff' && visitId) {
+      setEndingVisit(true)
+      try {
+        const token = localStorage.getItem('token')
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+        await fetch(`${baseUrl}/api/v1/virtual-visits/${visitId}/end`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        })
+      } catch {
+        // Best-effort — still disconnect locally
+      }
+      setEndingVisit(false)
+    }
+
     const room = roomRef.current
     if (room) {
       localTracksRef.current.forEach(track => {
@@ -269,7 +298,7 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
     // Remove remote audio elements
     document.querySelectorAll('[data-lk-remote-audio]').forEach(el => el.remove())
     onEnd()
-  }, [onEnd])
+  }, [onEnd, role, visitId])
 
   // Role-specific content
   const isStaff = role === 'staff'
@@ -426,7 +455,30 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
         >
           <PhoneOff size={20} />
         </button>
+
+        {/* End Visit button — staff only */}
+        {role === 'staff' && visitId && (
+          <button
+            onClick={handleEndCall}
+            disabled={endingVisit}
+            className="ml-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            {endingVisit ? 'Ending...' : 'End Visit'}
+          </button>
+        )}
       </div>
+
+      {/* Visit Ended Overlay (shown to patient when staff ends the visit) */}
+      {visitEnded && (
+        <div className="absolute inset-0 z-[10000] bg-gray-900/95 flex flex-col items-center justify-center">
+          <div className="w-16 h-16 bg-teal-500/20 rounded-full flex items-center justify-center mb-4">
+            <PhoneOff size={28} className="text-teal-400" />
+          </div>
+          <h2 className="text-xl font-semibold text-white mb-2">Visit Ended</h2>
+          <p className="text-sm text-gray-400">Your provider has ended the virtual visit. Thank you!</p>
+          <p className="text-xs text-gray-500 mt-4">Closing automatically...</p>
+        </div>
+      )}
     </div>
   )
 }

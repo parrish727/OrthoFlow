@@ -560,13 +560,36 @@ export default function Communications() {
           )}
         </div>
 
-        {/* Scheduled Messages */}
+        {/* Scheduled Messages — Automation Hub */}
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <Clock size={14} className="text-gray-400" /> Scheduled Messages
+              <Clock size={14} className="text-gray-400" /> Automated Messages
             </h3>
+            <span className="text-xs text-gray-500">{scheduled.length} queued</span>
           </div>
+
+          {/* Automation Categories Overview */}
+          <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-blue-600">{scheduled.filter(m => (m.template_name || '').includes('remind')).length || '—'}</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wide">Appt Reminders</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-teal-600">{scheduled.filter(m => (m.template_name || '').includes('recall')).length || '—'}</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wide">Recall Notices</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-purple-600">{scheduled.filter(m => (m.template_name || '').includes('birthday')).length || '—'}</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wide">Birthday Msgs</div>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 text-center mt-2">
+              Automated reminders are sent 24hr + 2hr before appointments. Recall and birthday messages are scheduled automatically.
+            </p>
+          </div>
+
           {loading ? (
             <div className="p-6 space-y-4">
               {[1, 2, 3].map(i => (
@@ -580,11 +603,13 @@ export default function Communications() {
               ))}
             </div>
           ) : scheduled.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-sm">
-              No scheduled messages
+            <div className="py-10 text-center">
+              <Clock size={24} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 font-medium">No messages queued</p>
+              <p className="text-xs text-gray-400 mt-1">Messages auto-queue when appointments are booked or patients are due for recall</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100 max-h-[320px] overflow-y-auto">
               {scheduled.map(msg => (
                 <div key={msg.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50/50 transition-colors">
                   <div className="flex-shrink-0">
@@ -597,7 +622,7 @@ export default function Communications() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">{msg.patient_name}</p>
                     <p className="text-xs text-gray-500 truncate">
-                      {msg.template_name ? `Template: ${msg.template_name}` : msg.body_preview}
+                      {msg.template_name ? `${msg.template_name}` : msg.body_preview}
                     </p>
                   </div>
                   <span className="text-xs text-gray-500 flex-shrink-0">

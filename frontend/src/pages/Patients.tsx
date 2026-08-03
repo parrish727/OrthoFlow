@@ -18,12 +18,20 @@ interface Patient {
   treatment_phase: string | null
   referring_doctor: string | null
   created_at: string | null
+  visit_status: string | null
 }
 
 const STATUS_BADGES: Record<string, { label: string; color: string }> = {
   active: { label: 'Active', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   inactive: { label: 'Inactive', color: 'bg-gray-50 text-gray-600 border-gray-200' },
   archived: { label: 'Archived', color: 'bg-red-50 text-red-600 border-red-200' },
+}
+
+const VISIT_STATUS_BADGES: Record<string, { label: string; color: string }> = {
+  lobby: { label: 'In Lobby', color: 'bg-amber-100 text-amber-800' },
+  seated: { label: 'Seated', color: 'bg-blue-100 text-blue-800' },
+  checked_out: { label: 'Checked Out', color: 'bg-purple-100 text-purple-800' },
+  dismissed: { label: 'Dismissed', color: 'bg-gray-100 text-gray-600' },
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -276,6 +284,11 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                     >
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {patient.last_name}, {patient.first_name}
+                        {patient.visit_status && VISIT_STATUS_BADGES[patient.visit_status] && (
+                          <span className={`ml-2 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${VISIT_STATUS_BADGES[patient.visit_status].color}`}>
+                            {VISIT_STATUS_BADGES[patient.visit_status].label}
+                          </span>
+                        )}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                       {/* Specialty badge — Cosmetic and Perio are BACKLOG specialties (moved 2026-07-30).
