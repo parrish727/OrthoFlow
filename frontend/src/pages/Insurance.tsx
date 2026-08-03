@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Shield, Search, Plus, CheckCircle, Users, FileText, AlertCircle, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -49,6 +50,23 @@ export default function Insurance() {
   const [eligibilityResults, setEligibilityResults] = useState<Record<string, EligibilityResult>>({})
 const patientDropdownRef = useRef<HTMLDivElement>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [searchParams] = useSearchParams()
+
+  // Auto-select patient from URL query param (from PatientDetail link)
+  useEffect(() => {
+    const patientIdFromUrl = searchParams.get('patient_id')
+    if (patientIdFromUrl && !selectedPatient) {
+      api.getPatient(patientIdFromUrl).then(async res => {
+        if (res.ok) {
+          const data = await res.json()
+          const patient = data.patient || data
+          if (patient?.id) {
+            setSelectedPatient({ id: patient.id, first_name: patient.first_name, last_name: patient.last_name })
+          }
+        }
+      }).catch(() => {})
+    }
+  }, [searchParams, selectedPatient])
 
   // Add plan form state
   const [newPayer, setNewPayer] = useState('')

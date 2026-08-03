@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DollarSign, TrendingUp, Users, ChevronDown } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -27,8 +28,18 @@ export default function Ledger() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [entriesLoading, setEntriesLoading] = useState(false)
+  const [searchParams] = useSearchParams()
 
   useEffect(() => { loadAllBalances() }, [])
+
+  // Auto-expand patient from URL query param (from PatientDetail link)
+  useEffect(() => {
+    const patientIdFromUrl = searchParams.get('patient_id')
+    if (patientIdFromUrl && !expandedId) {
+      setExpandedId(patientIdFromUrl)
+      loadEntries(patientIdFromUrl)
+    }
+  }, [searchParams])
 
   async function loadAllBalances() {
     setLoading(true)
@@ -54,9 +65,7 @@ export default function Ledger() {
     setLoading(false)
   }
 
-  async function toggleExpand(patientId: string) {
-    if (expandedId === patientId) { setExpandedId(null); return }
-    setExpandedId(patientId)
+  async function loadEntries(patientId: string) {
     setEntriesLoading(true)
     try {
       const res = await api.getLedger(patientId)
@@ -66,6 +75,12 @@ export default function Ledger() {
       }
     } catch {}
     setEntriesLoading(false)
+  }
+
+  async function toggleExpand(patientId: string) {
+    if (expandedId === patientId) { setExpandedId(null); return }
+    setExpandedId(patientId)
+    await loadEntries(patientId)
   }
 
   const totals = patients.reduce((acc, p) => ({ charges: acc.charges + p.total_charges, payments: acc.payments + Math.abs(p.total_payments), balance: acc.balance + p.balance }), { charges: 0, payments: 0, balance: 0 })

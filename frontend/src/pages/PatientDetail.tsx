@@ -368,10 +368,10 @@ export default function PatientDetail() {
               <Link to={`/schedule`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                 <CalendarDays size={13} /> Schedule
               </Link>
-              <Link to={`/ledger`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+              <Link to={`/ledger?patient_id=${id}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                 <Receipt size={13} /> Ledger
               </Link>
-              <Link to={`/insurance`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+              <Link to={`/insurance?patient_id=${id}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                 <Shield size={13} /> Insurance
               </Link>
             </div>
