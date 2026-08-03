@@ -104,6 +104,7 @@ class StatusUpdate(BaseModel):
 class PrescriptionResponse(BaseModel):
     id: str
     patient_id: str
+    patient_name: str | None = None
     lab_id: str
     lab_name: str | None = None
     prescribed_by: str
@@ -372,7 +373,16 @@ async def list_prescriptions(
         for lab in labs_result.scalars().all():
             lab_names[lab.id] = lab.name
 
-    return [_rx_to_response(p, lab_names.get(p.lab_id)) for p in prescriptions]
+    # Fetch patient names for display
+    from app.models.clinical import Patient
+    patient_ids = {p.patient_id for p in prescriptions}
+    patient_names: dict[uuid.UUID, str] = {}
+    if patient_ids:
+        patients_result = await db.execute(select(Patient).where(Patient.id.in_(patient_ids)))
+        for patient in patients_result.scalars().all():
+            patient_names[patient.id] = f"{patient.first_name} {patient.last_name}"
+
+    return [_rx_to_response(p, lab_names.get(p.lab_id), patient_names.get(p.patient_id)) for p in prescriptions]
 
 
 @router.post("/prescriptions", status_code=status.HTTP_201_CREATED, response_model=PrescriptionResponse)
@@ -793,10 +803,11 @@ async def _get_prescription(db: AsyncSession, rx_id: str, practice_id: uuid.UUID
     return rx
 
 
-def _rx_to_response(rx: AppliancePrescription, lab_name: str | None = None) -> PrescriptionResponse:
+def _rx_to_response(rx: AppliancePrescription, lab_name: str | None = None, patient_name: str | None = None) -> PrescriptionResponse:
     return PrescriptionResponse(
         id=str(rx.id),
         patient_id=str(rx.patient_id),
+        patient_name=patient_name,
         lab_id=str(rx.lab_id),
         lab_name=lab_name,
         prescribed_by=str(rx.prescribed_by),
