@@ -56,7 +56,7 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('')
-  const [commonOnly, setCommonOnly] = useState(false)
+  const [commonOnly, setCommonOnly] = useState(true)
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -76,7 +76,7 @@ export default function CDTCodeBrowser({ onSelect, compact }: CDTCodeBrowserProp
       if (selectedCategory) params.set('category', selectedCategory)
       if (selectedSpecialty) params.set('specialty', selectedSpecialty)
       if (commonOnly) params.set('common_only', 'true')
-      params.set('limit', '50')
+      params.set('limit', '500')
 
       const res = await authFetch(`/api/v1/catalog/cdt-codes?${params.toString()}`)
       if (res.ok) {

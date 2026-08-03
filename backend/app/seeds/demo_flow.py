@@ -858,6 +858,59 @@ async def seed_invoices(db) -> None:
     print("  ✅ Invoices: 6 demo invoices (AI classified, 97-99% confidence)")
 
 
+async def seed_hygiene_recalls(db, patients: list) -> None:
+    """Seed hygiene recall records so the Recall dashboard has demo data."""
+    from app.models.recall import HygieneRecall
+
+    # Check if already seeded
+    existing = await db.execute(
+        select(HygieneRecall).where(HygieneRecall.practice_id == DEMO_PRACTICE_ID).limit(1)
+    )
+    if existing.scalar_one_or_none():
+        print("  ✅ Hygiene Recalls: already seeded")
+        return
+
+    recall_data = [
+        # Overdue patients (next_due_date in the past)
+        {"patient_idx": 1, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 210, "overdue_days": 30},
+        {"patient_idx": 2, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 200, "overdue_days": 18},
+        {"patient_idx": 3, "recall_type": "fluoride", "interval": 6, "last_visit_days_ago": 195, "overdue_days": 12},
+        {"patient_idx": 4, "recall_type": "sealant_check", "interval": 12, "last_visit_days_ago": 380, "overdue_days": 15},
+        # Due this month (next_due_date is today or within a few days)
+        {"patient_idx": 5, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 180, "overdue_days": 0},
+        {"patient_idx": 6, "recall_type": "perio_maintenance", "interval": 3, "last_visit_days_ago": 90, "overdue_days": 0},
+        {"patient_idx": 7, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 178, "overdue_days": -2},
+        # Active but not yet due
+        {"patient_idx": 8, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 60, "overdue_days": -120},
+        {"patient_idx": 9, "recall_type": "fluoride", "interval": 6, "last_visit_days_ago": 30, "overdue_days": -150},
+        {"patient_idx": 10, "recall_type": "prophy", "interval": 6, "last_visit_days_ago": 90, "overdue_days": -90},
+    ]
+
+    for rd in recall_data:
+        if rd["patient_idx"] >= len(patients):
+            continue
+        patient = patients[rd["patient_idx"]]
+        last_visit = TODAY - timedelta(days=rd["last_visit_days_ago"])
+        next_due = TODAY - timedelta(days=rd["overdue_days"])
+        status = "overdue" if rd["overdue_days"] > 0 else "active"
+
+        recall = HygieneRecall(
+            id=uuid.uuid4(),
+            practice_id=DEMO_PRACTICE_ID,
+            patient_id=patient.id,
+            recall_type=rd["recall_type"],
+            interval_months=rd["interval"],
+            last_visit_date=last_visit,
+            next_due_date=next_due,
+            status=status,
+            auto_schedule=True,
+        )
+        db.add(recall)
+
+    await db.flush()
+    print("  ✅ Hygiene Recalls: 10 records (4 overdue, 3 due this month, 3 future)")
+
+
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     print("\n🌱 Seeding OrthoFlow demo data...\n")
@@ -933,6 +986,9 @@ async def seed_demo_flow():
         # ── Insurance & Claims Demo Data ──
         await seed_insurance_and_claims(db, patients)
         await seed_invoices(db)
+
+        # ── Hygiene Recall Demo Data ──
+        await seed_hygiene_recalls(db, patients)
 
         await db.commit()
 

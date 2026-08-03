@@ -144,10 +144,13 @@ async def get_due_list(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Get all patients due or overdue for recall (practice-scoped), sorted by next_due_date."""
-    practice_id = user["practice_id"]
+    from app.models.clinical import Patient
+    practice_id = uuid.UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     today = date.today()
     result = await db.execute(
-        select(HygieneRecall).where(
+        select(HygieneRecall, Patient.first_name, Patient.last_name, Patient.phone).join(
+            Patient, Patient.id == HygieneRecall.patient_id
+        ).where(
             and_(
                 HygieneRecall.practice_id == practice_id,
                 HygieneRecall.status.in_(["active", "overdue"]),
@@ -156,8 +159,21 @@ async def get_due_list(
             )
         ).order_by(HygieneRecall.next_due_date.asc())
     )
-    recalls = result.scalars().all()
-    return [_serialize_recall(r) for r in recalls]
+    rows = result.all()
+    items = []
+    for recall, first_name, last_name, phone in rows:
+        days_over = (today - recall.next_due_date).days if recall.next_due_date else 0
+        items.append({
+            "patient_id": str(recall.patient_id),
+            "patient_name": f"{first_name} {last_name}",
+            "recall_type": recall.recall_type,
+            "next_due_date": recall.next_due_date.isoformat() if recall.next_due_date else None,
+            "last_visit_date": recall.last_visit_date.isoformat() if recall.last_visit_date else None,
+            "interval_months": recall.interval_months,
+            "days_overdue": days_over,
+            "phone": phone,
+        })
+    return items
 
 
 @router.post("/patients/{patient_id}/complete")
@@ -206,10 +222,13 @@ async def get_overdue(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Get patients overdue for recall (next_due_date < today)."""
-    practice_id = user["practice_id"]
+    from app.models.clinical import Patient
+    practice_id = uuid.UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     today = date.today()
     result = await db.execute(
-        select(HygieneRecall).where(
+        select(HygieneRecall, Patient.first_name, Patient.last_name, Patient.phone).join(
+            Patient, Patient.id == HygieneRecall.patient_id
+        ).where(
             and_(
                 HygieneRecall.practice_id == practice_id,
                 HygieneRecall.status.in_(["active", "overdue"]),
@@ -218,8 +237,21 @@ async def get_overdue(
             )
         ).order_by(HygieneRecall.next_due_date.asc())
     )
-    recalls = result.scalars().all()
-    return [_serialize_recall(r) for r in recalls]
+    rows = result.all()
+    items = []
+    for recall, first_name, last_name, phone in rows:
+        days_over = (today - recall.next_due_date).days if recall.next_due_date else 0
+        items.append({
+            "patient_id": str(recall.patient_id),
+            "patient_name": f"{first_name} {last_name}",
+            "recall_type": recall.recall_type,
+            "next_due_date": recall.next_due_date.isoformat() if recall.next_due_date else None,
+            "last_visit_date": recall.last_visit_date.isoformat() if recall.last_visit_date else None,
+            "interval_months": recall.interval_months,
+            "days_overdue": days_over,
+            "phone": phone,
+        })
+    return items
 
 
 @router.get("/stats")
@@ -228,7 +260,7 @@ async def get_recall_stats(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Recall stats: total active, due this month, overdue count, compliance rate."""
-    practice_id = user["practice_id"]
+    practice_id = uuid.UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     today = date.today()
     month_end = date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1)
 
