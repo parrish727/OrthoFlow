@@ -21,9 +21,9 @@ from app.models.portal import PortalAccount, PortalForm, PortalMessage
 
 DEMO_PRACTICE_ID = uuid.UUID("82fe9d87-6250-4b15-ac7d-26de094a4be8")
 # Use Eastern time for "today" since the practice is in US Eastern timezone
-_eastern_offset = timedelta(hours=-4)  # EDT
-_now_eastern = datetime.now(timezone(_eastern_offset))
-TODAY = _now_eastern.date()
+# Use system date — container runs UTC, all queries use date.today()
+# which returns the same UTC date. This ensures seed data matches queries.
+TODAY = date.today()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
