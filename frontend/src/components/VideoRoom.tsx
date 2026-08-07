@@ -49,11 +49,6 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
     })
     roomRef.current = room
 
-    // Track connection state
-    room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
-      setConnectionState(state)
-    })
-
     // Handle remote participant joining
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       setParticipantConnected(true)
@@ -121,10 +116,21 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
     })
 
     // Handle room disconnection (e.g., staff ended the visit and room was deleted)
+    // Only show "visit ended" if we were previously connected (not on initial connection failure)
+    let wasConnected = false
+    room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+      setConnectionState(state)
+      if (state === ConnectionState.Connected) {
+        wasConnected = true
+      }
+    })
+
     room.on(RoomEvent.Disconnected, () => {
-      setVisitEnded(true)
-      // Auto-close after a brief message
-      setTimeout(() => onEnd(), 3000)
+      if (wasConnected && role === 'patient') {
+        setVisitEnded(true)
+        setTimeout(() => onEnd(), 3000)
+      }
+      // For staff or if never connected, don't auto-close
     })
 
     // Connect
