@@ -7,7 +7,7 @@ from uuid import UUID
 from datetime import date, time, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -192,6 +192,30 @@ async def update_patient(
     await db.refresh(patient)
     await audit_log(db, user["practice_id"], user["user_id"], "patient.update", "patient", str(patient_id))
     return _patient_dict(patient)
+
+
+@router.delete("/patients/{patient_id}", status_code=204)
+async def delete_patient(
+    patient_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Delete a patient and all related records."""
+    from sqlalchemy import delete as sql_delete
+    patient = await _get_patient(db, patient_id, user["practice_id"])
+    # Delete related records in FK order
+    for table_name in [
+        "patient_visit_status", "appointments", "treatment_notes",
+        "portal_messages", "portal_accounts", "hygiene_recalls",
+        "insurance_subscribers", "patient_ledger_entries",
+    ]:
+        try:
+            await db.execute(text(f"DELETE FROM {table_name} WHERE patient_id = :pid"), {"pid": patient_id})
+        except Exception:
+            pass  # Table may not exist
+    await db.delete(patient)
+    await db.commit()
+    await audit_log(db, user["practice_id"], user["user_id"], "patient.delete", "patient", str(patient_id))
 
 
 # ── Chairs ────────────────────────────────────────────────────────────────────

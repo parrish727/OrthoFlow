@@ -417,7 +417,22 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                           <p className="text-gray-900 mt-0.5 font-mono">{patient.id.slice(0, 8).toUpperCase()}</p>
                         </div>
                       </div>
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex justify-between items-center">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (!confirm(`Delete ${patient.first_name} ${patient.last_name}? This cannot be undone.`)) return
+                            try {
+                              const res = await api.request(`/api/v1/patients/${patient.id}`, { method: 'DELETE' })
+                              if (res.ok) {
+                                setPatients(prev => prev.filter(p => p.id !== patient.id))
+                              }
+                            } catch {}
+                          }}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Delete Patient
+                        </button>
                         <button
                           onClick={() => navigate(`/patients/${patient.id}`)}
                           className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
