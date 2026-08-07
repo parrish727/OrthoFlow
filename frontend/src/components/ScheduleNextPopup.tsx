@@ -77,6 +77,28 @@ export default function ScheduleNextPopup({ patientId, patientName, onClose, onS
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [nextVisitPlan, setNextVisitPlan] = useState<string | null>(null)
+
+  // Load the DA's Next Visit recommendation for this patient
+  useEffect(() => {
+    async function loadNextVisitPlan() {
+      try {
+        const res = await api.getPatientNotes(patientId)
+        if (res.ok) {
+          const data = await res.json()
+          const notes = data.notes || data || []
+          const plan = notes.find((n: { note_text: string }) => n.note_text?.startsWith('[NEXT VISIT]'))
+          if (plan) {
+            setNextVisitPlan(plan.note_text.replace('[NEXT VISIT] ', ''))
+            // Pre-fill appointment type from the plan
+            const match = plan.note_text.match(/\[NEXT VISIT\]\s*([^—–\-]+)/)
+            if (match) setAppointmentType(match[1].trim())
+          }
+        }
+      } catch {}
+    }
+    loadNextVisitPlan()
+  }, [patientId])
 
   const TIME_SLOTS = generateTimeSlots()
 
@@ -232,6 +254,14 @@ export default function ScheduleNextPopup({ patientId, patientName, onClose, onS
             <X size={18} className="text-gray-400" />
           </button>
         </div>
+
+        {/* DA Recommendation Banner */}
+        {nextVisitPlan && (
+          <div className="mx-6 mt-3 px-4 py-3 bg-teal-50 border border-teal-200 rounded-xl">
+            <p className="text-[10px] uppercase font-semibold text-teal-600 tracking-wider mb-1">DA Recommendation</p>
+            <p className="text-sm text-teal-900 font-medium">{nextVisitPlan}</p>
+          </div>
+        )}
 
         {/* Week Navigation */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-50">
