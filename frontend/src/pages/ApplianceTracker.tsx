@@ -261,7 +261,7 @@ function TrackerView({ prescriptions, statusFilter, setStatusFilter, isOverdue, 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Filter className="h-4 w-4 text-gray-400" />
         <FilterPill label="All" active={!statusFilter} onClick={() => setStatusFilter('')} />
-        {['submitted', 'received_by_lab', 'in_fabrication', 'shipped', 'received', 'placed'].map(s => (
+        {['submitted', 'received_by_lab', 'in_fabrication', 'shipped', 'received'].map(s => (
           <FilterPill key={s} label={STATUS_LABELS[s] || s} active={statusFilter === s} onClick={() => setStatusFilter(s)} />
         ))}
       </div>
