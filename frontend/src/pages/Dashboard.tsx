@@ -78,7 +78,10 @@ export default function Dashboard() {
       const res = await api.getSchedule(today)
       if (res.ok) {
         const data = await res.json()
-        const appointments = data.appointments || data || []
+        // Schedule returns { columns: [{ appointments: [...] }] } structure
+        const appointments = data.columns
+          ? data.columns.flatMap((col: { appointments: unknown[] }) => col.appointments || [])
+          : data.appointments || []
         // Huddle summary: show ALL today's appointments as a preview of the day
         const notes: ClinicalNote[] = []
         for (const appt of appointments) {
@@ -166,7 +169,7 @@ export default function Dashboard() {
 
       {/* Visit Tracker — Patient Flow */}
       <div className="mb-8">
-        <VisitTracker />
+        <VisitTracker selectedDate={selectedDate} />
       </div>
 
       {/* Daily Huddle Summary */}
