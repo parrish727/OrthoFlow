@@ -93,7 +93,7 @@ function formatTime(timeStr: string): string {
   return `${display}:${m} ${ampm}`
 }
 
-export default function VisitTracker() {
+export default function VisitTracker({ selectedDate }: { selectedDate?: string }) {
   const [visits, setVisits] = useState<VisitEntry[]>([])
   const [scheduled, setScheduled] = useState<ScheduledPatient[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,9 +110,9 @@ export default function VisitTracker() {
         setVisits(data.visits || data || [])
       }
 
-      // Load today's schedule to get "Scheduled" patients (not yet checked in)
-      const today = new Date().toISOString().split('T')[0]
-      const schedRes = await api.getSchedule(today)
+      // Load schedule for selected date to get "Scheduled" patients (not yet checked in)
+      const dateStr = selectedDate || new Date().toISOString().split('T')[0]
+      const schedRes = await api.getSchedule(dateStr)
       if (schedRes.ok) {
         const schedData = await schedRes.json()
         // Flatten all appointments from all columns + unassigned
@@ -145,7 +145,7 @@ export default function VisitTracker() {
       // silently handle
     }
     setLoading(false)
-  }, [])
+  }, [selectedDate])
 
   useEffect(() => {
     loadData()

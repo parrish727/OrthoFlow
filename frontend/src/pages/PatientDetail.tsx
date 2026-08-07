@@ -622,27 +622,13 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
     if (!appointmentType) return
     setSaving(true)
     try {
-      // Calculate target date from weeks out
-      const targetDate = new Date()
-      targetDate.setDate(targetDate.getDate() + weeks * 7)
-      const dateStr = targetDate.toISOString().split('T')[0]
-
-      // Create the next appointment
-      await api.request('/api/v1/appointments', {
-        method: 'POST',
-        body: JSON.stringify({
-          patient_id: patientId,
-          appointment_date: dateStr,
-          appointment_type: appointmentType,
-          start_time: '09:00',
-          end_time: '09:30',
-          status: 'scheduled',
-          notes: notes || null,
-        }),
+      // Save as a treatment plan note — Front Desk will schedule from this info
+      await api.createNote({
+        patient_id: patientId,
+        note_text: `[NEXT VISIT] ${appointmentType} — ${weeks} weeks out${notes ? '. Notes: ' + notes : ''}`,
+        appointment_id: undefined,
       })
       setSaved(true)
-      // Redirect to Dashboard so DA can move to next patient
-      setTimeout(() => navigate('/'), 800)
     } catch { /* silent */ }
     setSaving(false)
   }
@@ -657,8 +643,8 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
         {saved ? (
           <div className="text-center py-4">
             <CheckCircle size={20} className="mx-auto text-green-500 mb-1" />
-            <p className="text-sm text-green-700 font-medium">Scheduled!</p>
-            <p className="text-xs text-gray-400">Returning to Dashboard...</p>
+            <p className="text-sm text-green-700 font-medium">Saved!</p>
+            <p className="text-xs text-gray-400">Front Desk will schedule when patient checks out.</p>
           </div>
         ) : (
           <>
