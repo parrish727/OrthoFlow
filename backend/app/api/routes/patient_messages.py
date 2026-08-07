@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.core.auth import get_current_user
 from app.core.audit import audit_log
 from app.models.portal import PortalMessage
@@ -285,6 +285,38 @@ async def send_message(
     )
 
     logger.info("Patient message sent: message=%s to patient=%s", str(message.id), patient_id)
+
+    # Demo auto-reply: simulate patient response in demo practice
+    import asyncio as _asyncio
+    import random as _random
+    DEMO_PRACTICE = "82fe9d87-6250-4b15-ac7d-26de094a4be8"
+    PATIENT_REPLIES = [
+        "Thank you! I'll see you at my next appointment 😊",
+        "Got it, thanks for letting me know!",
+        "Okay, sounds good. Should I bring anything?",
+        "Perfect, I'll be there. Thank you!",
+        "Thanks! Can I also ask about my retainer?",
+        "Great, I appreciate the update!",
+    ]
+    if practice_id == DEMO_PRACTICE:
+        async def _patient_auto_reply():
+            await _asyncio.sleep(_random.uniform(2.0, 5.0))
+            try:
+                async with SessionLocal() as reply_db:
+                    reply = PortalMessage(
+                        practice_id=practice_id,
+                        patient_id=patient_id,
+                        direction="from_patient",
+                        subject=None,
+                        body=_random.choice(PATIENT_REPLIES),
+                        is_read=False,
+                    )
+                    reply_db.add(reply)
+                    await reply_db.commit()
+            except Exception:
+                pass
+        _asyncio.create_task(_patient_auto_reply())
+
     return {
         "id": str(message.id),
         "patient_id": str(patient_id),
