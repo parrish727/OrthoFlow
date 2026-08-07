@@ -690,10 +690,29 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange,
           </button>
         )}
 
-        {/* Dismiss (mark complete + move off board) */}
+        {/* Dismiss (mark complete + move off board + sync flow board) */}
         {(appointment.status === 'scheduled' || appointment.status === 'checked_in' || appointment.status === 'in_progress') && (
           <button
-            onClick={async (e) => { e.stopPropagation(); await api.updateAppointment(appointment.id, { status: 'completed' }); onUpdate() }}
+            onClick={async (e) => {
+              e.stopPropagation()
+              await api.updateAppointment(appointment.id, { status: 'completed' })
+              // Also dismiss from flow board (visit-tracker) — find by appointment_id
+              try {
+                const vtRes = await api.request('/api/v1/visit-tracker')
+                if (vtRes.ok) {
+                  const vtData = await vtRes.json()
+                  const visits = vtData.visits || vtData || []
+                  const visit = visits.find((v: { appointment_id?: string }) => v.appointment_id === appointment.id)
+                  if (visit) {
+                    await api.request(`/api/v1/visit-tracker/${visit.id}/status`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({ status: 'dismissed' }),
+                    })
+                  }
+                }
+              } catch {}
+              onUpdate()
+            }}
             className="flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-md transition-colors"
           >
             <CheckCircle2 size={11} />

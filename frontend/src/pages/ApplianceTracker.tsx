@@ -117,6 +117,11 @@ export default function ApplianceTracker() {
   const [showLabModal, setShowLabModal] = useState(false)
   const [editingLab, setEditingLab] = useState<Lab | null>(null)
   const [showMetrics, setShowMetrics] = useState<QualityMetrics | null>(null)
+  const [showOrderForm, setShowOrderForm] = useState(false)
+  const [orderForm, setOrderForm] = useState({ patient_name: '', patient_id: '', lab_id: '', appliance_type: 'retainer', appliance_name: '', arch: 'upper', priority: 'normal', needed_by: '' })
+  const [orderSubmitting, setOrderSubmitting] = useState(false)
+  const [patientSearchResults, setPatientSearchResults] = useState<{ id: string; first_name: string; last_name: string }[]>([])
+  const [patientSearchQuery, setPatientSearchQuery] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -152,6 +157,9 @@ export default function ApplianceTracker() {
           <p className="text-sm text-gray-500 mt-1">Track prescriptions from order to placement</p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowOrderForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors">
+            <Plus className="h-4 w-4" /> New Order
+          </button>
           <button onClick={fetchData} className="p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Refresh">
             <RefreshCw className="h-4 w-4 text-gray-500" />
           </button>
@@ -215,6 +223,114 @@ export default function ApplianceTracker() {
       {/* Metrics Modal */}
       {showMetrics && (
         <MetricsModal metrics={showMetrics} onClose={() => setShowMetrics(null)} />
+      )}
+
+      {/* New Order Form Modal */}
+      {showOrderForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowOrderForm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">New Appliance Order</h3>
+              <button onClick={() => setShowOrderForm(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-400" /></button>
+            </div>
+            <div className="space-y-4">
+              {/* Patient Search */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Patient</label>
+                <input
+                  type="text"
+                  placeholder="Search patient name..."
+                  value={patientSearchQuery}
+                  onChange={async (e) => {
+                    setPatientSearchQuery(e.target.value)
+                    if (e.target.value.length >= 2) {
+                      const res = await fetch_api(`/api/v1/patients?search=${e.target.value}`)
+                      setPatientSearchResults((res as { patients?: { id: string; first_name: string; last_name: string }[] })?.patients || [])
+                    } else { setPatientSearchResults([]) }
+                  }}
+                  className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                />
+                {patientSearchResults.length > 0 && (
+                  <div className="mt-1 border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+                    {patientSearchResults.map(p => (
+                      <button key={p.id} onClick={() => { setOrderForm(f => ({ ...f, patient_id: p.id, patient_name: `${p.first_name} ${p.last_name}` })); setPatientSearchResults([]); setPatientSearchQuery(`${p.first_name} ${p.last_name}`) }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50">
+                        {p.first_name} {p.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Appliance Type */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Appliance Type</label>
+                <select value={orderForm.appliance_type} onChange={e => setOrderForm(f => ({ ...f, appliance_type: e.target.value }))} className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg">
+                  {Object.entries(APPLIANCE_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              {/* Appliance Name */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Appliance Name / Description</label>
+                <input type="text" value={orderForm.appliance_name} onChange={e => setOrderForm(f => ({ ...f, appliance_name: e.target.value }))} placeholder="e.g., Upper Hawley Retainer" className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg" />
+              </div>
+              {/* Arch + Lab */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Arch</label>
+                  <select value={orderForm.arch} onChange={e => setOrderForm(f => ({ ...f, arch: e.target.value }))} className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg">
+                    <option value="upper">Upper</option>
+                    <option value="lower">Lower</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Lab</label>
+                  <select value={orderForm.lab_id} onChange={e => setOrderForm(f => ({ ...f, lab_id: e.target.value }))} className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg">
+                    <option value="">Select lab...</option>
+                    {labs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Needed By */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Needed By</label>
+                <input type="date" value={orderForm.needed_by} onChange={e => setOrderForm(f => ({ ...f, needed_by: e.target.value }))} className="w-full mt-1 px-3 py-2 text-sm border border-gray-200 rounded-lg" />
+              </div>
+              {/* Submit */}
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowOrderForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button
+                  disabled={!orderForm.patient_id || !orderForm.lab_id || !orderForm.appliance_name || orderSubmitting}
+                  onClick={async () => {
+                    setOrderSubmitting(true)
+                    try {
+                      await fetch_api('/api/appliances/prescriptions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          patient_id: orderForm.patient_id,
+                          lab_id: orderForm.lab_id,
+                          appliance_type: orderForm.appliance_type,
+                          appliance_name: orderForm.appliance_name,
+                          arch: orderForm.arch,
+                          priority: orderForm.priority,
+                        }),
+                      })
+                      setShowOrderForm(false)
+                      setOrderForm({ patient_name: '', patient_id: '', lab_id: '', appliance_type: 'retainer', appliance_name: '', arch: 'upper', priority: 'normal', needed_by: '' })
+                      setPatientSearchQuery('')
+                      fetchData()
+                    } catch {}
+                    setOrderSubmitting(false)
+                  }}
+                  className="px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg disabled:opacity-50 transition-colors"
+                >
+                  {orderSubmitting ? 'Submitting...' : 'Submit Order'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

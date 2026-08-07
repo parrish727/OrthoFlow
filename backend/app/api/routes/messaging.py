@@ -289,21 +289,21 @@ async def send_message(
 
     DEMO_PRACTICE_ID = "82fe9d87-6250-4b15-ac7d-26de094a4be8"
     DEMO_REPLIES = [
-        ("00000000-0000-0000-0000-000000000001", [
+        ("ca8f8c9c-de5a-49a5-a0b2-3c02d9dc8da9", [  # Front Desk
             "Got it! I'll update the schedule 📋",
             "On it — patient is checked in ✅",
             "Let me pull up their chart real quick",
             "Done! Anything else you need?",
             "I'll send the reminder now 👍",
         ]),
-        ("00000000-0000-0000-0000-000000000002", [
+        ("cbb4753b-e04e-41a2-b761-a3a0fcdfcdbc", [  # DA
             "Chair 3 is prepped and ready 🦷",
             "Elastics are set out for the next patient",
             "I'll grab the panoramic from imaging",
             "Patient is seated, you're good to go doc",
             "Wire change complete — noted in chart ✅",
         ]),
-        ("00000000-0000-0000-0000-000000000003", [
+        ("5c6e8bae-765a-41cb-9040-68a00aa0fff2", [  # Manager
             "Thanks for the heads up, adjusting the plan now",
             "Let's move that appointment to Thursday",
             "Good catch — I'll review the x-ray before we proceed",
