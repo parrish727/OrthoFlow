@@ -642,6 +642,18 @@ async def get_treatment_progress(
     current_phase = patient_record.treatment_phase or "consultation"
     phase_info = phase_display.get(current_phase, {"label": current_phase, "order": 0})
 
+    # Generate milestones based on treatment progression
+    all_milestones = [
+        {"name": "Initial Consultation", "completed": phase_info["order"] > 1},
+        {"name": "Records & Treatment Plan", "completed": phase_info["order"] > 2},
+        {"name": "Braces Placed", "completed": phase_info["order"] > 3},
+        {"name": "Alignment Phase", "completed": phase_info["order"] >= 4 and completed_count >= 3},
+        {"name": "Space Closure", "completed": phase_info["order"] >= 4 and completed_count >= 6},
+        {"name": "Finishing & Detailing", "completed": phase_info["order"] > 4},
+        {"name": "Braces Removed", "completed": phase_info["order"] > 5},
+        {"name": "Retainers Delivered", "completed": phase_info["order"] >= 7},
+    ]
+
     return {
         "current_phase": current_phase,
         "phase_label": phase_info["label"],
@@ -649,6 +661,7 @@ async def get_treatment_progress(
         "total_phases": 7,
         "total_appointments": total_count,
         "completed_appointments": completed_count,
+        "milestones": all_milestones,
         "next_appointment": {
             "date": str(next_appointment.appointment_date),
             "start_time": str(next_appointment.start_time),
