@@ -46,6 +46,7 @@ import CDTCodeBrowser from './pages/CDTCodeBrowser'
 import StaffPermissions from './pages/StaffPermissions'
 import SetupWizard from './pages/SetupWizard'
 import TCProposal from './pages/TCProposal'
+import Invisalign from './pages/Invisalign'
 
 import { useAuth } from './hooks/useAuth'
 import { canAccessRoute, Role } from './lib/permissions'
@@ -113,6 +114,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/settings/permissions" element={<StaffPermissions />} />
           <Route path="/setup" element={<SetupWizard />} />
           <Route path="/tc-proposals" element={<TCProposal />} />
+          <Route path="/invisalign" element={<Invisalign />} />
         </Route>
       </Routes>
     </BrowserRouter>

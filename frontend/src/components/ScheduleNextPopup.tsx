@@ -93,6 +93,14 @@ export default function ScheduleNextPopup({ patientId, patientName, onClose, onS
             // Pre-fill appointment type from the plan
             const match = plan.note_text.match(/\[NEXT VISIT\]\s*([^—–\-]+)/)
             if (match) setAppointmentType(match[1].trim())
+            // Auto-jump calendar to the recommended week
+            const weeksMatch = plan.note_text.match(/(\d+)\s*weeks?\s*out/)
+            if (weeksMatch) {
+              const weeksOut = parseInt(weeksMatch[1], 10)
+              const targetDate = new Date()
+              targetDate.setDate(targetDate.getDate() + weeksOut * 7)
+              setWeekStart(getWeekStart(targetDate))
+            }
           }
         }
       } catch {}
