@@ -5,7 +5,7 @@ import {
   CalendarDays, Users, Receipt, Shield, FileText, Image, MessageSquare,
   BarChart3, Lightbulb, Wrench, Layout, Settings, LogOut, ChevronLeft,
   ChevronRight, CreditCard, AlertTriangle, UserCircle, Menu, HelpCircle, Clock,
-  FlaskConical, RefreshCw, BookOpen, Mail,
+  FlaskConical, RefreshCw, BookOpen, Mail, Smile,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -33,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/time-tracking', icon: Clock, label: 'Time Clock', section: 'main' },
   { to: '/imaging', icon: Image, label: 'Imaging', section: 'clinical' },
   { to: '/appliances', icon: FlaskConical, label: 'Appliances', section: 'clinical' },
+  { to: '/invisalign', icon: Smile, label: 'Invisalign', section: 'clinical' },
   { to: '/recall', icon: RefreshCw, label: 'Hygiene Recall', section: 'clinical' },
   { to: '/cdt-codes', icon: BookOpen, label: 'CDT Codes', section: 'clinical' },
   { to: '/ledger', icon: Receipt, label: 'Ledger', section: 'finance' },

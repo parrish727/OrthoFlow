@@ -13,7 +13,7 @@ from app.api.routes import ai_claims
 from app.api.routes import comm_preferences, comm_templates, comm_scheduler, comm_inbound, comm_dashboard
 from app.api.routes import imaging, imaging_alerts, imaging_ingest
 from app.api.routes import ai_intelligence, ai_denial_patterns, ai_referrals, ai_timeline
-from app.api.routes import portal, portal_admin, patient_messages, reports, migration
+from app.api.routes import portal, portal_admin, patient_messages, reports, migration, invisalign
 from app.api.routes import team
 from app.api.routes import timetracking
 from app.api.routes import appliance_tracking
@@ -171,6 +171,7 @@ app.include_router(perio.router, tags=["perio-charting"])
 app.include_router(recall.router, tags=["hygiene-recall"])
 app.include_router(stedi_webhook.router, tags=["webhooks"])
 app.include_router(virtual_visits.router, tags=["virtual-visits"])
+app.include_router(invisalign.router, tags=["invisalign"])
 app.include_router(staff_permissions.router, tags=["staff-permissions"])
 app.include_router(onboarding.router, tags=["onboarding"])
 
