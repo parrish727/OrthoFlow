@@ -629,6 +629,8 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
         appointment_id: undefined,
       })
       setSaved(true)
+      // Auto-navigate to Dashboard so DA can move to next patient
+      setTimeout(() => navigate('/'), 1200)
     } catch { /* silent */ }
     setSaving(false)
   }
