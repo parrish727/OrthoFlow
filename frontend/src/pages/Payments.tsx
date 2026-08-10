@@ -206,21 +206,51 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             <form onSubmit={handleNewPayment} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <select
                 value={newSource}
-                onChange={e => setNewSource(e.target.value as 'insurance' | 'patient' | 'other')}
+                onChange={e => { setNewSource(e.target.value as 'insurance' | 'patient' | 'other'); setNewPayer('') }}
                 className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               >
                 <option value="insurance">Insurance</option>
                 <option value="patient">Patient</option>
                 <option value="other">Other</option>
               </select>
-              <input
-                type="text"
-                placeholder="Payer Name"
-                value={newPayer}
-                onChange={e => setNewPayer(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
-                required
-              />
+              {newSource === 'insurance' ? (
+                <select
+                  value={newPayer}
+                  onChange={e => setNewPayer(e.target.value)}
+                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  required
+                >
+                  <option value="">Select Insurance...</option>
+                  <option value="Delta Dental">Delta Dental</option>
+                  <option value="MetLife">MetLife</option>
+                  <option value="Cigna">Cigna</option>
+                  <option value="Aetna">Aetna</option>
+                  <option value="United Healthcare">United Healthcare</option>
+                  <option value="BlueCross BlueShield">BlueCross BlueShield</option>
+                  <option value="Guardian">Guardian</option>
+                  <option value="Humana">Humana</option>
+                  <option value="Principal">Principal</option>
+                  <option value="Other Insurance">Other Insurance</option>
+                </select>
+              ) : newSource === 'patient' ? (
+                <input
+                  type="text"
+                  placeholder="Search patient name..."
+                  value={newPayer}
+                  onChange={e => setNewPayer(e.target.value)}
+                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+                  required
+                />
+              ) : (
+                <input
+                  type="text"
+                  placeholder="Payer Name"
+                  value={newPayer}
+                  onChange={e => setNewPayer(e.target.value)}
+                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+                  required
+                />
+              )
               <input
                 type="text"
                 placeholder="Check / Reference #"

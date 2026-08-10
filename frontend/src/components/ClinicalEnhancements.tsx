@@ -72,7 +72,8 @@ export default function ClinicalEnhancements({ patientId }: Props) {
       >
         <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
           <Activity className="h-4 w-4 text-teal-600" />
-          Clinical Details
+          Clinical Overview
+          <span className="text-[10px] font-normal text-gray-400">(Alerts, Referrals, Hygiene, Family)</span>
           {alerts.filter(a => a.severity === 'critical' || a.severity === 'high').length > 0 && (
             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
           )}
