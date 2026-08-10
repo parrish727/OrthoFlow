@@ -250,7 +250,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                   className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
                   required
                 />
-              )
+              )}
               <input
                 type="text"
                 placeholder="Check / Reference #"
