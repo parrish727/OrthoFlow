@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video, Bell } from 'lucide-react'
 import { api } from '../lib/api'
 import VideoRoom from '../components/VideoRoom'
 import ScheduleNextPopup from '../components/ScheduleNextPopup'
@@ -619,6 +619,22 @@ function ExpandedCardDetail({ appointment, daDropHover, onUpdate, onPhaseChange,
           >
             <LogIn size={11} />
             Check In
+          </button>
+        )}
+
+        {/* Send Reminder */}
+        {appointment.status === 'scheduled' && (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              try {
+                await api.request(`/api/v1/communications/reminders/schedule-for-appointment/${appointment.id}`, { method: 'POST' })
+              } catch {}
+            }}
+            className="flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-md transition-colors"
+          >
+            <Bell size={11} />
+            Reminder
           </button>
         )}
 

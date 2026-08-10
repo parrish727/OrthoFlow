@@ -597,6 +597,13 @@ export default function TCProposal() {
                   <span className="text-sm font-medium text-red-600">Proposal Declined</span>
                 </div>
               )}
+              {/* Print PDF — always available */}
+              <button
+                onClick={() => window.print()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors mt-2"
+              >
+                <FileText size={14} /> Print PDF
+              </button>
             </div>
           </div>
         </div>
