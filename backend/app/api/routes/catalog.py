@@ -18,7 +18,7 @@ async def search_cdt_codes(
     category: str = Query(None, description="Filter by category"),
     specialty: str = Query(None, description="Filter by specialty"),
     common_only: bool = Query(False, description="Only return commonly used codes"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
