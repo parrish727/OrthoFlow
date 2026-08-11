@@ -572,6 +572,14 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
     patient_row = patient_result.one_or_none()
     patient_name = f"{patient_row[0]} {patient_row[1]}" if patient_row else "Unknown"
 
+    # Fetch visit status (flow board position)
+    from app.models.workflow import PatientVisitStatus
+    visit_result = await db.execute(
+        select(PatientVisitStatus.status).where(PatientVisitStatus.appointment_id == a.id)
+    )
+    visit_row = visit_result.scalar_one_or_none()
+    visit_status = visit_row if visit_row else None
+
     return {
         "id": str(a.id),
         "patient_id": str(a.patient_id),
@@ -583,6 +591,7 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         "end_time": a.end_time.isoformat(),
         "duration_minutes": a.duration_minutes,
         "status": a.status,
+        "visit_status": visit_status,
         "appointment_type": a.appointment_type,
         "notes": a.notes,
     }

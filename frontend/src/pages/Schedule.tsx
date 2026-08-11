@@ -483,6 +483,16 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
             <span className="text-[10px] uppercase font-medium text-gray-400 tracking-wide">
               {appointment.status.replace('_', ' ')}
             </span>
+            {appointment.visit_status && (
+              <span className={`ml-1 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full ${
+                appointment.visit_status === 'lobby' ? 'bg-amber-100 text-amber-700' :
+                appointment.visit_status === 'seated' ? 'bg-blue-100 text-blue-700' :
+                appointment.visit_status === 'checked_out' ? 'bg-purple-100 text-purple-700' :
+                appointment.visit_status === 'dismissed' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {appointment.visit_status.replace('_', ' ')}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mt-1.5">
