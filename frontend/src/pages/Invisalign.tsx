@@ -351,16 +351,16 @@ export default function Invisalign() {
                   <div>
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Quick Actions</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <a href="https://doctor.invisalign.com/cases" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                      <a href="https://myaccount-us.aligntech.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                         <Eye className="h-4 w-4" /> View ClinChecks
                       </a>
-                      <a href="https://doctor.invisalign.com/submit" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                      <a href="https://myaccount-us.aligntech.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                         <Plus className="h-4 w-4" /> Submit Case
                       </a>
-                      <a href="https://doctor.invisalign.com/orders" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                      <a href="https://myaccount-us.aligntech.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                         <Package className="h-4 w-4" /> Track Orders
                       </a>
-                      <a href="https://doctor.invisalign.com/resources" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                      <a href="https://myaccount-us.aligntech.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
                         <RefreshCw className="h-4 w-4" /> Resources
                       </a>
                     </div>
@@ -378,7 +378,7 @@ export default function Invisalign() {
                     <h4 className="font-semibold text-gray-900 mb-1">Connect Your Invisalign Account</h4>
                     <p className="text-sm text-gray-500 mb-4">Link your Invisalign Doctor Site credentials to manage cases, view ClinChecks, and track orders — all from within OrthoFlow.</p>
                     <a
-                      href="https://doctor.invisalign.com"
+                      href="https://myaccount-us.aligntech.com"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors"
