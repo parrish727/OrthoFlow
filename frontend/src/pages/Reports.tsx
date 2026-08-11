@@ -118,8 +118,129 @@ export default function Reports() {
   const providerList = providerProductivity?.providers || []
   const monthlyData = collections?.monthly || []
 
+  // Consultant reports state
+  const [reportTab, setReportTab] = useState<'financial' | 'consultant'>('financial')
+  const [consultantData, setConsultantData] = useState<Record<string, unknown> | null>(null)
+  const [consultantLoading, setConsultantLoading] = useState(false)
+  const [selectedReport, setSelectedReport] = useState('')
+
+  async function loadConsultantReport(report: string) {
+    setConsultantLoading(true)
+    setSelectedReport(report)
+    try {
+      const token = localStorage.getItem('token')
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${baseUrl}/api/v1/reports/consultant/${report}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setConsultantData(await res.json())
+    } catch {}
+    setConsultantLoading(false)
+  }
+
+  function handleExportEmail() {
+    const subject = encodeURIComponent(`OrthoFlow Practice Report — ${selectedReport.replace(/-/g, ' ')}`)
+    const body = encodeURIComponent(`Practice Optimization Report\n\n${JSON.stringify(consultantData, null, 2)}`)
+    window.open(`mailto:?subject=${subject}&body=${body}`)
+  }
+
   return (
     <>
+      {/* Tab Switcher */}
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onClick={() => setReportTab('financial')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'financial' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Financial Reports</button>
+        <button onClick={() => setReportTab('consultant')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'consultant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Consultant Reports</button>
+      </div>
+
+      {reportTab === 'consultant' ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Practice Optimization Reports</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Pull reports to help optimize practice performance</p>
+            </div>
+            {consultantData && (
+              <button onClick={handleExportEmail} className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors">
+                <Download size={14} /> Export via Email
+              </button>
+            )}
+          </div>
+
+          {/* Report Selection */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { id: 'summary', label: 'Executive Summary', desc: 'Overall practice health' },
+              { id: 'treatment-starts', label: 'Treatment Starts', desc: 'Active vs pending conversion' },
+              { id: 'missing-appointments', label: 'Missing Appointments', desc: 'No-shows & cancellations' },
+              { id: 'active-no-next-appointment', label: 'No Next Appointment', desc: 'Active patients without future appt' },
+              { id: 'observation-report', label: 'Observation Patients', desc: 'Pipeline for conversion' },
+              { id: 'pending-no-start', label: 'Pending (No Start)', desc: 'Consulted but not started' },
+              { id: 'overdue-payments', label: 'Overdue Payments', desc: 'Past due balances' },
+            ].map(r => (
+              <button key={r.id} onClick={() => loadConsultantReport(r.id)} className={`text-left p-3 border rounded-xl transition-colors ${selectedReport === r.id ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-300 hover:bg-teal-50/30'}`}>
+                <p className="text-sm font-medium text-gray-900">{r.label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{r.desc}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Report Results */}
+          {consultantLoading ? (
+            <div className="text-center py-12 text-gray-400"><p className="text-sm">Loading report...</p></div>
+          ) : consultantData ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 capitalize">{selectedReport.replace(/-/g, ' ')}</h3>
+              {/* Render based on report type */}
+              {selectedReport === 'summary' && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {Object.entries(consultantData as Record<string, number | string>).filter(([k]) => k !== 'period').map(([key, val]) => (
+                    <div key={key} className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-lg font-bold text-gray-900">{typeof val === 'number' && key.includes('rate') ? `${val}%` : val}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 capitalize">{key.replace(/_/g, ' ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(consultantData as { patients?: unknown[] }).patients && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Patient</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Phone</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {((consultantData as { patients: { patient_name: string; phone?: string; treatment_phase?: string; balance?: number; days_since_consult?: number; missed_date?: string }[] }).patients || []).map((p, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium text-gray-900">{p.patient_name}</td>
+                          <td className="px-3 py-2 text-gray-600">{p.phone || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">
+                            {p.treatment_phase && <span className="capitalize">{p.treatment_phase}</span>}
+                            {p.balance && <span className="text-red-600 font-medium">${p.balance.toLocaleString()}</span>}
+                            {p.days_since_consult && <span>{p.days_since_consult} days since consult</span>}
+                            {p.missed_date && <span>Missed: {p.missed_date}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-xs text-gray-400 mt-3 text-right">
+                    {((consultantData as { patients?: unknown[] }).patients || []).length} patient(s) • {(consultantData as { total_overdue_amount?: number }).total_overdue_amount ? `Total: $${(consultantData as { total_overdue_amount: number }).total_overdue_amount.toLocaleString()}` : ''}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-400">
+              <TrendingUp size={32} className="mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Select a report to view practice data</p>
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div>
@@ -380,6 +501,8 @@ export default function Reports() {
           <p className="text-sm text-gray-400">No report data available for the selected date range</p>
         </div>
       )}
+    </>
+    )}
     </>
   )
 }
