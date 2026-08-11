@@ -699,3 +699,130 @@ async def get_patient_active_visits(
             })
 
     return {"visits": active, "has_active": len(active) > 0}
+
+
+# ── Billing (Patient-facing) ─────────────────────────────────────────────────
+
+@router.get("/billing")
+async def get_patient_billing(
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient's billing summary — balance, recent payments, insurance."""
+    patient_id = patient["patient_id"]
+    practice_id = patient["practice_id"]
+
+    # Calculate balance from ledger
+    from app.models.finance import PatientLedgerEntry, InsuranceSubscriber
+    from decimal import Decimal
+
+    charges = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == patient_id,
+            PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.entry_type == "charge",
+        )
+    )).scalar() or Decimal("0")
+
+    payments = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == patient_id,
+            PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.entry_type.in_(["payment", "credit"]),
+        )
+    )).scalar() or Decimal("0")
+
+    balance = charges + payments  # payments are negative
+
+    # Get patient record for responsible party
+    patient_record = (await db.execute(
+        select(Patient).where(Patient.id == patient_id)
+    )).scalar_one_or_none()
+
+    # Get insurance
+    insurance_result = await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.patient_id == patient_id,
+            InsuranceSubscriber.practice_id == practice_id,
+        )
+    )
+    insurance_plans = insurance_result.scalars().all()
+
+    # Recent payments
+    recent = await db.execute(
+        select(PatientLedgerEntry).where(
+            PatientLedgerEntry.patient_id == patient_id,
+            PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.entry_type.in_(["payment", "credit"]),
+        ).order_by(PatientLedgerEntry.created_at.desc()).limit(5)
+    )
+    recent_payments = recent.scalars().all()
+
+    return {
+        "balance": float(balance),
+        "total_charges": float(charges),
+        "total_payments": float(abs(payments)),
+        "responsible_party": patient_record.responsible_party or (f"{patient_record.first_name} {patient_record.last_name}" if patient_record else ""),
+        "patient_name": f"{patient_record.first_name} {patient_record.last_name}" if patient_record else "",
+        "insurance": [
+            {
+                "payer_name": p.payer_name,
+                "plan_name": p.plan_name,
+                "subscriber_id": p.subscriber_id,
+                "group_number": p.group_number,
+            }
+            for p in insurance_plans
+        ],
+        "recent_payments": [
+            {
+                "description": p.description,
+                "amount": float(abs(p.amount)),
+                "date": p.posted_date.isoformat() if p.posted_date else p.created_at.isoformat() if p.created_at else "",
+                "method": p.payment_method,
+            }
+            for p in recent_payments
+        ],
+    }
+
+
+@router.get("/billing/methods")
+async def get_billing_methods(
+    patient: dict = Depends(get_current_patient),
+) -> dict:
+    """Patient's saved payment methods (placeholder — would integrate with payment processor)."""
+    return {
+        "methods": [
+            {"id": "pm_1", "type": "credit_card", "last4": "4242", "brand": "Visa", "exp": "12/27", "is_default": True},
+        ],
+        "auto_pay_enabled": True,
+    }
+
+
+# ── Reschedule (Patient-facing) ──────────────────────────────────────────────
+
+@router.patch("/appointments/{appointment_id}/reschedule")
+async def reschedule_appointment(
+    appointment_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient requests to reschedule an appointment."""
+    import uuid as _uuid
+    patient_id = patient["patient_id"]
+
+    # Find the appointment
+    result = await db.execute(
+        select(Appointment).where(
+            Appointment.id == _uuid.UUID(appointment_id),
+            Appointment.patient_id == patient_id,
+        )
+    )
+    appt = result.scalar_one_or_none()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    # Mark as needing reschedule (office will follow up)
+    appt.status = "reschedule_requested"
+    await db.commit()
+
+    return {"status": "reschedule_requested", "message": "Your office will contact you to confirm a new time."}
