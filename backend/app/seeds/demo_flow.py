@@ -21,9 +21,8 @@ from app.models.portal import PortalAccount, PortalForm, PortalMessage
 
 DEMO_PRACTICE_ID = uuid.UUID("82fe9d87-6250-4b15-ac7d-26de094a4be8")
 # Use Eastern time for "today" since the practice is in US Eastern timezone
-# Use system date — container runs UTC, all queries use date.today()
-# which returns the same UTC date. This ensures seed data matches queries.
-TODAY = date.today()
+# Use system date — computed at runtime in seed_demo_flow(), not import time
+TODAY: date = date.today()  # Default, overridden in seed_demo_flow()
 
 # Demo patients for the visit tracker
 DEMO_PATIENTS = [
@@ -913,7 +912,9 @@ async def seed_hygiene_recalls(db, patients: list) -> None:
 
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
-    print("\n🌱 Seeding OrthoFlow demo data...\n")
+    global TODAY
+    TODAY = date.today()  # Recompute on each run (critical for daily reseed)
+    print(f"\n🌱 Seeding OrthoFlow demo data... (date: {TODAY})\n")
 
     # Seed CDT codes and appointment types (independent of practice)
     from app.seeds import seed_cdt_codes, seed_appointment_types
