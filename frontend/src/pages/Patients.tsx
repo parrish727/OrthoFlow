@@ -47,22 +47,12 @@ const PHASE_LABELS: Record<string, string> = {
   observation_2: 'Observation 2',
   observation_3: 'Observation 3',
   observation_4: 'Observation 4',
-  // GP
-  new_patient: 'New Patient',
-  active_gp: 'Active GP',
-  hygiene_recall: 'Hygiene/Recall',
-  restorative: 'Restorative',
   // Ortho
+  new_patient: 'New Patient',
   bonding: 'Bonding',
   active: 'Active Ortho',
   finishing: 'Finishing',
   complete: 'Complete',
-  // Cosmetic
-  cosmetic_consult: 'Cosmetic Consult',
-  cosmetic_active: 'Cosmetic Treatment',
-  // Perio
-  perio_active: 'Perio Treatment',
-  perio_maintenance: 'Perio Maintenance',
 }
 
 const TREATMENT_PHASE_OPTIONS = [
@@ -293,16 +283,12 @@ const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
                       <div className="flex items-center gap-2 mt-0.5">
                       {/* Specialty badge — Cosmetic and Perio are BACKLOG specialties (moved 2026-07-30).
                          Badge display retained for existing patients who may already have these phases. */}
-                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending', 'observation_1', 'observation_2', 'observation_3', 'observation_4'].includes(patient.treatment_phase) ? (
+                      {patient.treatment_phase && ['bonding', 'active', 'finishing', 'retention', 'records', 'pending', 'observation_1', 'observation_2', 'observation_3', 'observation_4', 'active_treatment'].includes(patient.treatment_phase) ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium">Ortho</span>
-                      ) : patient.treatment_phase && ['cosmetic_consult', 'cosmetic_active'].includes(patient.treatment_phase) ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 font-medium">Cosmetic</span>
-                      ) : patient.treatment_phase && ['perio_active', 'perio_maintenance'].includes(patient.treatment_phase) ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">Perio</span>
                       ) : patient.treatment_phase === 'complete' ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">Complete</span>
                       ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">General</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">New</span>
                       )}
                       {patient.treatment_phase && (
                         <div className="relative">
