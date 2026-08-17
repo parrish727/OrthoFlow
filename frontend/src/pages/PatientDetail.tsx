@@ -4,7 +4,6 @@ import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2,
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
-import RestorativeChartView from '../components/RestorativeChartView'
 
 interface Patient {
   id: string
@@ -97,7 +96,6 @@ export default function PatientDetail() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [notes, setNotes] = useState<TreatmentNote[]>([])
   const [chart, setChart] = useState<ChartData | null>(null)
-  const [chartTab, setChartTab] = useState<'ortho' | 'restorative'>('ortho')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Patient>>({})
   const [insurance, setInsurance] = useState<string>('')
@@ -313,38 +311,18 @@ export default function PatientDetail() {
             {/* Tooth Chart — Tabbed (Ortho + Restorative) */}
             {chart && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-                <div className="flex border-b border-gray-200">
-                  <button
-                    onClick={() => setChartTab('ortho')}
-                    className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
-                      chartTab === 'ortho' ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-600' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    🦷 Ortho Chart
-                  </button>
-                  <button
-                    onClick={() => setChartTab('restorative')}
-                    className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
-                      chartTab === 'restorative' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    🏥 Restorative Chart
-                  </button>
+                <div className="px-4 py-2.5 border-b border-gray-200 bg-teal-50">
+                  <span className="text-xs font-medium text-teal-700">🦷 Ortho Chart</span>
                 </div>
-
-                {chartTab === 'ortho' ? (
-                  <ToothChart
-                    teethData={chart.teeth_data || {}}
-                    upperWire={chart.upper_wire}
-                    lowerWire={chart.lower_wire}
-                    upperWireDate={chart.upper_wire_date}
-                    lowerWireDate={chart.lower_wire_date}
-                    appliances={chart.appliances || []}
-                    onUpdate={handleChartUpdate}
-                  />
-                ) : (
-                  <RestorativeChartView patientId={patient.id} />
-                )}
+                <ToothChart
+                  teethData={chart.teeth_data || {}}
+                  upperWire={chart.upper_wire}
+                  lowerWire={chart.lower_wire}
+                  upperWireDate={chart.upper_wire_date}
+                  lowerWireDate={chart.lower_wire_date}
+                  appliances={chart.appliances || []}
+                  onUpdate={handleChartUpdate}
+                />
               </div>
             )}
 
