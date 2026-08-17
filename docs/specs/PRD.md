@@ -1,7 +1,7 @@
 # OrthoFlow AI — Product Requirements Document
 
-**Version:** 1.0  
-**Date:** July 28, 2026  
+**Version:** 2.0  
+**Date:** August 17, 2026  
 **Author:** Melanin Technologies Inc.  
 **Status:** Production (Live at app.orthoflowsolutions.com)
 
@@ -9,11 +9,13 @@
 
 ## 1. Executive Summary
 
-OrthoFlow AI is a comprehensive, AI-powered practice management system purpose-built for orthodontic and dental practices. Developed by Melanin Technologies Inc. (Black-owned software consulting firm, Wisconsin), it delivers a full-spectrum solution covering scheduling, patient records, clinical documentation, insurance claims, financial management, communications, and AI-assisted revenue cycle optimization — all within a HIPAA-compliant, self-hosted infrastructure.
+OrthoFlow AI is a comprehensive, AI-powered practice management system purpose-built for orthodontic practices. Developed by Melanin Technologies Inc. (Black-owned software consulting firm, Wisconsin), it delivers a full-spectrum solution covering scheduling, patient records, clinical charting, Invisalign case management, insurance claims, financial management, communications, consultant reporting, and AI-assisted revenue cycle optimization — all within a HIPAA-compliant, self-hosted infrastructure.
 
-The platform serves small to mid-size practices (1–10 providers) and includes MyOrthoChart, a patient-facing portal modeled after Epic's MyChart, providing patients with direct access to appointments, messaging, forms, treatment progress, and billing.
+The platform serves small to mid-size orthodontic practices (1–10 providers) and includes MyOrthoChart, a patient-facing portal modeled after Epic's MyChart, providing patients with appointment scheduling, messaging, visit management, billing, treatment progress tracking, and digital forms.
 
-OrthoFlow is live in production, processing real clinical workflows with five role-based access tiers, multi-tenant practice isolation, and AI features powered by Anthropic Claude for denial analysis, appeal generation, clinical note summarization, and predictive intelligence.
+OrthoFlow is live in production, processing real clinical workflows with five role-based access tiers (Owner, Doctor, Office Manager, DA, Front Desk) plus a Consultant role for practice optimization. The system includes multi-tenant practice isolation, AI features powered by Anthropic Claude for denial analysis, appeal generation, clinical note summarization, and predictive intelligence.
+
+**Key additions since v1.0:** Invisalign integration (Align Technology Doctor Site), Consultant Reports module (7 practice optimization reports), MyOrthoChart full redesign (Epic MyChart patterns), virtual visits (LiveKit), full orthodontic appointment types (26 types), appliance order management, and AI auto-response for messaging.
 
 ---
 
