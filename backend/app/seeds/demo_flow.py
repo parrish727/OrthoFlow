@@ -913,7 +913,11 @@ async def seed_hygiene_recalls(db, patients: list) -> None:
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     global TODAY
-    TODAY = date.today()  # Recompute on each run (critical for daily reseed)
+    # Use Eastern time since the demo practice is in US Eastern timezone
+    # This prevents the date mismatch when UTC flips to next day after 8 PM ET
+    from datetime import timezone as tz
+    eastern_offset = timedelta(hours=-4)  # EDT
+    TODAY = datetime.now(tz(eastern_offset)).date()
     print(f"\n🌱 Seeding OrthoFlow demo data... (date: {TODAY})\n")
 
     # Seed CDT codes and appointment types (independent of practice)
