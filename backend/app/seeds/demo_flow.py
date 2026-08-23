@@ -961,6 +961,19 @@ async def seed_demo_flow():
             stale_visits_deleted = stale_visits.rowcount
             await db.flush()
 
+        # Also clean any visit statuses from previous days (catches orphaned entries)
+        from sqlalchemy import cast, Date
+        old_visits = await db.execute(
+            delete(PatientVisitStatus).where(
+                and_(
+                    PatientVisitStatus.practice_id == DEMO_PRACTICE_ID,
+                    cast(PatientVisitStatus.created_at, Date) < TODAY,
+                )
+            )
+        )
+        stale_visits_deleted += old_visits.rowcount
+        await db.flush()
+
         # Now safe to delete the appointments
         from app.models.clinical import Appointment as ApptModel
         past_demo_appts = await db.execute(

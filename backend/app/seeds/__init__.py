@@ -134,23 +134,31 @@ APPOINTMENT_TYPES = [
 
 
 async def seed_cdt_codes():
-    """Seed the CDT code library (idempotent — skips existing codes)."""
+    """Seed the CDT code library (idempotent — skips existing codes). Only seeds ortho-relevant codes."""
+    # Categories relevant to orthodontic practices
+    ORTHO_CATEGORIES = {'orthodontics', 'diagnostic', 'adjunctive'}
     async with SessionLocal() as db:
+        seeded = 0
         for row in CDT_CODES:
             code, category, subcategory, description, short_desc, specialty, is_common, avg_fee, tooth_specific, surface_specific = row
+            # Skip non-ortho categories (restorative, preventive, endodontics, etc.)
+            if category not in ORTHO_CATEGORIES:
+                continue
             # Check if code already exists
             from sqlalchemy import select
             existing = await db.execute(select(CDTCode).where(CDTCode.code == code))
             if existing.scalar_one_or_none():
+                seeded += 1
                 continue
             db.add(CDTCode(
                 code=code, category=category, subcategory=subcategory,
                 description=description, short_description=short_desc,
-                specialty=specialty, is_common=is_common, avg_fee=avg_fee,
+                specialty='ortho', is_common=is_common, avg_fee=avg_fee,
                 tooth_specific=tooth_specific, surface_specific=surface_specific,
             ))
+            seeded += 1
         await db.commit()
-        print(f"✅ Seeded {len(CDT_CODES)} CDT codes")
+        print(f"✅ Seeded {seeded} CDT codes")
 
 
 async def seed_appointment_types():
