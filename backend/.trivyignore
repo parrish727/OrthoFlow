@@ -32,3 +32,17 @@ GHSA-6v7p-g79w-8964
 # setuptools CVE — upgraded to 83.0.0 in Dockerfile but base python:3.12-slim ships with 70.3.0.
 # Path traversal in PackageIndex — not exploitable (we don't use setuptools at runtime, only during build).
 CVE-2025-47273
+
+# openssl CVE-2026-14456 — DoS via unbounded memory growth in QUIC server.
+# Not applicable: we do not run an OpenSSL QUIC server. nginx terminates TLS externally.
+# Fix available in openssl 3.5.7 — apt-get upgrade pulls it when Debian backport is available.
+# Review date: 2026-08-23
+CVE-2026-14456
+
+# util-linux CVEs (CVE-2026-53612/53613/53614) — TOCTOU and nosuid/noexec bypass in SUID mount(8).
+# Not applicable: containers run without SUID mount, no privileged mount operations.
+# Fix available in util-linux 2.41.5 — apt-get upgrade pulls it when Debian backport is available.
+# Review date: 2026-08-23
+CVE-2026-53612
+CVE-2026-53613
+CVE-2026-53614
