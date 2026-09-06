@@ -123,7 +123,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@pgbouncer:5432/${POSTGRES_DB:-orthoflow}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-kiro_secret}@orthoflow-postgres-1:5432/${POSTGRES_DB:-orthoflow}
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
@@ -159,7 +159,7 @@ services:
     command: ["python", "-m", "app.workers.main"]
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-changeme}@pgbouncer:5432/${POSTGRES_DB:-orthoflow}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-orthoflow}:${POSTGRES_PASSWORD:-kiro_secret}@orthoflow-postgres-1:5432/${POSTGRES_DB:-orthoflow}
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - OLLAMA_URL=http://ollama:11434
