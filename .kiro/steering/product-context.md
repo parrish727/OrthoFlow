@@ -6,6 +6,35 @@ Accounts payable automation + insurance claims platform for orthodontic practice
 Live at: https://app.orthoflowsolutions.com / https://api.orthoflowsolutions.com
 Repo: github.com/parrish727/OrthoFlow (private, feature/orthoflow_v1 branch)
 
+## North Star — Precognitive by Design (READ FIRST)
+
+OrthoFlow AI must be intuitive and **precognitive** — it should know what each member of
+the ortho team wants and needs to do *before they know it themselves*. This applies to
+EVERY role and EVERY surface:
+
+- **Doctor** — next clinical action, patients needing attention, treatment-plan nudges
+- **Dental Assistant (DA)** — chair readiness, prep needs, personal-day/shift context
+- **Front Desk** — arrivals, forms outstanding, balances to collect, callbacks due
+- **Office Manager** — bottlenecks, staffing, revenue/collections at a glance
+- **Treatment Coordinator (Insurance, Claims, Ledgers, Reports)** — eligibility gaps,
+  likely denials before submission, patient-responsibility surprises, appeal opportunities
+
+### How this shapes every build (backend → frontend)
+
+1. **Anticipate, don't just react.** Surface the next best action proactively. Pre-flag
+   risk (denial likelihood, benefit exhaustion, overdue balances) before the user hunts.
+2. **Sync context across roles.** Notes, statuses, and signals flow between DA, front desk,
+   TC, and provider views so nobody re-enters or re-discovers what another already knows.
+3. **Make small things unforgettable.** Micro-interactions, defaults, empty states, and
+   copy all reflect deep ortho-workflow understanding. Details are the product.
+4. **Everything matters end-to-end.** Backend, frontend, security, stability,
+   sustainability, observability, and the seams between them are all held to this bar.
+5. **Build on what exists with this instinct.** Every new feature or update must extend the
+   current system while advancing this vision — not bolt on in isolation.
+
+Every PR should be answerable: *"How does this make OrthoFlow feel like it read the team's
+mind?"* If the answer is "it doesn't," reconsider the design.
+
 ## Stack
 
 - **Backend:** FastAPI (Python), PostgreSQL, Redis, MinIO, Ollama

@@ -49,6 +49,12 @@ export const api = {
   updatePatient: (id: string, data: Record<string, unknown>) =>
     request(`/api/v1/patients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getSchedule: (date: string) => request(`/api/v1/schedule?schedule_date=${date}`),
+  getScheduleNotes: (date: string) => request(`/api/v1/schedule-notes?note_date=${date}`),
+  createScheduleNote: (data: {
+    note_date: string; content: string; origin?: string; category?: string;
+    placement?: string; tone?: string; source_da_id?: string | null; is_pinned?: boolean
+  }) => request('/api/v1/schedule-notes', { method: 'POST', body: JSON.stringify(data) }),
+  dismissScheduleNote: (id: string) => request(`/api/v1/schedule-notes/${id}/dismiss`, { method: 'PATCH' }),
   getAppointments: (params: { patient_id?: string; start_date?: string; end_date?: string }) => {
     const q = new URLSearchParams()
     if (params.patient_id) q.set('patient_id', params.patient_id)
