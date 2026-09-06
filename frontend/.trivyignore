@@ -17,3 +17,17 @@ CVE-2026-33630
 # Review date: 2026-07-14
 CVE-2026-5773
 CVE-2026-6276
+
+# util-linux / libuuid CVEs in Alpine base image (nginx:alpine) — TOCTOU and privilege
+# escalation in SUID mount(8) and related mount helpers.
+# Not applicable: frontend container runs nginx for static file serving only.
+# No SUID binaries invoked, no mount operations, no privileged contexts.
+# apk upgrade added to Dockerfile to pull fix when Alpine backport is available.
+# Review date: 2026-09-05
+CVE-2026-53612
+CVE-2026-53613
+CVE-2026-53614
+CVE-2026-76642
+CVE-2026-78408
+CVE-2026-78409
+CVE-2026-78410
