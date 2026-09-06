@@ -1,10 +1,15 @@
 # OrthoFlow AI — Local Development Stack
-# Fully isolated from Melanin Tech infrastructure
+# Data layer isolated from Melanin Tech infrastructure
+# backend + frontend are also on docker_agent-net so nginx can reach them directly
+# without traversing host.docker.internal (eliminates IPv4/IPv6 ambiguity, removes host port exposure)
 # Mirrors production: swap minio→S3, ollama→Bedrock, postgres→RDS
 
 networks:
   orthoflow:
     driver: bridge
+  agent-net:
+    external: true
+    name: docker_agent-net
 
 volumes:
   of-pgdata:
@@ -128,7 +133,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - orthoflow
+      - orthoflow   # internal: db, redis, minio, ollama
+      - agent-net   # external: nginx can reach backend directly, no host traversal
     depends_on:
       postgres:
         condition: service_healthy
@@ -216,5 +222,6 @@ services:
     environment:
       - VITE_API_URL=https://api.orthoflowsolutions.com
     networks:
-      - orthoflow
+      - orthoflow   # internal: consistent with rest of stack
+      - agent-net   # external: nginx can reach frontend directly, no host traversal
     restart: unless-stopped
