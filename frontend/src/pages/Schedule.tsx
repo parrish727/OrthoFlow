@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video, Bell } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video, Bell, Sparkles, Pin, Plus, StickyNote } from 'lucide-react'
 import { api } from '../lib/api'
 import VideoRoom from '../components/VideoRoom'
 import ScheduleNextPopup from '../components/ScheduleNextPopup'
@@ -47,6 +47,28 @@ interface ScheduleData {
   total_appointments: number
 }
 
+interface ScheduleNote {
+  id: string
+  note_date: string
+  origin: string
+  category: string
+  placement: string
+  tone: string
+  content: string
+  source_da_id: string | null
+  patient_id: string | null
+  is_pinned: boolean
+  is_dismissed: boolean
+  created_at: string | null
+}
+
+interface ScheduleNotesData {
+  note_date: string
+  above: ScheduleNote[]
+  below: ScheduleNote[]
+  count: number
+}
+
 const STATUS_COLORS: Record<string, string> = {
   scheduled: 'border-l-blue-400 bg-blue-50/50',
   checked_in: 'border-l-amber-400 bg-amber-50/50',
@@ -81,6 +103,50 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
+interface SNote {
+  id: string; origin: string; category: string; placement: string; tone: string
+  content: string; is_pinned: boolean
+}
+
+const ORIGIN_META: Record<string, { label: string; badge: string }> = {
+  ai: { label: 'AI', badge: 'bg-violet-100 text-violet-700' },
+  da: { label: 'DA', badge: 'bg-emerald-100 text-emerald-700' },
+  manager: { label: 'Manager', badge: 'bg-blue-100 text-blue-700' },
+  front_desk: { label: 'Front Desk', badge: 'bg-amber-100 text-amber-700' },
+  doctor: { label: 'Doctor', badge: 'bg-teal-100 text-teal-700' },
+}
+
+const TONE_ACCENT: Record<string, string> = {
+  info: 'border-l-gray-300 bg-white',
+  highlight: 'border-l-violet-400 bg-violet-50/40',
+  warning: 'border-l-amber-400 bg-amber-50/50',
+}
+
+function NoteCard({ note, onDismiss }: { note: SNote; onDismiss: (id: string) => void }) {
+  const meta = ORIGIN_META[note.origin] || ORIGIN_META.da
+  return (
+    <div className={`group flex items-start gap-2.5 rounded-xl border border-gray-200/70 border-l-4 px-3 py-2.5 shadow-sm ${TONE_ACCENT[note.tone] || TONE_ACCENT.info}`}>
+      {note.origin === 'ai'
+        ? <Sparkles className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
+        : <StickyNote className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${meta.badge}`}>{meta.label}</span>
+          {note.is_pinned && <Pin className="w-3 h-3 text-gray-400" />}
+        </div>
+        <p className="text-sm text-gray-700 leading-snug">{note.content}</p>
+      </div>
+      <button
+        onClick={() => onDismiss(note.id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-gray-500 shrink-0"
+        title="Dismiss"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  )
+}
+
 export default function Schedule() {
   const [schedule, setSchedule] = useState<ScheduleData | null>(null)
   const [das, setDas] = useState<DA[]>([])
@@ -88,6 +154,9 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true)
   const [phaseToast, setPhaseToast] = useState<{patient_name: string, previous_phase: string, new_phase: string} | null>(null)
   const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
+  const [scheduleNotes, setScheduleNotes] = useState<ScheduleNotesData | null>(null)
+  const [addingNote, setAddingNote] = useState(false)
+  const [newNoteText, setNewNoteText] = useState('')
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [draggingAppt, setDraggingAppt] = useState<string | null>(null)
   const [showNewAppt, setShowNewAppt] = useState(false)
@@ -123,16 +192,47 @@ export default function Schedule() {
   }
   const loadSchedule = useCallback(async () => {
     setLoading(true)
-    const [schedRes, dasRes] = await Promise.all([
+    const [schedRes, dasRes, notesRes] = await Promise.all([
       api.getSchedule(selectedDate),
       api.getDentalAssistants(),
+      api.getScheduleNotes(selectedDate),
     ])
     if (schedRes.ok) setSchedule(await schedRes.json())
     if (dasRes.ok) { const d = await dasRes.json(); setDas(d.dental_assistants || []) }
+    if (notesRes.ok) setScheduleNotes(await notesRes.json())
     setLoading(false)
   }, [selectedDate])
 
   useEffect(() => { loadSchedule() }, [loadSchedule])
+
+  const reloadNotes = useCallback(async () => {
+    const res = await api.getScheduleNotes(selectedDate)
+    if (res.ok) setScheduleNotes(await res.json())
+  }, [selectedDate])
+
+  async function addScheduleNote() {
+    const text = newNoteText.trim()
+    if (!text) return
+    const res = await api.createScheduleNote({
+      note_date: selectedDate, content: text, origin: 'da', category: 'operational',
+      placement: 'above', tone: 'info',
+    })
+    if (res.ok) { setNewNoteText(''); setAddingNote(false); await reloadNotes() }
+  }
+
+  async function dismissNote(id: string) {
+    if (id.startsWith('ai-')) {
+      // AI notes are transient/computed — hide locally without a server call.
+      setScheduleNotes(prev => prev ? {
+        ...prev,
+        above: prev.above.filter(n => n.id !== id),
+        below: prev.below.filter(n => n.id !== id),
+      } : prev)
+      return
+    }
+    const res = await api.dismissScheduleNote(id)
+    if (res.ok) await reloadNotes()
+  }
 
   function shiftDate(days: number) {
     const d = new Date(selectedDate + 'T00:00:00')
@@ -290,6 +390,44 @@ export default function Schedule() {
           </div>
         )}
 
+        {/* Daily Notes — AI + team context, above the schedule */}
+        {(scheduleNotes && (scheduleNotes.above.length > 0 || true)) && (
+          <div className="mb-4 bg-white/60 rounded-2xl border border-gray-200/70 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Sparkles className="w-4 h-4 text-violet-500" />
+                Today's Notes
+                <span className="text-xs font-normal text-gray-400">AI + team context, synced with DA notes</span>
+              </div>
+              <button
+                onClick={() => setAddingNote(v => !v)}
+                className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add note
+              </button>
+            </div>
+            {addingNote && (
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  autoFocus
+                  value={newNoteText}
+                  onChange={e => setNewNoteText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addScheduleNote(); if (e.key === 'Escape') { setAddingNote(false); setNewNoteText('') } }}
+                  placeholder="e.g. Priscilla leaving early today at 2:30…"
+                  className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-teal-100 focus:border-teal-300 outline-none"
+                />
+                <button onClick={addScheduleNote} className="text-sm font-medium px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700">Save</button>
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {scheduleNotes?.above.map(n => <NoteCard key={n.id} note={n} onDismiss={dismissNote} />)}
+              {scheduleNotes && scheduleNotes.above.length === 0 && !addingNote && (
+                <p className="text-xs text-gray-400 py-1">No notes yet for this day — add one to keep the team in sync.</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Stats bar */}
         {schedule && (
           <div className="flex items-center gap-4 mb-4 text-sm text-gray-500">
@@ -314,6 +452,7 @@ export default function Schedule() {
             ))}
           </div>
         ) : schedule ? (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {/* Chair Columns */}
             {schedule.columns.map(col => (
@@ -400,6 +539,13 @@ export default function Schedule() {
               </div>
             </div>
           </div>
+
+          {scheduleNotes && scheduleNotes.below.length > 0 && (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {scheduleNotes.below.map(n => <NoteCard key={n.id} note={n} onDismiss={dismissNote} />)}
+            </div>
+          )}
+        </>
         ) : (
           <div className="text-center py-12 text-gray-400">Failed to load schedule</div>
         )}

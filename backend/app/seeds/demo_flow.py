@@ -910,6 +910,56 @@ async def seed_hygiene_recalls(db, patients: list) -> None:
     print("  ✅ Hygiene Recalls: 10 records (4 overdue, 3 due this month, 3 future)")
 
 
+async def seed_schedule_notes(db, das: list) -> None:
+    """Seed AI + DA daily schedule notes (idempotent). Includes the canonical demo examples."""
+    from app.models.schedule_notes import ScheduleNote
+
+    existing = await db.execute(
+        select(ScheduleNote).where(
+            ScheduleNote.practice_id == DEMO_PRACTICE_ID,
+            ScheduleNote.note_date == TODAY,
+        ).limit(1)
+    )
+    if existing.scalar_one_or_none():
+        print("  ✅ Schedule notes: already seeded")
+        return
+
+    da0 = das[0].id if das else None
+    da1 = das[1].id if len(das) > 1 else None
+
+    notes = [
+        # DA personal notes synced up to the schedule (the steering examples).
+        dict(origin="da", category="staffing", placement="above", tone="highlight",
+             content="Priscilla will be leaving early today (2:30 PM) — please route her last "
+                     "adjustment to an earlier slot.", source_da_id=da0),
+        dict(origin="manager", category="operational", placement="above", tone="info",
+             content="Consultant visiting the DA team today at 12:00 PM to review findings from "
+                     "last month's efficiency audit. Working lunch in the break room.", source_da_id=None),
+        dict(origin="da", category="clinical", placement="above", tone="info",
+             content="Aaliyah's brackets (upper 7s) arrived from the lab — ready for today's "
+                     "bonding.", source_da_id=da1),
+        # AI-surfaced insight persisted as a pinned note.
+        dict(origin="ai", category="insight", placement="below", tone="highlight",
+             content="Two patients on today's schedule are approaching their orthodontic lifetime "
+                     "maximum — consider reviewing patient responsibility before their next phase.",
+             source_da_id=None),
+        dict(origin="front_desk", category="operational", placement="below", tone="info",
+             content="Reminder: end-of-month insurance aging report is due to the doctor by Friday.",
+             source_da_id=None),
+    ]
+
+    for n in notes:
+        db.add(ScheduleNote(
+            id=uuid.uuid4(), practice_id=DEMO_PRACTICE_ID, note_date=TODAY,
+            origin=n["origin"], category=n["category"], placement=n["placement"],
+            tone=n["tone"], content=n["content"], source_da_id=n["source_da_id"],
+            is_pinned=(n["origin"] == "ai"),
+        ))
+
+    await db.flush()
+    print(f"  ✅ Schedule notes: {len(notes)} notes (DA + manager + AI insight)")
+
+
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     global TODAY
@@ -1001,9 +1051,13 @@ async def seed_demo_flow():
         await seed_portal_accounts(db, patients)
         await seed_portal_messages(db, patients)
 
-        # ── Insurance & Claims Demo Data ──
-        await seed_insurance_and_claims(db, patients)
+        # ── Insurance, Claims, Line Items, Ledger & ERA Demo Data (all patients) ──
+        from app.seeds.demo_finance import seed_comprehensive_finance
+        await seed_comprehensive_finance(db, patients)
         await seed_invoices(db)
+
+        # ── AI + DA Schedule Notes ──
+        await seed_schedule_notes(db, das)
 
         # ── Hygiene Recall Demo Data ──
         await seed_hygiene_recalls(db, patients)

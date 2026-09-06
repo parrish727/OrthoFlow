@@ -105,3 +105,5 @@ from app.models.perio import (  # noqa: F401
 from app.models.recall import HygieneRecall  # noqa: F401
 
 from app.models.permissions import UserPermission  # noqa: F401
+
+from app.models.schedule_notes import ScheduleNote  # noqa: F401

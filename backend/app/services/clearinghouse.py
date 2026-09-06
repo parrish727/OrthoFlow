@@ -8,8 +8,9 @@ from datetime import date
 class SubmissionResult:
     success: bool
     claim_id: str | None = None
-    tracking_number: str | None = None
+    tracking_number: str | None = None  # Patient Control Number (PCN)
     errors: list[str] | None = None
+    raw: dict | None = None  # full clearinghouse response (incl. 277CA ack)
 
 
 @dataclass
@@ -31,6 +32,12 @@ class EligibilityResponse:
     remaining_benefit: float | None = None
     copay: float | None = None
     errors: list[str] | None = None
+    # Extended fields parsed from Stedi 271 benefitsInformation[]
+    deductible_remaining: float | None = None
+    raw: dict | None = None                    # full 271 JSON response
+    application_mode: str | None = None         # "test" | "production"
+    trace_id: str | None = None
+    eligibility_check_id: str | None = None     # Stedi ec_<uuid>
 
 
 @dataclass
