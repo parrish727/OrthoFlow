@@ -77,7 +77,15 @@ export default function Claims() {
       if (res.ok) {
         const data = await res.json()
         setClaims(data.claims || data || [])
-        if (data.counts) setStatusCounts(data.counts)
+        const sc = data.status_counts || data.counts
+        if (sc) {
+          const all = Object.values(sc).reduce((a: number, b) => a + (Number(b) || 0), 0)
+          setStatusCounts({
+            all,
+            draft: sc.draft || 0, submitted: sc.submitted || 0,
+            accepted: sc.accepted || 0, paid: sc.paid || 0, denied: sc.denied || 0,
+          })
+        }
       }
     } catch {
       // silently handle

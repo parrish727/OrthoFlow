@@ -126,7 +126,10 @@ const patientDropdownRef = useRef<HTMLDivElement>(null)
   async function handleCheckEligibility(planId: string) {
     setEligibilityChecking(planId)
     try {
-      const res = await api.checkEligibility({ plan_id: planId })
+      const res = await api.checkEligibility({
+        patient_id: selectedPatient?.id,
+        subscriber_plan_id: planId,
+      })
       if (res.ok) {
         const data = await res.json()
         setEligibilityResults(prev => ({ ...prev, [planId]: data }))
