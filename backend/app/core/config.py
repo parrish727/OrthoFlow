@@ -33,7 +33,13 @@ class Settings(BaseSettings):
     JWT_EXPIRY_HOURS: int = 1  # Short-lived access tokens
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "https://app.orthoflowsolutions.com"]
+    # CORS. Includes the internal E2E test origin (docker hostname) so the Dockerized
+    # Playwright QA harness can drive the app without depending on public DNS/CDN.
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "https://app.orthoflowsolutions.com",
+        "http://orthoflow-frontend-1:3000",
+    ]
 
     # QuickBooks Online
     QBO_CLIENT_ID: str = ""

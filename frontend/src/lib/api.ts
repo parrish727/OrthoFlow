@@ -86,10 +86,15 @@ export const api = {
   postLedgerEntry: (data: Record<string, unknown>) =>
     request('/api/v1/finance/ledger', { method: 'POST', body: JSON.stringify(data) }),
   getInsurancePlans: (patientId: string) => request(`/api/v1/finance/insurance/${patientId}`),
+  getInsuranceRoster: () => request('/api/v1/finance/insurance-roster'),
+  getLedgerRoster: () => request('/api/v1/finance/ledger-roster'),
+  getPaymentsRoster: () => request('/api/v1/finance/payments-roster'),
   addInsurancePlan: (data: Record<string, unknown>) =>
     request('/api/v1/finance/insurance', { method: 'POST', body: JSON.stringify(data) }),
   checkEligibility: (data: Record<string, unknown>) =>
     request('/api/v1/eligibility/check', { method: 'POST', body: JSON.stringify(data) }),
+  getClaimsRoster: () => request('/api/v1/claims/roster'),
+  getClaimsByPatient: (patientId: string) => request(`/api/v1/claims/?patient_id=${patientId}`),
   getClaims: (params?: { status?: string }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

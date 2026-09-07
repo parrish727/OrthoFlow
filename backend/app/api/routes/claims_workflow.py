@@ -71,6 +71,58 @@ class LineItemAdjudication(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@router.get("/roster")
+async def claims_roster(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Practice-wide claims roster grouped by patient — powers the roster-first Claims view.
+
+    Every patient who has claims, with their claim count, per-status breakdown, and billed /
+    paid / outstanding totals so the Treatment Coordinator can scan the whole book and drill in.
+    """
+    from uuid import UUID as _UUID
+    practice_id = _UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    claims = (await db.execute(
+        select(InsuranceClaim).where(InsuranceClaim.practice_id == practice_id)
+        .order_by(InsuranceClaim.created_at.desc())
+    )).scalars().all()
+
+    by_patient: dict = {}
+    for c in claims:
+        key = c.patient_id
+        grp = by_patient.setdefault(key, {
+            "patient_id": c.patient_id,
+            "patient_name": c.patient_name,
+            "claim_count": 0,
+            "status_counts": {},
+            "total_billed": 0.0,
+            "total_paid": 0.0,
+            "total_outstanding": 0.0,
+            "latest_service_date": None,
+        })
+        grp["claim_count"] += 1
+        grp["status_counts"][c.status] = grp["status_counts"].get(c.status, 0) + 1
+        billed = float(c.total_billed or 0)
+        paid = float(c.total_paid or 0)
+        grp["total_billed"] += billed
+        grp["total_paid"] += paid
+        # Outstanding = billed not yet paid on non-final claims (draft/submitted/accepted/denied/appealed).
+        if c.status != "paid":
+            grp["total_outstanding"] += (billed - paid)
+        sd = c.service_date.isoformat() if c.service_date else None
+        if sd and (grp["latest_service_date"] is None or sd > grp["latest_service_date"]):
+            grp["latest_service_date"] = sd
+
+    roster = sorted(by_patient.values(), key=lambda g: g["patient_name"])
+    return {
+        "count": len(roster),
+        "total_claims": len(claims),
+        "patients": roster,
+    }
+
+
 @router.get("/")
 async def list_claims(
     status: str | None = None,

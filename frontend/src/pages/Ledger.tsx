@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { DollarSign, TrendingUp, Users, ChevronDown } from 'lucide-react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { DollarSign, TrendingUp, Users, ChevronDown, Shield, FileText, CreditCard, UserCircle } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface PatientBalance {
@@ -23,6 +23,7 @@ interface LedgerEntry {
 }
 
 export default function Ledger() {
+  const navigate = useNavigate()
   const [patients, setPatients] = useState<PatientBalance[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -44,23 +45,14 @@ export default function Ledger() {
   async function loadAllBalances() {
     setLoading(true)
     try {
-      const res = await api.getPatients({ search: '' })
-      if (!res.ok) return
-      const data = await res.json()
-      const balances: PatientBalance[] = []
-      for (const p of (data.patients || [])) {
-        try {
-          const sumRes = await api.getLedgerSummary(p.id)
-          if (sumRes.ok) {
-            const s = await sumRes.json()
-            if (s.balance !== 0 || s.total_charges > 0) {
-              balances.push({ id: p.id, first_name: p.first_name, last_name: p.last_name, balance: s.balance || 0, total_charges: s.total_charges || 0, total_payments: s.total_payments || 0 })
-            }
-          }
-        } catch {}
+      const res = await api.getLedgerRoster()
+      if (res.ok) {
+        const data = await res.json()
+        setPatients((data.patients || []).map((p: PatientBalance) => ({
+          id: p.id, first_name: p.first_name, last_name: p.last_name,
+          balance: p.balance, total_charges: p.total_charges, total_payments: p.total_payments,
+        })))
       }
-      balances.sort((a, b) => b.balance - a.balance)
-      setPatients(balances)
     } catch {}
     setLoading(false)
   }
@@ -88,7 +80,7 @@ export default function Ledger() {
   function fmt(n: number) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n) }
 
   return (
-    <>
+    <div data-testid="ledger-page">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900">Ledger</h2>
         <p className="text-sm text-gray-500 mt-0.5">Patient balances and transaction history</p>
@@ -130,22 +122,22 @@ export default function Ledger() {
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-right">Balance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50" data-testid="ledger-roster">
               {patients.map(p => (
-                <PatientRow key={p.id} patient={p} expanded={expandedId === p.id} entries={expandedId === p.id ? entries : []} entriesLoading={entriesLoading && expandedId === p.id} onToggle={() => toggleExpand(p.id)} fmt={fmt} />
+                <PatientRow key={p.id} patient={p} expanded={expandedId === p.id} entries={expandedId === p.id ? entries : []} entriesLoading={entriesLoading && expandedId === p.id} onToggle={() => toggleExpand(p.id)} fmt={fmt} navigate={navigate} />
               ))}
             </tbody>
           </table>
         )}
       </div>
-    </>
+    </div>
   )
 }
 
-function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt }: { patient: PatientBalance; expanded: boolean; entries: LedgerEntry[]; entriesLoading: boolean; onToggle: () => void; fmt: (n: number) => string }) {
+function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt, navigate }: { patient: PatientBalance; expanded: boolean; entries: LedgerEntry[]; entriesLoading: boolean; onToggle: () => void; fmt: (n: number) => string; navigate: (to: string) => void }) {
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer hover:bg-gray-50 transition-colors">
+      <tr data-testid={`ledger-row-${patient.id}`} onClick={onToggle} className="cursor-pointer hover:bg-gray-50 transition-colors">
         <td className="px-6 py-3">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-teal-100 to-teal-200 rounded-full flex items-center justify-center flex-shrink-0">
@@ -164,6 +156,12 @@ function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt 
       {expanded && (
         <tr>
           <td colSpan={4} className="px-6 py-3 bg-gray-50/50">
+            <div className="flex flex-wrap gap-2 mb-3" onClick={e => e.stopPropagation()}>
+              <button data-testid="quicklink-patient-record" onClick={() => navigate(`/patients/${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><UserCircle size={13} /> Patient Record</button>
+              <button data-testid="quicklink-insurance" onClick={() => navigate(`/insurance?patient_id=${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><Shield size={13} /> Insurance</button>
+              <button data-testid="quicklink-claims" onClick={() => navigate(`/claims?patient_id=${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><FileText size={13} /> Claims</button>
+              <button data-testid="quicklink-payments" onClick={() => navigate(`/payments?patient_id=${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><CreditCard size={13} /> Payments</button>
+            </div>
             {entriesLoading ? (
               <p className="text-xs text-gray-400 py-2">Loading transactions...</p>
             ) : entries.length === 0 ? (

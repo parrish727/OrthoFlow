@@ -220,6 +220,158 @@ async def get_ledger_summary(
 
 # ── Insurance Subscriber Management ──────────────────────────────────────────
 
+@router.get("/payments-roster")
+async def payments_roster(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Patient payments roster — patients with payment activity, total paid, last payment.
+
+    Powers the roster-first Payments view alongside ERA/posting management.
+    """
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    patients = (await db.execute(
+        select(Patient).where(Patient.practice_id == practice_id)
+    )).scalars().all()
+    name_by_id = {str(p.id): (p.first_name, p.last_name) for p in patients}
+
+    rows = (await db.execute(
+        select(
+            PatientLedgerEntry.patient_id,
+            func.sum(PatientLedgerEntry.amount),
+            func.max(PatientLedgerEntry.posted_date),
+            func.count(PatientLedgerEntry.id),
+        ).where(
+            PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.entry_type == "payment",
+        ).group_by(PatientLedgerEntry.patient_id)
+    )).all()
+
+    roster = []
+    for pid, total, last_date, cnt in rows:
+        nm = name_by_id.get(str(pid))
+        if not nm:
+            continue
+        roster.append({
+            "patient_id": str(pid),
+            "first_name": nm[0],
+            "last_name": nm[1],
+            "total_paid": abs(float(total or 0)),
+            "payment_count": int(cnt or 0),
+            "last_payment_date": last_date.isoformat() if last_date else None,
+        })
+    roster.sort(key=lambda r: r["total_paid"], reverse=True)
+    return {"count": len(roster), "patients": roster}
+
+
+@router.get("/ledger-roster")
+async def ledger_roster(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Practice-wide ledger roster — every patient with charges/payments/balance in one call.
+
+    Powers the roster-first Ledger view efficiently (single grouped query instead of N+1).
+    Only includes patients who have financial activity.
+    """
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    patients = (await db.execute(
+        select(Patient).where(Patient.practice_id == practice_id)
+    )).scalars().all()
+    name_by_id = {str(p.id): (p.first_name, p.last_name) for p in patients}
+
+    rows = (await db.execute(
+        select(
+            PatientLedgerEntry.patient_id,
+            func.sum(PatientLedgerEntry.amount),
+            func.sum(func.greatest(PatientLedgerEntry.amount, 0)),  # charges (positive)
+            func.sum(func.least(PatientLedgerEntry.amount, 0)),     # payments/adjustments (negative)
+        ).where(PatientLedgerEntry.practice_id == practice_id)
+        .group_by(PatientLedgerEntry.patient_id)
+    )).all()
+
+    roster = []
+    for pid, balance, charges, payments in rows:
+        nm = name_by_id.get(str(pid))
+        if not nm:
+            continue
+        roster.append({
+            "patient_id": str(pid),
+            "first_name": nm[0],
+            "last_name": nm[1],
+            "balance": float(balance or 0),
+            "total_charges": float(charges or 0),
+            "total_payments": float(payments or 0),  # negative
+        })
+    roster.sort(key=lambda r: r["balance"], reverse=True)
+    return {"count": len(roster), "patients": roster}
+
+
+@router.get("/insurance-roster")
+async def insurance_roster(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Practice-wide insurance roster — every patient with a compact coverage summary.
+
+    Powers the roster-first Insurance view: all patients visible on arrival (no search gate),
+    each showing primary payer, plan, ortho remaining, and account balance so the Treatment
+    Coordinator can scan the whole book at a glance and drill into any patient.
+    """
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    patients = (await db.execute(
+        select(Patient).where(Patient.practice_id == practice_id).order_by(Patient.last_name, Patient.first_name)
+    )).scalars().all()
+
+    # Primary subscriber per patient (one query, indexed in Python).
+    subs = (await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.practice_id == practice_id,
+            InsuranceSubscriber.coverage_type == "primary",
+        )
+    )).scalars().all()
+    sub_by_patient = {str(s.patient_id): s for s in subs}
+
+    # Balances per patient (single grouped query).
+    bal_rows = (await db.execute(
+        select(PatientLedgerEntry.patient_id, func.sum(PatientLedgerEntry.amount))
+        .where(PatientLedgerEntry.practice_id == practice_id)
+        .group_by(PatientLedgerEntry.patient_id)
+    )).all()
+    bal_by_patient = {str(pid): float(total or 0) for pid, total in bal_rows}
+
+    roster = []
+    for p in patients:
+        s = sub_by_patient.get(str(p.id))
+        ortho_remaining = None
+        if s and s.ortho_lifetime_max is not None and s.ortho_lifetime_used is not None:
+            ortho_remaining = float(s.ortho_lifetime_max - s.ortho_lifetime_used)
+        roster.append({
+            "patient_id": str(p.id),
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "treatment_phase": p.treatment_phase,
+            "has_insurance": s is not None,
+            "payer_name": s.payer_name if s else None,
+            "plan_name": s.plan_name if s else None,
+            "plan_type": s.plan_type if s else None,
+            "subscriber_id": s.subscriber_id if s else None,
+            "eligibility_status": (s.eligibility_status if s else None),
+            "ortho_remaining": ortho_remaining,
+            "balance": bal_by_patient.get(str(p.id), 0.0),
+        })
+
+    with_ins = sum(1 for r in roster if r["has_insurance"])
+    return {
+        "count": len(roster),
+        "with_insurance": with_ins,
+        "patients": roster,
+    }
+
+
 @router.get("/insurance/{patient_id}")
 async def get_patient_insurance(
     patient_id: UUID,

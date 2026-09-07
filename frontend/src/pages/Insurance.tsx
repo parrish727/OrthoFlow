@@ -1,406 +1,329 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Shield, Search, Plus, CheckCircle, Users, FileText, AlertCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  Shield, Search, CheckCircle, AlertCircle, Loader2, ChevronRight, ChevronDown,
+  FileText, Receipt, CreditCard, UserCircle, Sparkles,
+} from 'lucide-react'
 import { api } from '../lib/api'
 
-interface Patient {
-  id: string
+interface RosterEntry {
+  patient_id: string
   first_name: string
   last_name: string
+  treatment_phase: string | null
+  has_insurance: boolean
+  payer_name: string | null
+  plan_name: string | null
+  plan_type: string | null
+  subscriber_id: string | null
+  eligibility_status: string | null
+  ortho_remaining: number | null
+  balance: number
 }
 
 interface InsurancePlan {
   id: string
   patient_id: string
   payer_name: string
+  plan_name: string | null
   subscriber_id: string
   group_number: string
-  plan_type: 'primary' | 'secondary'
-  coverage_percentage: number
-  benefits_used: number
-  benefits_remaining: number
-  benefits_max: number
-  effective_date: string
+  plan_type: string
+  coverage_type: string
+  ortho_coverage_pct: number | null
+  annual_max: number | null
+  annual_used: number | null
+  ortho_lifetime_max: number | null
+  ortho_lifetime_used: number | null
+  deductible_amount: number | null
+  deductible_met: number | null
+  copay_amount: number | null
+  effective_date: string | null
   termination_date: string | null
   is_active: boolean
 }
 
+interface Alert { severity: string; code: string; message: string }
 interface EligibilityResult {
-  plan_id: string
   eligible: boolean
-  message: string
-  checked_at: string
+  coverage_active: boolean
+  plan_name: string | null
+  remaining_benefit: number | null
+  ortho_remaining: number | null
+  copay: number | null
+  deductible_remaining: number | null
+  source: string
+  alerts: Alert[]
+  errors: string[]
 }
 
-const PLAN_TYPE_BADGES: Record<string, { label: string; color: string }> = {
-  primary: { label: 'Primary', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  secondary: { label: 'Secondary', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+function money(n: number | null | undefined): string {
+  if (n == null) return '—'
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+const PHASE_COLORS: Record<string, string> = {
+  consultation: 'bg-yellow-100 text-yellow-700', records: 'bg-sky-100 text-sky-700',
+  active: 'bg-green-100 text-green-700', bonding: 'bg-emerald-100 text-emerald-700',
+  observation_1: 'bg-blue-100 text-blue-700', finishing: 'bg-violet-100 text-violet-700',
+  retention: 'bg-teal-100 text-teal-700',
 }
 
 export default function Insurance() {
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [patientSearch, setPatientSearch] = useState('')
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
-  const [showPatientDropdown, setShowPatientDropdown] = useState(false)
-  const [plans, setPlans] = useState<InsurancePlan[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [formLoading, setFormLoading] = useState(false)
-  const [eligibilityChecking, setEligibilityChecking] = useState<string | null>(null)
-  const [eligibilityResults, setEligibilityResults] = useState<Record<string, EligibilityResult>>({})
-const patientDropdownRef = useRef<HTMLDivElement>(null)
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const [roster, setRoster] = useState<RosterEntry[]>([])
+  const [rosterMeta, setRosterMeta] = useState<{ count: number; with_insurance: number }>({ count: 0, with_insurance: 0 })
+  const [loadingRoster, setLoadingRoster] = useState(true)
+  const [filter, setFilter] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [plans, setPlans] = useState<Record<string, InsurancePlan[]>>({})
+  const [loadingPlans, setLoadingPlans] = useState<string | null>(null)
+  const [eligibility, setEligibility] = useState<Record<string, EligibilityResult>>({})
+  const [checking, setChecking] = useState<string | null>(null)
 
-  // Auto-select patient from URL query param (from PatientDetail link)
+  // Load the full roster on arrival — no search gate.
+  const loadRoster = useCallback(async () => {
+    setLoadingRoster(true)
+    try {
+      const res = await api.getInsuranceRoster()
+      if (res.ok) {
+        const data = await res.json()
+        setRoster(data.patients || [])
+        setRosterMeta({ count: data.count || 0, with_insurance: data.with_insurance || 0 })
+      }
+    } catch { /* handled by empty state */ }
+    setLoadingRoster(false)
+  }, [])
+
+  useEffect(() => { loadRoster() }, [loadRoster])
+
+  // Deep-link support: ?patient_id=... auto-expands that patient.
   useEffect(() => {
-    const patientIdFromUrl = searchParams.get('patient_id')
-    if (patientIdFromUrl && !selectedPatient) {
-      api.getPatient(patientIdFromUrl).then(async res => {
+    const pid = searchParams.get('patient_id')
+    if (pid && roster.length > 0) toggleExpand(pid)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster])
+
+  async function toggleExpand(patientId: string) {
+    if (expandedId === patientId) { setExpandedId(null); return }
+    setExpandedId(patientId)
+    if (!plans[patientId]) {
+      setLoadingPlans(patientId)
+      try {
+        const res = await api.getInsurancePlans(patientId)
         if (res.ok) {
           const data = await res.json()
-          const patient = data.patient || data
-          if (patient?.id) {
-            setSelectedPatient({ id: patient.id, first_name: patient.first_name, last_name: patient.last_name })
-          }
+          setPlans(prev => ({ ...prev, [patientId]: data.insurance_plans || data.plans || [] }))
         }
-      }).catch(() => {})
+      } catch { /* handled */ }
+      setLoadingPlans(null)
     }
-  }, [searchParams, selectedPatient])
-
-  // Add plan form state
-  const [newPayer, setNewPayer] = useState('')
-  const [newSubscriberId, setNewSubscriberId] = useState('')
-  const [newGroupNumber, setNewGroupNumber] = useState('')
-  const [newPlanType, setNewPlanType] = useState<'primary' | 'secondary'>('primary')
-  const [newCoverage, setNewCoverage] = useState('80')
-  const [newBenefitsMax, setNewBenefitsMax] = useState('')
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-            if (patientDropdownRef.current && !patientDropdownRef.current.contains(e.target as Node)) setShowPatientDropdown(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-  const searchPatients = useCallback(async (query: string) => {
-    if (!query.trim()) { setPatients([]); return }
-    const res = await api.getPatients({ search: query })
-    if (res.ok) {
-      const data = await res.json()
-      setPatients(data.patients || [])
-    }
-  }, [])
-
-  function handlePatientSearch(value: string) {
-    setPatientSearch(value)
-    setShowPatientDropdown(true)
-    if (searchTimeout.current) clearTimeout(searchTimeout.current)
-    searchTimeout.current = setTimeout(() => searchPatients(value), 300)
   }
 
-  function selectPatient(patient: Patient) {
-    setSelectedPatient(patient)
-    setPatientSearch(`${patient.last_name}, ${patient.first_name}`)
-    setShowPatientDropdown(false)
-    setEligibilityResults({})
-  }
-
-  const loadPlans = useCallback(async () => {
-    if (!selectedPatient) return
-    setLoading(true)
+  async function checkEligibility(patientId: string, planId: string) {
+    setChecking(planId)
     try {
-      const res = await api.getInsurancePlans(selectedPatient.id)
+      const res = await api.checkEligibility({ patient_id: patientId, subscriber_plan_id: planId })
       if (res.ok) {
         const data = await res.json()
-        setPlans(data.insurance_plans || data.plans || [])
+        setEligibility(prev => ({ ...prev, [planId]: data }))
       }
-    } catch {
-      // silently handle
-    }
-    setLoading(false)
-  }, [selectedPatient])
-
-  useEffect(() => { loadPlans() }, [loadPlans])
-
-  async function handleCheckEligibility(planId: string) {
-    setEligibilityChecking(planId)
-    try {
-      const res = await api.checkEligibility({
-        patient_id: selectedPatient?.id,
-        subscriber_plan_id: planId,
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setEligibilityResults(prev => ({ ...prev, [planId]: data }))
-      }
-    } catch {
-      // silently handle
-    }
-    setEligibilityChecking(null)
+    } catch { /* handled */ }
+    setChecking(null)
   }
 
-  async function handleAddPlan(e: React.FormEvent) {
-    e.preventDefault()
-    if (!selectedPatient) return
-    setFormLoading(true)
-    try {
-      const res = await api.addInsurancePlan({
-        patient_id: selectedPatient.id,
-        payer_name: newPayer,
-        subscriber_id: newSubscriberId,
-        group_number: newGroupNumber,
-        plan_type: newPlanType,
-        coverage_percentage: parseInt(newCoverage, 10),
-        benefits_max: newBenefitsMax ? parseFloat(newBenefitsMax) : null,
-      })
-      if (res.ok) {
-        setNewPayer('')
-        setNewSubscriberId('')
-        setNewGroupNumber('')
-        setNewPlanType('primary')
-        setNewCoverage('80')
-        setNewBenefitsMax('')
-        setShowAddForm(false)
-        loadPlans()
-      }
-    } catch {
-      // silently handle
-    }
-    setFormLoading(false)
-  }
-
-  function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
+  const filtered = roster.filter(r => {
+    if (!filter.trim()) return true
+    const q = filter.toLowerCase()
+    return `${r.first_name} ${r.last_name}`.toLowerCase().includes(q)
+      || (r.payer_name || '').toLowerCase().includes(q)
+      || (r.subscriber_id || '').toLowerCase().includes(q)
+  })
 
   return (
-    <>
-        {/* Title */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Insurance Plans</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Manage patient insurance & check eligibility</p>
-          </div>
+    <div data-testid="insurance-page">
+      {/* Title */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">Insurance</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {rosterMeta.count} patients · {rosterMeta.with_insurance} with coverage on file
+          </p>
         </div>
+      </div>
 
-        {/* Patient Selector */}
-        <div className="relative mb-6" ref={patientDropdownRef}>
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search for a patient..."
-            value={patientSearch}
-            onChange={e => handlePatientSearch(e.target.value)}
-            onFocus={() => { if (patients.length > 0) setShowPatientDropdown(true) }}
-            className="w-full sm:w-96 pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-          />
-          {showPatientDropdown && patients.length > 0 && (
-            <div className="absolute top-full mt-1 w-full sm:w-96 bg-white rounded-xl border border-gray-200 shadow-lg py-1 z-30 max-h-60 overflow-y-auto">
-              {patients.map(p => (
+      {/* Optional filter — roster is visible without it */}
+      <div className="relative mb-4 max-w-md">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          data-testid="insurance-filter"
+          type="text"
+          placeholder="Filter by patient, payer, or member ID…"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+        />
+      </div>
+
+      {/* Roster — all patients in plain sight */}
+      {loadingRoster ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-16 bg-white rounded-xl border border-gray-200/70 animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm py-16 text-center">
+          <Shield size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-sm text-gray-400">No patients match “{filter}”.</p>
+        </div>
+      ) : (
+        <div className="space-y-2" data-testid="insurance-roster">
+          {filtered.map(r => {
+            const isOpen = expandedId === r.patient_id
+            return (
+              <div key={r.patient_id} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+                {/* Roster row — click to expand */}
                 <button
-                  key={p.id}
-                  onClick={() => selectPatient(p)}
-                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
+                  data-testid={`roster-row-${r.patient_id}`}
+                  onClick={() => toggleExpand(r.patient_id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                 >
-                  <span className="font-medium text-gray-900">{p.last_name}, {p.first_name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {!selectedPatient ? (
-          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm py-16 text-center">
-            <Shield size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-sm text-gray-400">Select a patient to view their insurance plans</p>
-          </div>
-        ) : (
-          <>
-            {/* Add Plan Button */}
-            <div className="flex items-center gap-3 mb-6">
-              <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
-              >
-                <Plus size={16} /> Add Plan
-              </button>
-            </div>
-
-            {/* Add Plan Form */}
-            {showAddForm && (
-              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 mb-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">Add Insurance Plan</h3>
-                <form onSubmit={handleAddPlan} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Payer Name (e.g., Delta Dental)"
-                    value={newPayer}
-                    onChange={e => setNewPayer(e.target.value)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Subscriber ID"
-                    value={newSubscriberId}
-                    onChange={e => setNewSubscriberId(e.target.value)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Group Number"
-                    value={newGroupNumber}
-                    onChange={e => setNewGroupNumber(e.target.value)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                    required
-                  />
-                  <select
-                    value={newPlanType}
-                    onChange={e => setNewPlanType(e.target.value as 'primary' | 'secondary')}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="primary">Primary</option>
-                    <option value="secondary">Secondary</option>
-                  </select>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="Coverage % (e.g., 80)"
-                    value={newCoverage}
-                    onChange={e => setNewCoverage(e.target.value)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                    required
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Annual Max Benefits ($)"
-                    value={newBenefitsMax}
-                    onChange={e => setNewBenefitsMax(e.target.value)}
-                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                  />
-                  <div className="sm:col-span-2 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddForm(false)}
-                      className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={formLoading}
-                      className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      {formLoading ? 'Adding...' : 'Add Plan'}
-                    </button>
+                  {isOpen ? <ChevronDown size={16} className="text-gray-400 shrink-0" /> : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{r.last_name}, {r.first_name}</span>
+                      {r.treatment_phase && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PHASE_COLORS[r.treatment_phase] || 'bg-gray-100 text-gray-600'}`}>
+                          {r.treatment_phase.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">
+                      {r.has_insurance ? `${r.payer_name} · ${r.plan_type}` : 'No insurance on file'}
+                    </p>
                   </div>
-                </form>
-              </div>
-            )}
+                  <div className="hidden sm:block text-right shrink-0">
+                    <p className="text-xs text-gray-400">Ortho remaining</p>
+                    <p className="text-sm font-medium text-emerald-600">{money(r.ortho_remaining)}</p>
+                  </div>
+                  <div className="hidden md:block text-right shrink-0 w-24">
+                    <p className="text-xs text-gray-400">Balance</p>
+                    <p className={`text-sm font-medium ${r.balance > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{money(r.balance)}</p>
+                  </div>
+                </button>
 
-            {/* Plans List */}
-            <div className="space-y-4">
-              {loading ? (
-                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-4">
-                  {[1, 2].map(i => (
-                    <div key={i} className="animate-pulse">
-                      <div className="h-5 bg-gray-200 rounded w-48 mb-3" />
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="h-4 bg-gray-100 rounded" />
-                        <div className="h-4 bg-gray-100 rounded" />
-                        <div className="h-4 bg-gray-100 rounded" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : plans.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm py-12 text-center">
-                  <Shield size={28} className="mx-auto text-gray-300 mb-3" />
-                  <p className="text-sm text-gray-400">No insurance plans on file</p>
-                </div>
-              ) : (
-                plans.map(plan => (
-                  <div key={plan.id} className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-base font-semibold text-gray-900">{plan.payer_name}</h3>
-                          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PLAN_TYPE_BADGES[plan.plan_type]?.color || ''}`}>
-                            {PLAN_TYPE_BADGES[plan.plan_type]?.label || plan.plan_type}
-                          </span>
-                          {!plan.is_active && (
-                            <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-red-50 text-red-600 border-red-200">Inactive</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">Subscriber: {plan.subscriber_id} • Group: {plan.group_number}</p>
-                      </div>
-                      <button
-                        onClick={() => handleCheckEligibility(plan.id)}
-                        disabled={eligibilityChecking === plan.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                      >
-                        {eligibilityChecking === plan.id ? (
-                          <><Loader2 size={12} className="animate-spin" /> Checking...    </>
-  ) : (
-                          <><CheckCircle size={12} /> Check Eligibility    </>
-  )}
-                      </button>
+                {/* Expanded patient panel */}
+                {isOpen && (
+                  <div className="border-t border-gray-100 p-4 bg-gray-50/50" data-testid={`patient-panel-${r.patient_id}`}>
+                    {/* Quick-link tabs to related sections for this patient */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <QuickLink icon={UserCircle} label="Patient Record" onClick={() => navigate(`/patients/${r.patient_id}`)} />
+                      <QuickLink icon={FileText} label="Claims" onClick={() => navigate(`/claims?patient_id=${r.patient_id}`)} />
+                      <QuickLink icon={Receipt} label="Ledger" onClick={() => navigate(`/ledger?patient_id=${r.patient_id}`)} />
+                      <QuickLink icon={CreditCard} label="Payments" onClick={() => navigate(`/payments?patient_id=${r.patient_id}`)} />
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-0.5">Coverage</p>
-                        <p className="text-sm font-medium text-gray-900">{plan.coverage_percentage}%</p>
+                    {loadingPlans === r.patient_id ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                        <Loader2 size={14} className="animate-spin" /> Loading plans…
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-0.5">Benefits Used</p>
-                        <p className="text-sm font-medium text-gray-900">{formatCurrency(plan.benefits_used)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-0.5">Remaining</p>
-                        <p className="text-sm font-medium text-emerald-600">{formatCurrency(plan.benefits_remaining)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-0.5">Annual Max</p>
-                        <p className="text-sm font-medium text-gray-900">{formatCurrency(plan.benefits_max)}</p>
-                      </div>
-                    </div>
+                    ) : (plans[r.patient_id] || []).length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">No insurance plans on file for this patient.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {plans[r.patient_id].map(plan => {
+                          const elig = eligibility[plan.id]
+                          const orthoRemaining = (plan.ortho_lifetime_max ?? 0) - (plan.ortho_lifetime_used ?? 0)
+                          const annualRemaining = (plan.annual_max ?? 0) - (plan.annual_used ?? 0)
+                          return (
+                            <div key={plan.id} className="bg-white rounded-xl border border-gray-200/80 p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-semibold text-gray-900">{plan.payer_name}</h4>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                                      {plan.coverage_type}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {plan.plan_name} · Member {plan.subscriber_id}{plan.group_number ? ` · Group ${plan.group_number}` : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  data-testid={`check-eligibility-${plan.id}`}
+                                  onClick={() => checkEligibility(r.patient_id, plan.id)}
+                                  disabled={checking === plan.id}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50 shrink-0"
+                                >
+                                  {checking === plan.id
+                                    ? <><Loader2 size={12} className="animate-spin" /> Checking…</>
+                                    : <><CheckCircle size={12} /> Check Eligibility</>}
+                                </button>
+                              </div>
 
-                    {/* Benefits usage bar */}
-                    <div className="mt-4">
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 rounded-full transition-all"
-                          style={{ width: `${plan.benefits_max > 0 ? (plan.benefits_used / plan.benefits_max) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {plan.benefits_max > 0 ? Math.round((plan.benefits_used / plan.benefits_max) * 100) : 0}% of annual max used
-                      </p>
-                    </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <Metric label="Ortho Coverage" value={`${plan.ortho_coverage_pct ?? 0}%`} />
+                                <Metric label="Ortho Remaining" value={money(orthoRemaining)} accent="emerald" />
+                                <Metric label="Annual Remaining" value={money(annualRemaining)} />
+                                <Metric label="Copay" value={money(plan.copay_amount)} />
+                              </div>
 
-                    {/* Eligibility Result */}
-                    {eligibilityResults[plan.id] && (
-                      <div className={`mt-4 p-3 rounded-xl text-sm flex items-start gap-2 ${eligibilityResults[plan.id].eligible ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                        {eligibilityResults[plan.id].eligible ? (
-                          <CheckCircle size={16} className="flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                        )}
-                        <span>{eligibilityResults[plan.id].message}</span>
+                              {/* Eligibility result + precognitive alerts */}
+                              {elig && (
+                                <div className="mt-3 space-y-2" data-testid={`eligibility-result-${plan.id}`}>
+                                  <div className={`p-2.5 rounded-lg text-sm flex items-center gap-2 ${elig.coverage_active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                    {elig.coverage_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                                    <span>{elig.coverage_active ? 'Coverage active' : 'Coverage inactive'}</span>
+                                    <span className="ml-auto text-xs opacity-70">
+                                      {elig.source === 'stedi_live' ? 'via Stedi (live)' : 'stored benefits'}
+                                    </span>
+                                  </div>
+                                  {(elig.alerts || []).map((a, i) => (
+                                    <div key={i} className={`p-2.5 rounded-lg text-sm flex items-start gap-2 ${
+                                      a.severity === 'critical' ? 'bg-red-50 text-red-700'
+                                      : a.severity === 'warning' ? 'bg-amber-50 text-amber-700'
+                                      : 'bg-sky-50 text-sky-700'}`}>
+                                      <Sparkles size={14} className="shrink-0 mt-0.5" />
+                                      <span>{a.message}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
-                ))
-              )}
-            </div>
-              </>
-  )}
-          </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function QuickLink({ icon: Icon, label, onClick }: { icon: typeof FileText; label: string; onClick: () => void }) {
+  return (
+    <button
+      data-testid={`quicklink-${label.toLowerCase().replace(/\s+/g, '-')}`}
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"
+    >
+      <Icon size={13} /> {label}
+    </button>
+  )
+}
+
+function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+      <p className={`text-sm font-medium ${accent === 'emerald' ? 'text-emerald-600' : 'text-gray-900'}`}>{value}</p>
+    </div>
   )
 }

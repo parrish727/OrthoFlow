@@ -14,10 +14,16 @@ const ACCOUNTS = {
 
 async function staffLogin(page: Page, email: string): Promise<void> {
   await page.goto('/login')
-  await page.getByPlaceholder('Email').fill(email)
-  await page.getByPlaceholder('Password').fill(STAFF_PASSWORD)
-  await page.getByRole('button', { name: /sign in|log in/i }).click()
-  await page.waitForURL('/', { timeout: 10000 })
+  await page.locator('input[type="email"]').fill(email)
+  await page.locator('input[type="password"]').fill(STAFF_PASSWORD)
+  // Submit and wait for the login API response directly (resilient to CDN latency).
+  const [resp] = await Promise.all([
+    page.waitForResponse(r => r.url().includes('/auth/login') && r.request().method() === 'POST', { timeout: 30000 }),
+    page.getByRole('button', { name: /sign in|log in/i }).click(),
+  ])
+  if (!resp.ok()) throw new Error(`Login failed: ${resp.status()}`)
+  await page.waitForFunction(() => !!localStorage.getItem('token'), { timeout: 15000 })
+  await page.waitForTimeout(500)
 }
 
 export async function loginAsOwner(page: Page): Promise<void> {

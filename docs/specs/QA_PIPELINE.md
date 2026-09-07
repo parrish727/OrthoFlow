@@ -1,13 +1,42 @@
 # OrthoFlow QA Pipeline Specification
 
-> **Version:** 1.0  
-> **Date:** 2026-07-30  
-> **Status:** Active  
+> **Version:** 1.1
+> **Date:** 2026-09-07
+> **Status:** Active
 > **Scope:** OrthoFlow (Staff App) + MyOrthoChart (Patient Portal)
 
 ## Overview
 
 Six-phase quality pipeline that validates the entire OrthoFlow product from infrastructure through user experience. Designed to support onboarding from 10 to 1000+ practices with proper error handling, logging, and automated regression prevention.
+
+## Automated Frontend Testing — REQUIRED STANDARD (v1.1)
+
+Automated end-to-end (E2E) frontend testing with **Playwright is a mandatory part of QA** for
+every UI change. The agent and QA agents MUST run the E2E suite whenever frontend behavior is
+added or modified, and treat a failing/again-flaky suite as a release blocker.
+
+**How it runs (Docker-based runner — the standard):**
+- `./e2e/run-e2e.sh [filter]` runs the official `mcr.microsoft.com/playwright` image on the
+  `docker_agent-net` network, targeting the live frontend container. This avoids host
+  browser-launch issues and matches CI.
+- Config: `e2e/playwright.docker.config.ts`. Auth is established once via
+  `e2e/global-setup.ts` (saved to `storage/owner.json`) and reused by all specs — no
+  per-test login (removes CDN-latency flakiness).
+- The dockerized browser origin (`http://orthoflow-frontend-1:3000`) is allow-listed in the
+  backend `CORS_ORIGINS` so login works from the runner.
+
+**What every UI feature must include:**
+- `data-testid` attributes on the key interactive elements it introduces.
+- A spec under `e2e/tests/` covering: it renders on arrival, its primary interaction works,
+  and any navigation/deep-links land correctly.
+- A passing run (`./e2e/run-e2e.sh <feature>`) captured as evidence before the change is
+  considered done.
+
+**Verification is not complete on API checks alone** — the rendered UI must be exercised by
+Playwright. "The API returns data" is necessary but not sufficient; the user-facing behavior
+must be proven in a browser.
+
+---
 
 ## Self-Improving Loop Engineering
 

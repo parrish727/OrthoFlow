@@ -1,404 +1,191 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Upload, Users, FileText, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  CreditCard, Search, ChevronRight, ChevronDown, Loader2,
+  Shield, FileText, Receipt, UserCircle,
+} from 'lucide-react'
 import { api } from '../lib/api'
 
-interface PaymentPosting {
+interface RosterEntry {
+  patient_id: string
+  first_name: string
+  last_name: string
+  total_paid: number
+  payment_count: number
+  last_payment_date: string | null
+}
+
+interface LedgerEntry {
   id: string
-  source: 'insurance' | 'patient' | 'other'
-  payer_name: string
-  check_number: string | null
-  total_amount: number
-  applied_amount: number
-  unapplied_amount: number
-  status: 'pending' | 'partial' | 'applied' | 'void'
-  received_date: string
-  posted_by: string | null
+  entry_type: string
+  description: string
+  amount: number
+  posted_date: string | null
+  payment_method: string | null
+  reference_number: string | null
 }
 
-interface PaymentStats {
-  total_received: number
-  total_unapplied: number
-  total_postings: number
-}
-
-const STATUS_BADGES: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  partial: { label: 'Partial', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  applied: { label: 'Applied', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  void: { label: 'Void', color: 'bg-red-50 text-red-600 border-red-200' },
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  insurance: 'Insurance',
-  patient: 'Patient',
-  other: 'Other',
+function money(n: number | null | undefined): string {
+  if (n == null) return '—'
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
 export default function Payments() {
-  const [postings, setPostings] = useState<PaymentPosting[]>([])
-  const [stats, setStats] = useState<PaymentStats | null>(null)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [roster, setRoster] = useState<RosterEntry[]>([])
+  const [meta, setMeta] = useState<{ count: number }>({ count: 0 })
   const [loading, setLoading] = useState(true)
-  const [showNewForm, setShowNewForm] = useState(false)
-  const [formLoading, setFormLoading] = useState(false)
-  const [eraImporting, setEraImporting] = useState(false)
-  const [eraResult, setEraResult] = useState<string | null>(null)
-const fileInputRef = useRef<HTMLInputElement>(null)
+  const [filter, setFilter] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [paymentsByPatient, setPaymentsByPatient] = useState<Record<string, LedgerEntry[]>>({})
+  const [loadingPayments, setLoadingPayments] = useState<string | null>(null)
 
-  // New payment form state
-  const [newSource, setNewSource] = useState<'insurance' | 'patient' | 'other'>('insurance')
-  const [newPayer, setNewPayer] = useState('')
-  const [newCheckNumber, setNewCheckNumber] = useState('')
-  const [newAmount, setNewAmount] = useState('')
-  const [newPaymentMethod, setNewPaymentMethod] = useState('')
-  const [newPaymentType, setNewPaymentType] = useState('')
-  const [newNotes, setNewNotes] = useState('')
-
-  // Monthly payment tracker (would come from patient data in production)
-  const monthsCompleted = 2
-  const totalMonths = 24
-  const loadPostings = useCallback(async () => {
+  const loadRoster = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.getPaymentPostings()
+      const res = await api.getPaymentsRoster()
       if (res.ok) {
         const data = await res.json()
-        setPostings(data.postings || data || [])
-        if (data.stats) setStats(data.stats)
+        setRoster(data.patients || [])
+        setMeta({ count: data.count || 0 })
       }
-    } catch {
-      // silently handle
-    }
+    } catch { /* handled */ }
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadPostings() }, [loadPostings])
+  useEffect(() => { loadRoster() }, [loadRoster])
 
-  async function handleNewPayment(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newPayer || !newAmount || !newPaymentMethod || !newPaymentType) return
-    setFormLoading(true)
-    try {
-      const res = await api.createPaymentPosting({
-        source: newSource,
-        payer_name: newPayer,
-        check_number: newCheckNumber || null,
-        total_amount: parseFloat(newAmount),
-        payment_method: newPaymentMethod,
-        payment_type: newPaymentType,
-        notes: newNotes || null,
-      })
-      if (res.ok) {
-        setNewSource('insurance')
-        setNewPayer('')
-        setNewCheckNumber('')
-        setNewAmount('')
-        setNewPaymentMethod('')
-        setNewPaymentType('')
-        setNewNotes('')
-        setShowNewForm(false)
-        loadPostings()
-      }
-    } catch {
-      // silently handle
+  useEffect(() => {
+    const pid = searchParams.get('patient_id')
+    if (pid && roster.length > 0) expand(pid)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster])
+
+  async function expand(patientId: string) {
+    if (expandedId === patientId) { setExpandedId(null); return }
+    setExpandedId(patientId)
+    if (!paymentsByPatient[patientId]) {
+      setLoadingPayments(patientId)
+      try {
+        const res = await api.getLedger(patientId)
+        if (res.ok) {
+          const data = await res.json()
+          const payments = (data.entries || []).filter((e: LedgerEntry) => e.entry_type === 'payment')
+          setPaymentsByPatient(prev => ({ ...prev, [patientId]: payments }))
+        }
+      } catch { /* handled */ }
+      setLoadingPayments(null)
     }
-    setFormLoading(false)
   }
 
-  async function handleEraImport(file: File) {
-    setEraImporting(true)
-    setEraResult(null)
-    try {
-      const res = await api.importEra(file)
-      if (res.ok) {
-        const data = await res.json()
-        setEraResult(data.message || `Imported ${data.count || 0} payment(s) successfully`)
-        loadPostings()
-      } else {
-        setEraResult('Failed to import ERA file. Please check the format and try again.')
-      }
-    } catch {
-      setEraResult('Failed to import ERA file. Connection error.')
-    }
-    setEraImporting(false)
-  }
+  const filtered = roster.filter(r =>
+    !filter.trim() || `${r.first_name} ${r.last_name}`.toLowerCase().includes(filter.toLowerCase()))
 
-  function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
-
-  function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
+  const totalCollected = roster.reduce((a, r) => a + r.total_paid, 0)
 
   return (
-    <>
-        {/* Title */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Payments</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Post payments & import ERAs</p>
-          </div>
+    <div data-testid="payments-page">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">Payments</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {money(totalCollected)} collected across {meta.count} patients
+          </p>
         </div>
+      </div>
 
-        {/* Summary Stats */}
-        {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Total Received</p>
-              <p className="text-lg font-semibold text-gray-900">{formatCurrency(stats.total_received)}</p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Unapplied</p>
-              <p className={`text-lg font-semibold ${stats.total_unapplied > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
-                {formatCurrency(stats.total_unapplied)}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Total Postings</p>
-              <p className="text-lg font-semibold text-gray-900">{stats.total_postings}</p>
-            </div>
-          </div>
-        )}
+      <div className="relative mb-4 max-w-md">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          data-testid="payments-filter"
+          type="text"
+          placeholder="Filter by patient…"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+        />
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => setShowNewForm(!showNewForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-sm font-medium transition-colors shadow-sm"
-          >
-            <Plus size={16} /> New Payment
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={eraImporting}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-full text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-          >
-            {eraImporting ? (
-              <><Loader2 size={16} className="animate-spin" /> Importing...    </>
-  ) : (
-              <><Upload size={16} /> Import ERA    </>
-  )}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".835,.edi,.txt"
-            className="hidden"
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) handleEraImport(file)
-              e.target.value = ''
-            }}
-          />
+      {loading ? (
+        <div className="space-y-2">{[1, 2, 3, 4, 5].map(i => <div key={i} className="h-16 bg-white rounded-xl border border-gray-200/70 animate-pulse" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm py-16 text-center">
+          <CreditCard size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-sm text-gray-400">No payments match “{filter}”.</p>
         </div>
-
-        {/* ERA Import Result */}
-        {eraResult && (
-          <div className={`mb-6 p-3 rounded-xl text-sm ${eraResult.includes('Failed') ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
-            {eraResult}
-          </div>
-        )}
-
-        {/* New Payment Form */}
-        {showNewForm && (
-          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 mb-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">New Payment Posting</h3>
-            <form onSubmit={handleNewPayment} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <select
-                value={newSource}
-                onChange={e => { setNewSource(e.target.value as 'insurance' | 'patient' | 'other'); setNewPayer('') }}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-              >
-                <option value="insurance">Insurance</option>
-                <option value="patient">Patient</option>
-                <option value="other">Other</option>
-              </select>
-              {newSource === 'insurance' ? (
-                <select
-                  value={newPayer}
-                  onChange={e => setNewPayer(e.target.value)}
-                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                  required
-                >
-                  <option value="">Select Insurance...</option>
-                  <option value="Delta Dental">Delta Dental</option>
-                  <option value="MetLife">MetLife</option>
-                  <option value="Cigna">Cigna</option>
-                  <option value="Aetna">Aetna</option>
-                  <option value="United Healthcare">United Healthcare</option>
-                  <option value="BlueCross BlueShield">BlueCross BlueShield</option>
-                  <option value="Guardian">Guardian</option>
-                  <option value="Humana">Humana</option>
-                  <option value="Principal">Principal</option>
-                  <option value="Other Insurance">Other Insurance</option>
-                </select>
-              ) : newSource === 'patient' ? (
-                <input
-                  type="text"
-                  placeholder="Search patient name..."
-                  value={newPayer}
-                  onChange={e => setNewPayer(e.target.value)}
-                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
-                  required
-                />
-              ) : (
-                <input
-                  type="text"
-                  placeholder="Payer Name"
-                  value={newPayer}
-                  onChange={e => setNewPayer(e.target.value)}
-                  className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
-                  required
-                />
-              )}
-              <input
-                type="text"
-                placeholder="Check / Reference #"
-                value={newCheckNumber}
-                onChange={e => setNewCheckNumber(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
-              />
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="Amount ($)"
-                value={newAmount}
-                onChange={e => setNewAmount(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
-                required
-              />
-              <select
-                value={newPaymentMethod}
-                onChange={e => setNewPaymentMethod(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                required
-              >
-                <option value="" disabled>Payment Method *</option>
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="credit_card">Credit Card</option>
-                <option value="debit_card">Debit Card</option>
-                <option value="insurance_payment">Insurance Payment</option>
-                <option value="other">Other</option>
-              </select>
-              <select
-                value={newPaymentType}
-                onChange={e => setNewPaymentType(e.target.value)}
-                className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                required
-              >
-                <option value="" disabled>Payment Type *</option>
-                <option value="monthly_payment">Monthly Payment Towards Treatment</option>
-                <option value="upper_essix_retainer">Upper Essix Retainer</option>
-                <option value="lower_essix_retainer">Lower Essix Retainer</option>
-                <option value="upper_lower_essix_retainer">Upper and Lower Essix Retainer</option>
-                <option value="loose_lingual_retainer_repair">Loose Lingual Retainer Repair</option>
-                <option value="broken_bracket_repair">Broken Bracket Repair</option>
-                <option value="office_visit_charge">Office Visit Charge</option>
-                <option value="missed_appointment_fee">Missed Appointment Fee</option>
-                <option value="late_payment_fee">Late Payment Fee</option>
-                <option value="retainer_check">Retainer Check</option>
-                <option value="records_fee">Records Fee</option>
-                <option value="consultation_fee">Consultation Fee</option>
-                <option value="other">Other</option>
-              </select>
-              {newPaymentType === 'monthly_payment' && (
-                <div className="sm:col-span-2 bg-teal-50 border border-teal-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-teal-800">Monthly Payment Tracker</span>
-                    <span className="text-sm font-semibold text-teal-700">{monthsCompleted}/{totalMonths} months completed</span>
-                  </div>
-                  <div className="w-full bg-teal-100 rounded-full h-2.5">
-                    <div
-                      className="bg-teal-600 h-2.5 rounded-full transition-all"
-                      style={{ width: `${(monthsCompleted / totalMonths) * 100}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-teal-600 mt-1.5">{totalMonths - monthsCompleted} payments remaining</p>
-                </div>
-              )}
-              <textarea
-                placeholder="Additional payment details..."
-                value={newNotes}
-                onChange={e => setNewNotes(e.target.value)}
-                rows={3}
-                className="sm:col-span-2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 resize-none"
-              />
-              <div className="sm:col-span-2 flex justify-end gap-3">
+      ) : (
+        <div className="space-y-2" data-testid="payments-roster">
+          {filtered.map(r => {
+            const isOpen = expandedId === r.patient_id
+            return (
+              <div key={r.patient_id} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <button
-                  type="button"
-                  onClick={() => setShowNewForm(false)}
-                  className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  data-testid={`payments-row-${r.patient_id}`}
+                  onClick={() => expand(r.patient_id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-                >
-                  {formLoading ? 'Posting...' : 'Post Payment'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Postings List */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="p-6 space-y-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="flex items-center gap-4 animate-pulse">
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 rounded w-40 mb-2" />
-                    <div className="h-3 bg-gray-100 rounded w-24" />
+                  {isOpen ? <ChevronDown size={16} className="text-gray-400 shrink-0" /> : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-gray-900">{r.last_name}, {r.first_name}</span>
+                    <p className="text-xs text-gray-500">
+                      {r.payment_count} payment{r.payment_count !== 1 ? 's' : ''}
+                      {r.last_payment_date ? ` · last ${r.last_payment_date}` : ''}
+                    </p>
                   </div>
-                  <div className="w-20 h-4 bg-gray-200 rounded" />
-                  <div className="w-20 h-4 bg-gray-100 rounded" />
-                  <div className="w-16 h-5 bg-gray-100 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : postings.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-sm">
-              No payment postings yet
-            </div>
-          ) : (
-            <>
-              <div className="hidden sm:grid grid-cols-[1fr_100px_100px_100px_100px_80px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
-                <span>Payer</span>
-                <span>Check #</span>
-                <span className="text-right">Total</span>
-                <span className="text-right">Applied</span>
-                <span className="text-right">Unapplied</span>
-                <span className="text-right">Status</span>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {postings.map(posting => (
-                  <div key={posting.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_100px_100px_100px_80px] gap-2 sm:gap-4 px-6 py-3.5 items-center hover:bg-gray-50/50 transition-colors">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{posting.payer_name}</p>
-                      <p className="text-xs text-gray-500">{SOURCE_LABELS[posting.source] || posting.source} • {formatDate(posting.received_date)}</p>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-400">Total paid</p>
+                    <p className="text-sm font-medium text-emerald-600">{money(r.total_paid)}</p>
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-gray-100 p-4 bg-gray-50/50" data-testid={`payments-panel-${r.patient_id}`}>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <QuickLink icon={UserCircle} label="Patient Record" onClick={() => navigate(`/patients/${r.patient_id}`)} />
+                      <QuickLink icon={Shield} label="Insurance" onClick={() => navigate(`/insurance?patient_id=${r.patient_id}`)} />
+                      <QuickLink icon={FileText} label="Claims" onClick={() => navigate(`/claims?patient_id=${r.patient_id}`)} />
+                      <QuickLink icon={Receipt} label="Ledger" onClick={() => navigate(`/ledger?patient_id=${r.patient_id}`)} />
                     </div>
-                    <span className="text-sm text-gray-600">{posting.check_number || '—'}</span>
-                    <span className="text-sm text-right font-medium text-gray-900">{formatCurrency(posting.total_amount)}</span>
-                    <span className="text-sm text-right text-emerald-600">{formatCurrency(posting.applied_amount)}</span>
-                    <span className={`text-sm text-right ${posting.unapplied_amount > 0 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-                      {formatCurrency(posting.unapplied_amount)}
-                    </span>
-                    <span className="text-right">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGES[posting.status]?.color || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                        {STATUS_BADGES[posting.status]?.label || posting.status}
-                      </span>
-                    </span>
+
+                    {loadingPayments === r.patient_id ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400 py-4"><Loader2 size={14} className="animate-spin" /> Loading payments…</div>
+                    ) : (paymentsByPatient[r.patient_id] || []).length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">No payments recorded.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {paymentsByPatient[r.patient_id].map(pmt => (
+                          <div key={pmt.id} className="flex items-center justify-between bg-white rounded-lg border border-gray-200/70 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-800 truncate">{pmt.description}</p>
+                              <p className="text-xs text-gray-400">
+                                {pmt.posted_date || '—'}{pmt.payment_method ? ` · ${pmt.payment_method}` : ''}{pmt.reference_number ? ` · ${pmt.reference_number}` : ''}
+                              </p>
+                            </div>
+                            <span className="text-sm font-medium text-emerald-600 shrink-0">{money(Math.abs(pmt.amount))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
-                </>
-  )}
+            )
+          })}
         </div>
-          </>
+      )}
+    </div>
+  )
+}
+
+function QuickLink({ icon: Icon, label, onClick }: { icon: typeof FileText; label: string; onClick: () => void }) {
+  return (
+    <button
+      data-testid={`quicklink-${label.toLowerCase().replace(/\s+/g, '-')}`}
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"
+    >
+      <Icon size={13} /> {label}
+    </button>
   )
 }
