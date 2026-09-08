@@ -4,6 +4,7 @@ import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2,
 import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
+import PatientOrthoPanel from '../components/PatientOrthoPanel'
 
 interface Patient {
   id: string
@@ -107,6 +108,8 @@ export default function PatientDetail() {
   const loadPatient = useCallback(async () => {
     if (!id) return
     setLoading(true)
+    // Log this patient view as a recent search (drives the last-5-searched bar).
+    api.logRecentSearch(id).catch(() => {})
     const [patientRes, apptsRes, notesRes, chartRes] = await Promise.all([
       api.getPatient(id),
       api.getAppointments({ patient_id: id }),
@@ -411,6 +414,9 @@ export default function PatientDetail() {
                 )}
               </div>
             </div>
+
+            {/* Ortho ops: comments (info/clinical) + chart charges */}
+            {id && <PatientOrthoPanel patientId={id} />}
 
             {/* Treatment Notes + Assistant */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">

@@ -551,3 +551,220 @@ async def list_snapshots(
             for s in snapshots
         ],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reports by Category (Frontdesk / Doctor / TC)
+# Cloud9-informed category set. Each returns rows + a summary for the Reports UI.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+REPORT_CATEGORIES = [
+    {"key": "patients_owe", "label": "Patients Who Owe Money", "group": "financial"},
+    {"key": "by_insurance", "label": "By Insurance (Payer Book)", "group": "financial"},
+    {"key": "missing_appointments", "label": "Missing / Broken Appointments", "group": "scheduling"},
+    {"key": "treatment_overdue", "label": "Treatment Status — Overdue", "group": "clinical"},
+    {"key": "treatment_bring_sooner", "label": "Treatment Status — Bring In Sooner", "group": "clinical"},
+    {"key": "scheduled_appointments", "label": "Scheduled Specific Appointments", "group": "scheduling"},
+    {"key": "private_collections", "label": "Private Collections", "group": "financial"},
+    {"key": "insurance_collections", "label": "Insurance Collections", "group": "financial"},
+    {"key": "no_chart_notes_today", "label": "Appointments With No Chart Notes (Today)", "group": "clinical"},
+]
+
+
+@router.get("/categories")
+async def list_report_categories(user: dict = Depends(get_current_user)):
+    """List the available report categories for the Reports UI."""
+    return {"categories": REPORT_CATEGORIES}
+
+
+@router.get("/category/{key}")
+async def report_by_category(
+    key: str,
+    report_date: date = Query(default_factory=date.today),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run a categorized report. Returns {key, label, rows, summary, ai_suggestions?}."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    cat = next((c for c in REPORT_CATEGORIES if c["key"] == key), None)
+    if not cat:
+        raise HTTPException(404, f"Unknown report category '{key}'")
+
+    from app.models.finance import InsuranceSubscriber
+    from app.models.ortho_ops import PatientInsuranceContract
+
+    rows: list[dict] = []
+    summary: dict = {}
+    ai_suggestions: list[str] = []
+
+    # ── Patients who owe money (balance > 0) ───────────────────────────────────
+    if key in ("patients_owe", "private_collections", "insurance_collections"):
+        bal_rows = (await db.execute(
+            select(PatientLedgerEntry.patient_id, func.sum(PatientLedgerEntry.amount))
+            .where(PatientLedgerEntry.practice_id == practice_id)
+            .group_by(PatientLedgerEntry.patient_id)
+        )).all()
+        patients = {str(p.id): p for p in (await db.execute(
+            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+        subs = {str(s.patient_id): s for s in (await db.execute(
+            select(InsuranceSubscriber).where(InsuranceSubscriber.practice_id == practice_id,
+                                              InsuranceSubscriber.coverage_type == "primary"))).scalars().all()}
+        for pid, bal in bal_rows:
+            b = float(bal or 0)
+            if b <= 0:
+                continue
+            p = patients.get(str(pid))
+            if not p:
+                continue
+            has_ins = str(pid) in subs
+            is_medicaid = has_ins and (subs[str(pid)].plan_type or "").lower() == "medicaid"
+            # private_collections = self-pay balance; insurance_collections = has insurance
+            if key == "private_collections" and has_ins:
+                continue
+            if key == "insurance_collections" and not has_ins:
+                continue
+            rows.append({
+                "patient_id": str(pid), "patient_name": f"{p.first_name} {p.last_name}",
+                "balance": round(b, 2), "has_insurance": has_ins,
+                "payer_name": subs[str(pid)].payer_name if has_ins else None,
+                "medicaid": is_medicaid,
+            })
+        rows.sort(key=lambda r: r["balance"], reverse=True)
+        summary = {"patient_count": len(rows), "total_outstanding": round(sum(r["balance"] for r in rows), 2)}
+
+    # ── By insurance (payer book) ───────────────────────────────────────────────
+    elif key == "by_insurance":
+        subs = (await db.execute(
+            select(InsuranceSubscriber).where(InsuranceSubscriber.practice_id == practice_id))).scalars().all()
+        by_payer: dict = {}
+        for s in subs:
+            g = by_payer.setdefault(s.payer_name, {"payer_name": s.payer_name, "plan_type": s.plan_type,
+                                                   "patient_count": 0})
+            g["patient_count"] += 1
+        rows = sorted(by_payer.values(), key=lambda r: r["patient_count"], reverse=True)
+        summary = {"payer_count": len(rows), "patients_with_insurance": sum(r["patient_count"] for r in rows)}
+
+    # ── Missing / broken appointments ───────────────────────────────────────────
+    elif key == "missing_appointments":
+        appts = (await db.execute(
+            select(Appointment).where(
+                Appointment.practice_id == practice_id,
+                Appointment.status.in_(["no_show", "cancelled", "broken"]),
+            ).order_by(Appointment.appointment_date.desc()).limit(500)
+        )).scalars().all()
+        pmap = {str(p.id): p for p in (await db.execute(
+            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+        for a in appts:
+            p = pmap.get(str(a.patient_id))
+            rows.append({
+                "appointment_id": str(a.id), "patient_id": str(a.patient_id),
+                "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
+                "date": a.appointment_date.isoformat(), "status": a.status,
+                "type": a.appointment_type,
+            })
+        summary = {"count": len(rows)}
+        ai_suggestions = ["Prioritize re-booking no-shows in active treatment to avoid extending total treatment time."]
+
+    # ── Treatment status: overdue / bring in sooner (AI-assisted) ───────────────
+    elif key in ("treatment_overdue", "treatment_bring_sooner"):
+        # Overdue = in active/finishing phase with last appointment > 45 days ago.
+        # Bring sooner = active patients whose next appointment is far out but treatment is progressing.
+        patients = (await db.execute(
+            select(Patient).where(
+                Patient.practice_id == practice_id,
+                Patient.treatment_phase.in_(["active", "bonding", "finishing", "retention"]),
+            )
+        )).scalars().all()
+        today = report_date
+        for p in patients:
+            last_appt = (await db.execute(
+                select(func.max(Appointment.appointment_date)).where(
+                    Appointment.practice_id == practice_id, Appointment.patient_id == p.id,
+                    Appointment.appointment_date <= today)
+            )).scalar()
+            next_appt = (await db.execute(
+                select(func.min(Appointment.appointment_date)).where(
+                    Appointment.practice_id == practice_id, Appointment.patient_id == p.id,
+                    Appointment.appointment_date > today)
+            )).scalar()
+            days_since = (today - last_appt).days if last_appt else None
+            days_until = (next_appt - today).days if next_appt else None
+
+            if key == "treatment_overdue":
+                if (days_since is not None and days_since > 45) or (next_appt is None):
+                    rows.append({
+                        "patient_id": str(p.id), "patient_name": f"{p.first_name} {p.last_name}",
+                        "phase": p.treatment_phase, "days_since_last": days_since,
+                        "has_next_appointment": next_appt is not None,
+                    })
+            else:  # bring_sooner
+                if days_until is not None and days_until > 42 and p.treatment_phase in ("finishing", "active"):
+                    rows.append({
+                        "patient_id": str(p.id), "patient_name": f"{p.first_name} {p.last_name}",
+                        "phase": p.treatment_phase, "days_until_next": days_until,
+                    })
+        if key == "treatment_overdue":
+            rows.sort(key=lambda r: (r["days_since_last"] or 9999), reverse=True)
+            summary = {"count": len(rows)}
+            ai_suggestions = [
+                "Patients overdue >45 days risk treatment stagnation — schedule a visit to keep progress on track.",
+                "Those with no next appointment should be contacted first to prevent drop-off.",
+            ]
+        else:
+            rows.sort(key=lambda r: (r["days_until_next"] or 0), reverse=True)
+            summary = {"count": len(rows)}
+            ai_suggestions = [
+                "Finishing-phase patients booked far out can often be brought in sooner to complete and deband earlier.",
+                "Pulling these forward frees chair time and improves case-completion metrics.",
+            ]
+
+    # ── Scheduled specific appointments (for the date) ──────────────────────────
+    elif key == "scheduled_appointments":
+        appts = (await db.execute(
+            select(Appointment).where(
+                Appointment.practice_id == practice_id,
+                Appointment.appointment_date == report_date,
+            ).order_by(Appointment.start_time)
+        )).scalars().all()
+        pmap = {str(p.id): p for p in (await db.execute(
+            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+        for a in appts:
+            p = pmap.get(str(a.patient_id))
+            rows.append({
+                "appointment_id": str(a.id), "patient_id": str(a.patient_id),
+                "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
+                "start_time": a.start_time.isoformat() if a.start_time else None,
+                "type": a.appointment_type, "status": a.status,
+            })
+        summary = {"count": len(rows), "date": report_date.isoformat()}
+
+    # ── Appointments with no chart notes for the day ────────────────────────────
+    elif key == "no_chart_notes_today":
+        from app.models.clinical import TreatmentNote
+        appts = (await db.execute(
+            select(Appointment).where(
+                Appointment.practice_id == practice_id,
+                Appointment.appointment_date == report_date,
+            )
+        )).scalars().all()
+        pmap = {str(p.id): p for p in (await db.execute(
+            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+        for a in appts:
+            note = (await db.execute(
+                select(func.count(TreatmentNote.id)).where(TreatmentNote.appointment_id == a.id)
+            )).scalar() or 0
+            if note == 0:
+                p = pmap.get(str(a.patient_id))
+                rows.append({
+                    "appointment_id": str(a.id), "patient_id": str(a.patient_id),
+                    "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
+                    "type": a.appointment_type, "status": a.status,
+                })
+        summary = {"count": len(rows), "date": report_date.isoformat()}
+        ai_suggestions = ["Charts without notes should be documented before end of day for compliance and continuity."]
+
+    return {
+        "key": key, "label": cat["label"], "group": cat["group"],
+        "rows": rows, "summary": summary, "ai_suggestions": ai_suggestions,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }

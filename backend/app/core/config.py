@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     STEDI_MCP_URL: str = "https://mcp.us.stedi.com/2025-07-11/mcp"
     STEDI_MCP_API_KEY: str = ""
 
+    # Dormant NCTracks (NC Medicaid) claim destination — requires provider enrollment (CEP)
+    # + EDI trading-partner setup. Scaffolded; enable after pktech_dev completes enrollment.
+    NCTRACKS_ENABLED: bool = False
+    NCTRACKS_API_URL: str = ""
+
     # Twilio (SMS for MFA)
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""

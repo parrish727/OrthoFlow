@@ -90,6 +90,24 @@ export default function Reports() {
 
   useEffect(() => { loadReports() }, [loadReports])
 
+  // Load report categories once for the Categories tab.
+  useEffect(() => {
+    api.getReportCategories().then(async r => {
+      if (r.ok) { const d = await r.json(); setCategories(d.categories || []) }
+    }).catch(() => {})
+  }, [])
+
+  async function runCategory(key: string) {
+    setActiveCategory(key)
+    setCategoryLoading(true)
+    setCategoryReport(null)
+    try {
+      const r = await api.getReportByCategory(key)
+      if (r.ok) setCategoryReport(await r.json())
+    } catch { /* handled */ }
+    setCategoryLoading(false)
+  }
+
   function exportCSV() {
     if (!collections) return
     const monthly = collections.monthly || []
@@ -119,7 +137,11 @@ export default function Reports() {
   const monthlyData = collections?.monthly || []
 
   // Consultant reports state
-  const [reportTab, setReportTab] = useState<'financial' | 'consultant'>('financial')
+  const [reportTab, setReportTab] = useState<'categories' | 'financial' | 'consultant'>('categories')
+  const [categories, setCategories] = useState<{ key: string; label: string; group: string }[]>([])
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [categoryReport, setCategoryReport] = useState<{ label: string; rows: Record<string, unknown>[]; summary: Record<string, unknown>; ai_suggestions: string[] } | null>(null)
+  const [categoryLoading, setCategoryLoading] = useState(false)
   const [consultantData, setConsultantData] = useState<Record<string, unknown> | null>(null)
   const [consultantLoading, setConsultantLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState('')
@@ -148,11 +170,76 @@ export default function Reports() {
     <>
       {/* Tab Switcher */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+        <button data-testid="reports-tab-categories" onClick={() => setReportTab('categories')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'categories' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Report Categories</button>
         <button onClick={() => setReportTab('financial')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'financial' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Financial Reports</button>
         <button onClick={() => setReportTab('consultant')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'consultant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Consultant Reports</button>
       </div>
 
-      {reportTab === 'consultant' ? (
+      {reportTab === 'categories' ? (
+        <div data-testid="reports-categories">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Report Categories</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Frontdesk / Doctor / TC — click a category to run it</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+            {categories.map(cat => (
+              <button
+                key={cat.key}
+                data-testid={`report-cat-${cat.key}`}
+                onClick={() => runCategory(cat.key)}
+                className={`text-left px-4 py-3 rounded-xl border transition-colors ${activeCategory === cat.key ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-100' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+              >
+                <p className="text-sm font-medium text-gray-900">{cat.label}</p>
+                <p className="text-[10px] uppercase tracking-wide text-gray-400 mt-0.5">{cat.group}</p>
+              </button>
+            ))}
+          </div>
+
+          {categoryLoading ? (
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-8 text-center text-sm text-gray-400">Running report…</div>
+          ) : categoryReport ? (
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden" data-testid="category-report-result">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">{categoryReport.label}</h3>
+                <span className="text-xs text-gray-500">{(categoryReport.rows || []).length} results</span>
+              </div>
+              {categoryReport.ai_suggestions && categoryReport.ai_suggestions.length > 0 && (
+                <div className="px-5 py-3 bg-violet-50/50 border-b border-violet-100 space-y-1">
+                  {categoryReport.ai_suggestions.map((s, i) => (
+                    <p key={i} className="text-xs text-violet-700">✨ {s}</p>
+                  ))}
+                </div>
+              )}
+              <div className="max-h-[480px] overflow-y-auto">
+                {(categoryReport.rows || []).length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-gray-400">No results for this category.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        {Object.keys(categoryReport.rows[0]).map(col => (
+                          <th key={col} className="px-4 py-2 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{col.replace(/_/g, ' ')}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {categoryReport.rows.map((row, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          {Object.values(row).map((val, j) => (
+                            <td key={j} className="px-4 py-2 text-gray-700">{val === true ? 'Yes' : val === false ? 'No' : val == null ? '—' : String(val)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-8 text-center text-sm text-gray-400">Select a category above to run a report.</div>
+          )}
+        </div>
+      ) : reportTab === 'consultant' ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>

@@ -580,6 +580,37 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
     visit_row = visit_result.scalar_one_or_none()
     visit_status = visit_row if visit_row else None
 
+    # ── Payer type (Medicaid → "MC" + purple) ──────────────────────────────────
+    from app.models.finance import InsuranceSubscriber, PatientLedgerEntry
+    sub_row = (await db.execute(
+        select(InsuranceSubscriber.plan_type).where(
+            InsuranceSubscriber.patient_id == a.patient_id,
+            InsuranceSubscriber.coverage_type == "primary",
+        ).limit(1)
+    )).scalar_one_or_none()
+    is_medicaid = bool(sub_row) and (sub_row or "").lower() == "medicaid"
+
+    # ── Owes money / late-on-payment indicator ($) ─────────────────────────────
+    balance = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == a.patient_id,
+            PatientLedgerEntry.practice_id == a.practice_id,
+        )
+    )).scalar() or 0
+    owes_money = float(balance) > 0
+    # "Late" heuristic: owes money AND the oldest outstanding charge is >30 days old.
+    is_late = False
+    if owes_money:
+        oldest_charge = (await db.execute(
+            select(func.min(PatientLedgerEntry.posted_date)).where(
+                PatientLedgerEntry.patient_id == a.patient_id,
+                PatientLedgerEntry.practice_id == a.practice_id,
+                PatientLedgerEntry.entry_type == "charge",
+            )
+        )).scalar()
+        if oldest_charge and (date.today() - oldest_charge).days > 30:
+            is_late = True
+
     return {
         "id": str(a.id),
         "patient_id": str(a.patient_id),
@@ -594,6 +625,12 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         "visit_status": visit_status,
         "appointment_type": a.appointment_type,
         "notes": a.notes,
+        # Precognitive schedule indicators
+        "is_medicaid": is_medicaid,
+        "payer_badge": "MC" if is_medicaid else None,
+        "owes_money": owes_money,
+        "is_late": is_late,
+        "balance": round(float(balance), 2),
     }
 
 

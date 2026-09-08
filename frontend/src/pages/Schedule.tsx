@@ -18,6 +18,11 @@ interface Appointment {
   status: string
   appointment_type: string | null
   notes: string | null
+  is_medicaid?: boolean
+  payer_badge?: string | null
+  owes_money?: boolean
+  is_late?: boolean
+  balance?: number
 }
 
 interface Chair {
@@ -590,9 +595,11 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   const [daDropHover, setDADropHover] = useState(false)
   const statusClass = appointment.status === 'completed'
     ? 'border-l-gray-300 bg-gray-50 opacity-60'
-    : (appointment.appointment_type && APPT_TYPE_COLORS[appointment.appointment_type])
-      ? APPT_TYPE_COLORS[appointment.appointment_type]
-      : STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
+    : appointment.is_medicaid
+      ? 'border-l-purple-500 bg-purple-50'   // Medicaid appointments render purple (MC)
+      : (appointment.appointment_type && APPT_TYPE_COLORS[appointment.appointment_type])
+        ? APPT_TYPE_COLORS[appointment.appointment_type]
+        : STATUS_COLORS[appointment.status] || 'border-l-gray-300 bg-gray-50/50'
   const assignedDA = das.find(d => d.id === appointment.da_id)
 
   return (
@@ -615,9 +622,26 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
             <div className="flex-1 min-w-0">
               <button
                 onClick={e => { e.stopPropagation(); onPatientClick() }}
-                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate block text-left"
+                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate text-left inline-flex items-center gap-1.5"
+                data-testid={`appt-patient-${appointment.id}`}
               >
                 {appointment.patient_name}
+                {appointment.payer_badge === 'MC' && (
+                  <span
+                    data-testid={`mc-badge-${appointment.id}`}
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300"
+                    title="Medicaid"
+                  >MC</span>
+                )}
+                {appointment.owes_money && (
+                  <span
+                    data-testid={`owes-badge-${appointment.id}`}
+                    className={`text-[11px] font-bold ${appointment.is_late ? 'text-red-600' : 'text-amber-600'}`}
+                    title={appointment.is_late
+                      ? `Late on payment — balance $${(appointment.balance ?? 0).toFixed(2)}`
+                      : `Owes $${(appointment.balance ?? 0).toFixed(2)}`}
+                  >${appointment.is_late ? '!' : ''}</span>
+                )}
               </button>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Clock size={12} className="text-gray-400" />

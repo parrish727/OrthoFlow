@@ -87,6 +87,39 @@ export const api = {
     request('/api/v1/finance/ledger', { method: 'POST', body: JSON.stringify(data) }),
   getInsurancePlans: (patientId: string) => request(`/api/v1/finance/insurance/${patientId}`),
   getInsuranceRoster: () => request('/api/v1/finance/insurance-roster'),
+
+  // ── Reports by category ─────────────────────────────────────────────────────
+  getReportCategories: () => request('/api/v1/reports/categories'),
+  getReportByCategory: (key: string, date?: string) =>
+    request(`/api/v1/reports/category/${key}${date ? `?report_date=${date}` : ''}`),
+
+  // ── Ortho ops: custom CDT, comments, chart charges, contracts ───────────────
+  getCustomCDT: () => request('/api/v1/ortho/cdt/custom'),
+  createCustomCDT: (data: Record<string, unknown>) =>
+    request('/api/v1/ortho/cdt/custom', { method: 'POST', body: JSON.stringify(data) }),
+  getPatientComments: (patientId: string, chart?: string) =>
+    request(`/api/v1/ortho/patients/${patientId}/comments${chart ? `?chart=${chart}` : ''}`),
+  addPatientComment: (patientId: string, data: { chart: string; body: string; is_pinned?: boolean }) =>
+    request(`/api/v1/ortho/patients/${patientId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
+  getChartCharges: (patientId: string) =>
+    request(`/api/v1/ortho/patients/${patientId}/chart-charges`),
+  addChartCharge: (patientId: string, data: Record<string, unknown>) =>
+    request(`/api/v1/ortho/patients/${patientId}/chart-charges`, { method: 'POST', body: JSON.stringify(data) }),
+  collectChartCharge: (chargeId: string) =>
+    request(`/api/v1/ortho/chart-charges/${chargeId}/collect`, { method: 'PATCH' }),
+  getContracts: (patientId?: string) =>
+    request(`/api/v1/ortho/contracts${patientId ? `?patient_id=${patientId}` : ''}`),
+  createContract: (data: Record<string, unknown>) =>
+    request('/api/v1/ortho/contracts', { method: 'POST', body: JSON.stringify(data) }),
+  updateContract: (id: string, data: Record<string, unknown>) =>
+    request(`/api/v1/ortho/contracts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  sendInitialClaim: (id: string) =>
+    request(`/api/v1/ortho/contracts/${id}/send-initial-claim`, { method: 'POST' }),
+
+  // ── Recent patient searches (last 5) ────────────────────────────────────────
+  getRecentSearches: () => request('/api/v1/recent-searches'),
+  logRecentSearch: (patientId: string) =>
+    request('/api/v1/recent-searches', { method: 'POST', body: JSON.stringify({ patient_id: patientId }) }),
   getLedgerRoster: () => request('/api/v1/finance/ledger-roster'),
   getPaymentsRoster: () => request('/api/v1/finance/payments-roster'),
   addInsurancePlan: (data: Record<string, unknown>) =>

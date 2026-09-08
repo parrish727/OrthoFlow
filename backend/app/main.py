@@ -29,6 +29,7 @@ from app.api.routes import virtual_visits
 from app.api.routes import staff_permissions
 from app.api.routes import onboarding
 from app.api.routes import schedule_notes
+from app.api.routes import ortho_ops
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.logging import (
@@ -177,6 +178,7 @@ app.include_router(consultant_reports.router, tags=["consultant-reports"])
 app.include_router(staff_permissions.router, tags=["staff-permissions"])
 app.include_router(onboarding.router, tags=["onboarding"])
 app.include_router(schedule_notes.router, tags=["schedule-notes"])
+app.include_router(ortho_ops.router, tags=["ortho-ops"])
 
 
 # ── Deep Health Check (verifies core routes, not just "is the process alive") ──
