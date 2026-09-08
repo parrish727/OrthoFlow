@@ -36,9 +36,21 @@ test.describe('OrthoFlow AI Assist', () => {
   test('AI assist widget renders on the dashboard', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1500)
-    await expect(page.getByTestId('ai-assist')).toBeVisible()
+    await page.getByTestId('ai-assist').waitFor({ state: 'attached', timeout: 20000 })
     await expect(page.getByText('OrthoFlow AI — What needs attention')).toBeVisible()
+  })
+
+  test('automation activity widget renders + run-now works', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    await page.getByTestId('automation-activity').waitFor({ state: 'attached', timeout: 20000 })
+    await expect(page.getByText('OrthoFlow handled this automatically')).toBeVisible()
+    // Trigger the automation engine on demand and confirm the request succeeds.
+    const [resp] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/automation/run') && r.request().method() === 'POST', { timeout: 20000 }),
+      page.getByTestId('automation-run-now').click(),
+    ])
+    expect(resp.status()).toBe(200)
   })
 })
 

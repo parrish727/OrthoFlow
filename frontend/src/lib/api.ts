@@ -118,6 +118,8 @@ export const api = {
   getConsultReadiness: (date?: string) =>
     request(`/api/v1/ortho/consult-readiness${date ? `?for_date=${date}` : ''}`),
   getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
+  getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
+  runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),
 
   // ── Recent patient searches (last 5) ────────────────────────────────────────
   getRecentSearches: () => request('/api/v1/recent-searches'),

@@ -129,19 +129,49 @@ def _parse_json(text: str) -> dict | None:
 
 
 async def worker_loop():
-    """Main worker loop — polls queue and processes invoices."""
+    """Main worker loop — polls queue and processes invoices; runs daily automations."""
     log.info("⚡ OrthoFlow Worker running...")
 
     # Ensure custom classification model exists on startup
     await _ensure_model()
 
+    last_automation_date = None
     while True:
         invoice_id = await dequeue_invoice()
         if invoice_id:
             log.info(f"Processing invoice: {invoice_id}")
             await process_invoice(invoice_id)
         else:
+            # Daily automation engine — run once per day across all practices.
+            from datetime import date as _date
+            today = _date.today()
+            if last_automation_date != today:
+                try:
+                    await _run_daily_automations(today)
+                    last_automation_date = today
+                except Exception as e:
+                    log.warning(f"Daily automation run failed: {e}")
             await asyncio.sleep(2)
+
+
+async def _run_daily_automations(today):
+    """Run the automation engine for every practice (recurring claims, poll, consult verify)."""
+    from app.core.database import SessionLocal
+    from app.models.models import Practice
+    from app.services import automation
+    from sqlalchemy import select as _select
+
+    async with SessionLocal() as db:
+        practices = (await db.execute(_select(Practice.id))).scalars().all()
+        total = 0
+        for pid in practices:
+            try:
+                res = await automation.run_all(db, pid, today)
+                processed = sum(r.get("processed", 0) for r in res.get("results", []))
+                total += processed
+            except Exception as e:
+                log.warning(f"Automation for practice {pid} failed: {e}")
+        log.info(f"⚙️  Daily automations complete for {len(practices)} practice(s): {total} actions")
 
 
 async def _ensure_model():

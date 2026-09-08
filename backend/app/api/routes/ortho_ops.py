@@ -655,3 +655,52 @@ async def ai_assist(
         "actions": actions,
         "headline": (actions[0]["title"] if actions else "You're all caught up — nothing needs attention right now."),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Automation — "it just works": view what OrthoFlow did + trigger on demand
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/automation/activity")
+async def automation_activity(
+    days: int = Query(7, ge=1, le=60),
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Recent automation runs — what OrthoFlow handled automatically (audit trail)."""
+    from app.models.ortho_ops import AutomationRun
+    practice_id = user["practice_id"]
+    since = date.today() - timedelta(days=days)
+    rows = (await db.execute(
+        select(AutomationRun).where(
+            AutomationRun.practice_id == practice_id,
+            AutomationRun.run_date >= since,
+        ).order_by(AutomationRun.created_at.desc())
+    )).scalars().all()
+    TASK_LABELS = {
+        "recurring_claims": "Recurring claims generated",
+        "payment_poll": "Payer payment status polled",
+        "consult_verify": "Insurance auto-verified for upcoming consults",
+    }
+    items = [{
+        "id": str(r.id), "run_date": r.run_date.isoformat(), "task": r.task,
+        "label": TASK_LABELS.get(r.task, r.task), "status": r.status,
+        "items_processed": r.items_processed, "summary": r.summary,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]
+    return {
+        "days": days, "run_count": len(items),
+        "total_actions": sum(r.items_processed for r in rows),
+        "runs": items,
+    }
+
+
+@router.post("/automation/run")
+async def automation_run_now(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Trigger the daily automation engine on demand (also runs on schedule in the worker)."""
+    from app.services import automation
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    result = await automation.run_all(db, practice_id)
+    await audit_log(db, practice_id, user["user_id"], "automation.run", "automation", "manual")
+    return result

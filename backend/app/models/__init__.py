@@ -114,4 +114,5 @@ from app.models.ortho_ops import (  # noqa: F401
     ChartCharge,
     PatientInsuranceContract,
     ClaimPaymentPoll,
+    AutomationRun,
 )

@@ -161,3 +161,27 @@ class ClaimPaymentPoll(Base):
     __table_args__ = (
         Index("idx_claim_poll_contract", "contract_id", "poll_date"),
     )
+
+
+class AutomationRun(Base):
+    """Audit record of an automation engine run — what OrthoFlow did automatically.
+
+    One row per practice per task per day (idempotent). Powers the 'what we handled for you'
+    activity surface and gives a HIPAA-friendly trail of automated actions.
+    """
+    __tablename__ = "automation_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    run_date: Mapped[date] = mapped_column(Date, default=date.today)
+    task: Mapped[str] = mapped_column(String(40), nullable=False)  # recurring_claims | payment_poll | consult_verify
+    status: Mapped[str] = mapped_column(String(20), default="completed")  # completed | error | skipped
+    items_processed: Mapped[int] = mapped_column(Integer, default=0)
+    summary: Mapped[str | None] = mapped_column(Text)
+    detail: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_automation_practice_date", "practice_id", "run_date"),
+        Index("idx_automation_task_date", "practice_id", "task", "run_date", unique=True),
+    )

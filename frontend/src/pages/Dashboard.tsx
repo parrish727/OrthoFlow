@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 import VisitTracker from '../components/VisitTracker'
 import AIAssist from '../components/AIAssist'
+import AutomationActivity from '../components/AutomationActivity'
 
 interface Invoice {
   id: string
@@ -168,9 +169,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* OrthoFlow AI — role-aware next-best-actions */}
-      <div className="mb-8">
+      {/* OrthoFlow AI — role-aware next-best-actions + what it automated */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         <AIAssist />
+        <AutomationActivity />
       </div>
 
       {/* Visit Tracker — Patient Flow */}
