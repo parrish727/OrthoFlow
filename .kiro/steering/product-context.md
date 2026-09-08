@@ -91,3 +91,20 @@ docs/
 - No OpenAI models — Anthropic Claude or local Ollama only
 - Tests required for auth and payment code paths
 - Alembic for all schema changes (no raw DDL)
+
+## Branching & Deploy Model (Option A)
+
+OrthoFlow uses a two-branch model:
+
+- **`main` = source of truth.** Always-releasable integration branch. Feature branches merge
+  here via PR. Pushing to `main` runs **tests only** — it does NOT deploy.
+- **`production` = deploy branch.** The CI build/publish job triggers **only** on pushes to
+  `production` (image → GHCR → Watchtower deploys). This keeps "what is live" cleanly separate
+  from "our source of truth."
+
+**Promote to production** by merging `main → production` (fast-forward or PR). That push is what
+ships to prod. Never build/deploy straight from `main`.
+
+CI wiring (`.github/workflows/ci.yml`): test job runs on `main`, `develop`, and PRs; build job
+gated on `refs/heads/production`. Recommended GitHub branch protection: PR-only on `main` and
+`production`, required status checks (test job) before merge.
