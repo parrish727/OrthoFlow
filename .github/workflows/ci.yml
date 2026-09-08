@@ -2,9 +2,9 @@ name: OrthoFlow AI CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, production]
   pull_request:
-    branches: [main]
+    branches: [main, production]
   merge_group:
     branches: [main]
 
@@ -72,7 +72,9 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy branch: only pushes to `production` build + publish the image (Watchtower deploys).
+    # `main` is the source of truth — it runs tests only. Promote to prod via main -> production.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
     permissions:
       contents: read
       packages: write
