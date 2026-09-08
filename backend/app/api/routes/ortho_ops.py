@@ -423,3 +423,235 @@ def _contract_dict(c: PatientInsuranceContract) -> dict:
         "next_claim_due": c.next_claim_due.isoformat() if c.next_claim_due else None,
         "daily_payment_poll": c.daily_payment_poll, "status": c.status, "notes": c.notes,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Pre-consultation insurance verification (readiness worklist)
+# Insurance must be verified BEFORE the consultation. This surfaces the day's consults
+# with their verification status so front desk can verify ahead of the visit.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/consult-readiness")
+async def consult_readiness(
+    for_date: date = Query(default_factory=date.today),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Consultation appointments for a date + insurance verification status.
+
+    verified = eligibility checked within 30 days AND coverage active. Anything else is a
+    to-do for front desk to verify before the consult.
+    """
+    from app.models.clinical import Appointment
+    from app.models.finance import InsuranceSubscriber
+
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    appts = (await db.execute(
+        select(Appointment).where(
+            Appointment.practice_id == practice_id,
+            Appointment.appointment_date == for_date,
+            Appointment.appointment_type.ilike("%consult%"),
+        ).order_by(Appointment.start_time)
+    )).scalars().all()
+
+    pmap = {str(p.id): p for p in (await db.execute(
+        select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+
+    items = []
+    needs = 0
+    for a in appts:
+        sub = (await db.execute(
+            select(InsuranceSubscriber).where(
+                InsuranceSubscriber.patient_id == a.patient_id,
+                InsuranceSubscriber.coverage_type == "primary",
+            ).limit(1)
+        )).scalar_one_or_none()
+        p = pmap.get(str(a.patient_id))
+        if not sub:
+            status = "no_insurance"
+            verified = False
+        else:
+            recent = bool(sub.last_eligibility_check) and \
+                (date.today() - sub.last_eligibility_check.date()).days <= 30
+            verified = bool(recent and sub.eligibility_status == "active")
+            status = "verified" if verified else "needs_verification"
+        if not verified:
+            needs += 1
+        items.append({
+            "appointment_id": str(a.id), "patient_id": str(a.patient_id),
+            "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
+            "start_time": a.start_time.isoformat() if a.start_time else None,
+            "appointment_type": a.appointment_type,
+            "payer_name": sub.payer_name if sub else None,
+            "subscriber_plan_id": str(sub.id) if sub else None,
+            "status": status, "verified": verified,
+            "last_checked": sub.last_eligibility_check.isoformat() if (sub and sub.last_eligibility_check) else None,
+        })
+
+    return {
+        "date": for_date.isoformat(),
+        "consult_count": len(items),
+        "needs_verification": needs,
+        "items": items,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OrthoFlow AI Assist — role-aware next-best-actions across the practice
+# Reads the same signals the new features expose and turns them into a prioritized,
+# role-specific action list so each person sees what to do next without hunting.
+# This is the precognitive layer: it makes the data useful to the staff and doctor.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/ai-assist")
+async def ai_assist(
+    role: str = Query("owner"),
+    for_date: date = Query(default_factory=date.today),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return prioritized, role-aware action items derived from live practice signals.
+
+    Roles: front_desk, treatment_coordinator (tc), doctor, office_manager, owner.
+    Each action: {severity, category, title, detail, count, action_route}.
+    """
+    from app.models.clinical import Appointment, Patient, TreatmentNote
+    from app.models.finance import InsuranceSubscriber
+    from app.models.claims import InsuranceClaim
+
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    role = (role or "owner").lower()
+    actions: list[dict] = []
+
+    def add(severity, category, title, detail, count, route):
+        actions.append({"severity": severity, "category": category, "title": title,
+                        "detail": detail, "count": count, "action_route": route})
+
+    # ── Signal: consults today needing insurance verification (front desk / TC) ─
+    consults = (await db.execute(
+        select(Appointment).where(
+            Appointment.practice_id == practice_id,
+            Appointment.appointment_date == for_date,
+            Appointment.appointment_type.ilike("%consult%"),
+        )
+    )).scalars().all()
+    unverified = 0
+    for a in consults:
+        sub = (await db.execute(
+            select(InsuranceSubscriber).where(
+                InsuranceSubscriber.patient_id == a.patient_id,
+                InsuranceSubscriber.coverage_type == "primary").limit(1)
+        )).scalar_one_or_none()
+        recent = bool(sub) and bool(sub.last_eligibility_check) and \
+            (for_date - sub.last_eligibility_check.date()).days <= 30
+        if not (recent and sub and sub.eligibility_status == "active"):
+            unverified += 1
+    if unverified:
+        add("warning", "verification",
+            f"Verify insurance for {unverified} consult(s) today",
+            "Verify eligibility before the consultation so coverage and out-of-pocket are accurate at the visit.",
+            unverified, "/reports")
+
+    # ── Signal: claims due to send / denials to appeal (TC) ─────────────────────
+    due_contracts = (await db.execute(
+        select(func.count(PatientInsuranceContract.id)).where(
+            PatientInsuranceContract.practice_id == practice_id,
+            PatientInsuranceContract.status == "active",
+            PatientInsuranceContract.initial_claim_sent == True,
+            PatientInsuranceContract.billing_mode == "manual",
+            PatientInsuranceContract.next_claim_due <= for_date,
+        )
+    )).scalar() or 0
+    if due_contracts:
+        add("info", "claims", f"{due_contracts} manual claim(s) due to send",
+            "These contracts are set to manual billing and have a claim due. Auto contracts send themselves.",
+            due_contracts, "/claims")
+
+    denied = (await db.execute(
+        select(func.count(InsuranceClaim.id)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "denied")
+    )).scalar() or 0
+    if denied:
+        add("warning", "claims", f"{denied} denied claim(s) to review/appeal",
+            "Review denial reasons and generate appeals where the service should be covered.",
+            denied, "/claims")
+
+    # ── Signal: patients arriving today who owe money (front desk collect) ──────
+    from app.models.finance import PatientLedgerEntry
+    today_appts = (await db.execute(
+        select(Appointment.patient_id).where(
+            Appointment.practice_id == practice_id, Appointment.appointment_date == for_date)
+    )).scalars().all()
+    collectable = 0
+    for pid in set(today_appts):
+        bal = (await db.execute(
+            select(func.sum(PatientLedgerEntry.amount)).where(
+                PatientLedgerEntry.patient_id == pid, PatientLedgerEntry.practice_id == practice_id)
+        )).scalar()
+        if bal and bal > 0:
+            collectable += 1
+    if collectable:
+        add("info", "collections", f"{collectable} patient(s) arriving today carry a balance",
+            "A good moment to collect at check-in.", collectable, "/ledger")
+
+    # ── Signal: overdue treatment / bring-in-sooner (doctor) ────────────────────
+    active_patients = (await db.execute(
+        select(Patient).where(
+            Patient.practice_id == practice_id,
+            Patient.treatment_phase.in_(["active", "bonding", "finishing"]))
+    )).scalars().all()
+    overdue = 0
+    for p in active_patients:
+        last = (await db.execute(
+            select(func.max(Appointment.appointment_date)).where(
+                Appointment.practice_id == practice_id, Appointment.patient_id == p.id,
+                Appointment.appointment_date <= for_date)
+        )).scalar()
+        nxt = (await db.execute(
+            select(func.min(Appointment.appointment_date)).where(
+                Appointment.practice_id == practice_id, Appointment.patient_id == p.id,
+                Appointment.appointment_date > for_date)
+        )).scalar()
+        if (last and (for_date - last).days > 45) or nxt is None:
+            overdue += 1
+    if overdue:
+        add("warning", "clinical", f"{overdue} patient(s) overdue for a visit",
+            "Active patients >45 days since last visit or with no next appointment risk treatment stagnation.",
+            overdue, "/reports")
+
+    # ── Signal: today's appts missing chart notes (doctor / DA) ─────────────────
+    missing_notes = 0
+    for a in (await db.execute(
+        select(Appointment).where(
+            Appointment.practice_id == practice_id, Appointment.appointment_date == for_date)
+    )).scalars().all():
+        n = (await db.execute(
+            select(func.count(TreatmentNote.id)).where(TreatmentNote.appointment_id == a.id))).scalar() or 0
+        if n == 0 and a.status in ("completed", "checked_in", "in_progress"):
+            missing_notes += 1
+    if missing_notes:
+        add("info", "clinical", f"{missing_notes} appointment(s) need chart notes",
+            "Document before end of day for compliance and continuity of care.", missing_notes, "/reports")
+
+    # ── Role filtering — surface what matters to each role first ────────────────
+    role_categories = {
+        "front_desk": ["verification", "collections", "claims"],
+        "frontdesk": ["verification", "collections", "claims"],
+        "treatment_coordinator": ["verification", "claims", "collections"],
+        "tc": ["verification", "claims", "collections"],
+        "doctor": ["clinical", "verification"],
+        "office_manager": ["claims", "collections", "clinical", "verification"],
+        "owner": ["verification", "claims", "collections", "clinical"],
+    }
+    prefer = role_categories.get(role, role_categories["owner"])
+    sev_order = {"critical": 0, "warning": 1, "info": 2}
+    actions.sort(key=lambda a: (prefer.index(a["category"]) if a["category"] in prefer else 99,
+                                sev_order.get(a["severity"], 3)))
+
+    return {
+        "role": role, "date": for_date.isoformat(),
+        "action_count": len(actions),
+        "actions": actions,
+        "headline": (actions[0]["title"] if actions else "You're all caught up — nothing needs attention right now."),
+    }

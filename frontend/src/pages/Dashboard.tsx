@@ -4,6 +4,7 @@ import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSi
 import { api } from '../lib/api'
 import Tooltip from '../components/Tooltip'
 import VisitTracker from '../components/VisitTracker'
+import AIAssist from '../components/AIAssist'
 
 interface Invoice {
   id: string
@@ -165,6 +166,11 @@ export default function Dashboard() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* OrthoFlow AI — role-aware next-best-actions */}
+      <div className="mb-8">
+        <AIAssist />
       </div>
 
       {/* Visit Tracker — Patient Flow */}

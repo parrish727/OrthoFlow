@@ -582,13 +582,29 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
 
     # ── Payer type (Medicaid → "MC" + purple) ──────────────────────────────────
     from app.models.finance import InsuranceSubscriber, PatientLedgerEntry
-    sub_row = (await db.execute(
-        select(InsuranceSubscriber.plan_type).where(
+    sub = (await db.execute(
+        select(InsuranceSubscriber).where(
             InsuranceSubscriber.patient_id == a.patient_id,
             InsuranceSubscriber.coverage_type == "primary",
         ).limit(1)
     )).scalar_one_or_none()
-    is_medicaid = bool(sub_row) and (sub_row or "").lower() == "medicaid"
+    is_medicaid = bool(sub) and (sub.plan_type or "").lower() == "medicaid"
+
+    # ── Pre-consultation insurance verification ────────────────────────────────
+    # Insurance should be verified BEFORE a consultation. Verified = a real eligibility
+    # check within the last 30 days AND active coverage. Consults surface this on the schedule
+    # so front desk can verify ahead of the visit (flag, not a hard block — some consults are
+    # self-pay).
+    appt_type = (a.appointment_type or "").lower()
+    is_consult = "consult" in appt_type
+    insurance_verified = None
+    if is_consult:
+        if not sub:
+            insurance_verified = False  # no insurance on file → needs verification / self-pay confirm
+        else:
+            recent = bool(sub.last_eligibility_check) and \
+                (date.today() - sub.last_eligibility_check.date()).days <= 30
+            insurance_verified = bool(recent and (sub.eligibility_status == "active"))
 
     # ── Owes money / late-on-payment indicator ($) ─────────────────────────────
     balance = (await db.execute(
@@ -631,6 +647,8 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         "owes_money": owes_money,
         "is_late": is_late,
         "balance": round(float(balance), 2),
+        "is_consult": is_consult,
+        "insurance_verified": insurance_verified,
     }
 
 

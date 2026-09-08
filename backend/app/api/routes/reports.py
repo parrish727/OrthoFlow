@@ -568,6 +568,7 @@ REPORT_CATEGORIES = [
     {"key": "private_collections", "label": "Private Collections", "group": "financial"},
     {"key": "insurance_collections", "label": "Insurance Collections", "group": "financial"},
     {"key": "no_chart_notes_today", "label": "Appointments With No Chart Notes (Today)", "group": "clinical"},
+    {"key": "consults_need_verification", "label": "Consults Needing Insurance Verification", "group": "scheduling"},
 ]
 
 
@@ -762,6 +763,42 @@ async def report_by_category(
                 })
         summary = {"count": len(rows), "date": report_date.isoformat()}
         ai_suggestions = ["Charts without notes should be documented before end of day for compliance and continuity."]
+
+    # ── Consults needing insurance verification (verify before the consult) ─────
+    elif key == "consults_need_verification":
+        appts = (await db.execute(
+            select(Appointment).where(
+                Appointment.practice_id == practice_id,
+                Appointment.appointment_date >= report_date,
+                Appointment.appointment_type.ilike("%consult%"),
+            ).order_by(Appointment.appointment_date, Appointment.start_time).limit(200)
+        )).scalars().all()
+        pmap = {str(p.id): p for p in (await db.execute(
+            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
+        for a in appts:
+            sub = (await db.execute(
+                select(InsuranceSubscriber).where(
+                    InsuranceSubscriber.patient_id == a.patient_id,
+                    InsuranceSubscriber.coverage_type == "primary").limit(1)
+            )).scalar_one_or_none()
+            recent = bool(sub) and bool(sub.last_eligibility_check) and \
+                (report_date - sub.last_eligibility_check.date()).days <= 30
+            verified = bool(recent and sub and sub.eligibility_status == "active")
+            if verified:
+                continue
+            p = pmap.get(str(a.patient_id))
+            rows.append({
+                "appointment_id": str(a.id), "patient_id": str(a.patient_id),
+                "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
+                "date": a.appointment_date.isoformat(),
+                "payer_name": sub.payer_name if sub else "No insurance on file",
+                "status": "needs_verification" if sub else "no_insurance",
+            })
+        summary = {"count": len(rows)}
+        ai_suggestions = [
+            "Verify insurance eligibility before each consult so the doctor and TC can present accurate coverage and out-of-pocket at the visit.",
+            "Consults with no insurance on file should be confirmed as self-pay ahead of time.",
+        ]
 
     return {
         "key": key, "label": cat["label"], "group": cat["group"],

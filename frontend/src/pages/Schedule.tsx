@@ -23,6 +23,8 @@ interface Appointment {
   owes_money?: boolean
   is_late?: boolean
   balance?: number
+  is_consult?: boolean
+  insurance_verified?: boolean | null
 }
 
 interface Chair {
@@ -641,6 +643,20 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
                       ? `Late on payment — balance $${(appointment.balance ?? 0).toFixed(2)}`
                       : `Owes $${(appointment.balance ?? 0).toFixed(2)}`}
                   >${appointment.is_late ? '!' : ''}</span>
+                )}
+                {appointment.is_consult && appointment.insurance_verified === true && (
+                  <span
+                    data-testid={`ins-verified-${appointment.id}`}
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-300"
+                    title="Insurance verified for consult"
+                  >INS ✓</span>
+                )}
+                {appointment.is_consult && appointment.insurance_verified === false && (
+                  <span
+                    data-testid={`ins-unverified-${appointment.id}`}
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300"
+                    title="Verify insurance before this consultation"
+                  >VERIFY INS ⚠</span>
                 )}
               </button>
               <div className="flex items-center gap-1.5 mt-0.5">

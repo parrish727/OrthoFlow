@@ -115,6 +115,9 @@ export const api = {
     request(`/api/v1/ortho/contracts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   sendInitialClaim: (id: string) =>
     request(`/api/v1/ortho/contracts/${id}/send-initial-claim`, { method: 'POST' }),
+  getConsultReadiness: (date?: string) =>
+    request(`/api/v1/ortho/consult-readiness${date ? `?for_date=${date}` : ''}`),
+  getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
 
   // ── Recent patient searches (last 5) ────────────────────────────────────────
   getRecentSearches: () => request('/api/v1/recent-searches'),
