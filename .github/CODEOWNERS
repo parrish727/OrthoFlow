@@ -1,0 +1,55 @@
+# OrthoFlow — Code Owners & Review Domains
+# ---------------------------------------------------------------------------
+# This file serves two purposes:
+#
+# 1. GitHub enforcement: `@parrish727` (the sole human account on this personal repo) is the
+#    backstop owner. With the "Require review from Code Owners" ruleset option enabled on the
+#    protected branches (main, production), this makes pktech_dev's approval required on any PR
+#    into main/production — matching the branching model's human-escalation gate.
+#
+# 2. Agent review domains (source of truth): the delivery agents use the domain sections below
+#    to know which changes they own for peer review on feature -> develop and develop -> main
+#    PRs (agent-managed, per melanin-tech-global steering). Agents are not separate GitHub
+#    accounts, so ownership resolves to @parrish727 in GitHub; the domain labels drive which
+#    agent performs the review.
+#
+# Review domains:
+#   DevOps   — CI/CD, infra, docker/compose, deploy scripts, nginx, k8s
+#   Backend  — FastAPI routes/services/workers/models (with DBA on migrations/schema)
+#   DBA      — Alembic migrations, DB models, queries, indexes
+#   Frontend — React/Vite UI, and E2E (Playwright) tests
+# ---------------------------------------------------------------------------
+
+# Default owner — everything not matched below.
+*                                   @parrish727
+
+# ── DevOps domain — CI/CD, infra, containers, deploy ────────────────────────
+/.github/                           @parrish727
+/docker-compose.yml                 @parrish727
+/**/Dockerfile                      @parrish727
+/**/.dockerignore                   @parrish727
+/scripts/                           @parrish727
+/nginx/                             @parrish727
+/k8s/                               @parrish727
+/terraform/                         @parrish727
+
+# ── DBA domain — schema & migrations (Backend + DBA co-review) ──────────────
+/backend/alembic/                   @parrish727
+/backend/app/models/                @parrish727
+
+# ── Backend domain — APIs, services, workers ────────────────────────────────
+/backend/app/api/                   @parrish727
+/backend/app/services/              @parrish727
+/backend/app/workers/               @parrish727
+/backend/app/core/                  @parrish727
+/backend/app/seeds/                 @parrish727
+
+# ── Frontend domain — UI ────────────────────────────────────────────────────
+/frontend/src/                      @parrish727
+
+# ── Frontend + QA domain — automated E2E tests (Playwright) ─────────────────
+/e2e/                               @parrish727
+
+# ── Product/architecture docs & steering ────────────────────────────────────
+/docs/                              @parrish727
+/.kiro/                             @parrish727
