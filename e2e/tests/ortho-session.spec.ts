@@ -52,6 +52,16 @@ test.describe('OrthoFlow AI Assist', () => {
     ])
     expect(resp.status()).toBe(200)
   })
+
+  test('practice impact card leads with claims, savings, efficiency', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    await page.getByTestId('practice-impact').waitFor({ state: 'attached', timeout: 20000 })
+    await expect(page.getByText('OrthoFlow AI — Practice Impact')).toBeVisible()
+    await expect(page.getByTestId('impact-claims')).toBeAttached()
+    await expect(page.getByTestId('impact-savings')).toBeAttached()
+    await expect(page.getByTestId('impact-efficiency')).toBeAttached()
+  })
 })
 
 test.describe('Schedule — Medicaid MC + owe indicator', () => {

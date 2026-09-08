@@ -6,6 +6,7 @@ import Tooltip from '../components/Tooltip'
 import VisitTracker from '../components/VisitTracker'
 import AIAssist from '../components/AIAssist'
 import AutomationActivity from '../components/AutomationActivity'
+import PracticeImpact from '../components/PracticeImpact'
 
 interface Invoice {
   id: string
@@ -167,6 +168,11 @@ export default function Dashboard() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* OrthoFlow AI — Practice Impact (claims → savings → efficiency) */}
+      <div className="mb-6">
+        <PracticeImpact />
       </div>
 
       {/* OrthoFlow AI — role-aware next-best-actions + what it automated */}

@@ -120,6 +120,7 @@ export const api = {
   getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
   getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
   runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),
+  getPracticeImpact: () => request('/api/v1/ortho/practice-impact'),
 
   // ── Recent patient searches (last 5) ────────────────────────────────────────
   getRecentSearches: () => request('/api/v1/recent-searches'),

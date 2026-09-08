@@ -573,9 +573,23 @@ async def ai_assist(
             InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "denied")
     )).scalar() or 0
     if denied:
-        add("warning", "claims", f"{denied} denied claim(s) to review/appeal",
-            "Review denial reasons and generate appeals where the service should be covered.",
+        denied_dollars = float((await db.execute(
+            select(func.sum(InsuranceClaim.total_billed)).where(
+                InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "denied")
+        )).scalar() or 0)
+        recoverable = round(denied_dollars * 0.5)
+        add("warning", "claims", f"Recover ~${recoverable:,.0f} from {denied} denied claim(s)",
+            f"${denied_dollars:,.0f} billed is denied; ~50% is typically recoverable on appeal. Review and appeal.",
             denied, "/claims")
+
+    # Unbilled draft claims = revenue not yet captured.
+    draft_dollars = float((await db.execute(
+        select(func.sum(InsuranceClaim.total_billed)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "draft")
+    )).scalar() or 0)
+    if draft_dollars > 0:
+        add("info", "claims", f"Send unbilled claims worth ${draft_dollars:,.0f}",
+            "Draft claims not yet submitted — send them to capture revenue.", None, "/claims")
 
     # ── Signal: patients arriving today who owe money (front desk collect) ──────
     from app.models.finance import PatientLedgerEntry
@@ -634,15 +648,16 @@ async def ai_assist(
         add("info", "clinical", f"{missing_notes} appointment(s) need chart notes",
             "Document before end of day for compliance and continuity of care.", missing_notes, "/reports")
 
-    # ── Role filtering — surface what matters to each role first ────────────────
+    # ── Role ordering — claims/revenue first (money), then collections, then clinical ──
+    # OrthoFlow AI benefits the practice in claims → money savings → efficiency, in that order.
     role_categories = {
-        "front_desk": ["verification", "collections", "claims"],
-        "frontdesk": ["verification", "collections", "claims"],
-        "treatment_coordinator": ["verification", "claims", "collections"],
-        "tc": ["verification", "claims", "collections"],
-        "doctor": ["clinical", "verification"],
-        "office_manager": ["claims", "collections", "clinical", "verification"],
-        "owner": ["verification", "claims", "collections", "clinical"],
+        "front_desk": ["claims", "verification", "collections", "clinical"],
+        "frontdesk": ["claims", "verification", "collections", "clinical"],
+        "treatment_coordinator": ["claims", "collections", "verification", "clinical"],
+        "tc": ["claims", "collections", "verification", "clinical"],
+        "doctor": ["claims", "clinical", "verification", "collections"],
+        "office_manager": ["claims", "collections", "verification", "clinical"],
+        "owner": ["claims", "collections", "verification", "clinical"],
     }
     prefer = role_categories.get(role, role_categories["owner"])
     sev_order = {"critical": 0, "warning": 1, "info": 2}
@@ -704,3 +719,105 @@ async def automation_run_now(
     result = await automation.run_all(db, practice_id)
     await audit_log(db, practice_id, user["user_id"], "automation.run", "automation", "manual")
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Practice Impact — OrthoFlow AI benefit in DOLLARS, ordered: claims → savings → efficiency
+# The practice should see what OrthoFlow is worth: revenue captured/at-risk, money saved,
+# and time saved — with claims and money first.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/practice-impact")
+async def practice_impact(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Quantify OrthoFlow AI's benefit to the practice, prioritized claims → savings → efficiency."""
+    from app.models.claims import InsuranceClaim
+    from app.models.finance import PatientLedgerEntry
+    from app.models.ortho_ops import AutomationRun
+    from decimal import Decimal as _D
+
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    async def _sum(q):
+        return float((await db.execute(q)).scalar() or 0)
+
+    # ── 1) CLAIMS (revenue) ─────────────────────────────────────────────────────
+    denied_dollars = await _sum(
+        select(func.sum(InsuranceClaim.total_billed)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "denied"))
+    denied_count = int(await _sum(
+        select(func.count(InsuranceClaim.id)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "denied")))
+    draft_dollars = await _sum(
+        select(func.sum(InsuranceClaim.total_billed)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "draft"))
+    in_flight = await _sum(
+        select(func.sum(InsuranceClaim.total_billed)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status.in_(["submitted", "accepted"])))
+    paid_mtd = await _sum(
+        select(func.sum(InsuranceClaim.total_paid)).where(
+            InsuranceClaim.practice_id == practice_id, InsuranceClaim.status == "paid",
+            InsuranceClaim.adjudication_date >= month_start))
+
+    # Appeal recovery estimate: industry ~50% of appealed ortho denials recoverable.
+    recoverable = round(denied_dollars * 0.5, 2)
+
+    # ── 2) MONEY SAVINGS ────────────────────────────────────────────────────────
+    outstanding_ar = await _sum(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.practice_id == practice_id))
+    outstanding_ar = max(outstanding_ar, 0.0)
+
+    # Denial avoidance: consults auto-verified before the visit prevent downstream denials.
+    # Value = verified consults this month × avg ortho claim exposure (conservative $150 each).
+    verified_consults = int(await _sum(
+        select(func.sum(AutomationRun.items_processed)).where(
+            AutomationRun.practice_id == practice_id, AutomationRun.task == "consult_verify",
+            AutomationRun.run_date >= month_start)))
+    denial_avoidance = round(verified_consults * 150.0, 2)
+
+    # ── 3) EFFICIENCY (time saved) ──────────────────────────────────────────────
+    # Automated actions this month × ~4 min each of manual staff work saved.
+    automated_actions = int(await _sum(
+        select(func.sum(AutomationRun.items_processed)).where(
+            AutomationRun.practice_id == practice_id, AutomationRun.run_date >= month_start)))
+    hours_saved = round(automated_actions * 4 / 60.0, 1)
+
+    # ── Prioritized impact items (claims first, then savings, then efficiency) ──
+    items = [
+        {"priority": 1, "category": "claims", "label": "Revenue recoverable from denied claims",
+         "amount": recoverable, "detail": f"{denied_count} denied claim(s) worth ${denied_dollars:,.0f} billed; "
+                                          f"~50% typically recoverable on appeal.", "action_route": "/claims"},
+        {"priority": 1, "category": "claims", "label": "Unbilled claims ready to send",
+         "amount": round(draft_dollars, 2), "detail": "Draft claims not yet submitted — send to capture revenue.",
+         "action_route": "/claims"},
+        {"priority": 1, "category": "claims", "label": "Claims in flight (awaiting payer)",
+         "amount": round(in_flight, 2), "detail": "Submitted/accepted claims awaiting adjudication.",
+         "action_route": "/claims"},
+        {"priority": 2, "category": "savings", "label": "Outstanding A/R to collect",
+         "amount": round(outstanding_ar, 2), "detail": "Patient + insurance balances outstanding.",
+         "action_route": "/ledger"},
+        {"priority": 2, "category": "savings", "label": "Denials avoided by pre-consult verification",
+         "amount": denial_avoidance, "detail": f"{verified_consults} consult(s) auto-verified this month "
+                                               f"before the visit — prevents downstream denials & rework.",
+         "action_route": "/reports"},
+        {"priority": 3, "category": "efficiency", "label": "Staff time saved by automation",
+         "amount": None, "hours": hours_saved,
+         "detail": f"{automated_actions} routine action(s) handled automatically this month "
+                   f"(~{hours_saved} staff hours saved).", "action_route": "/"},
+    ]
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "priority_order": ["claims", "savings", "efficiency"],
+        "headline": {
+            "claims_revenue_at_stake": round(recoverable + draft_dollars + in_flight, 2),
+            "money_savings_opportunity": round(outstanding_ar + denial_avoidance, 2),
+            "efficiency_hours_saved_mtd": hours_saved,
+            "claims_paid_mtd": round(paid_mtd, 2),
+        },
+        "items": items,
+    }
