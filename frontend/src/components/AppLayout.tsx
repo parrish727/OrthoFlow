@@ -28,6 +28,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', icon: Layout, label: 'Dashboard', section: 'main' },
+  { to: '/patient-flow', icon: Users, label: 'Patient Flow', section: 'main' },
   { to: '/schedule', icon: CalendarDays, label: 'Schedule', section: 'main' },
   { to: '/patients', icon: Users, label: 'Patients', section: 'main' },
   { to: '/time-tracking', icon: Clock, label: 'Time Clock', section: 'main' },
@@ -41,12 +42,14 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/claims', icon: FileText, label: 'Claims', section: 'finance' },
   { to: '/payments', icon: CreditCard, label: 'Payments', section: 'finance' },
   { to: '/tc-proposals', icon: FileText, label: 'TC Proposals', section: 'finance' },
+  { to: '/contracts', icon: FileText, label: 'Contracts', section: 'finance' },
   { to: '/communications', icon: MessageSquare, label: 'Reminders', section: 'comms' },
   { to: '/patient-messages', icon: Mail, label: 'Patient Messages', section: 'comms' },
   { to: '/da-chat', icon: MessageSquare, label: 'Staff Messages', section: 'comms' },
   { to: '/reports', icon: BarChart3, label: 'Reports', section: 'insights' },
   { to: '/insights', icon: Lightbulb, label: 'Insights', section: 'insights' },
   { to: '/tools', icon: Wrench, label: 'Tools', section: 'insights' },
+  { to: '/ai-letters', icon: Mail, label: 'AI Letters', section: 'insights' },
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [
@@ -76,9 +79,9 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 // Nav labels visible per role
 const ROLE_NAV_ALLOWED: Record<string, string[]> = {
-  dental_assistant: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Invisalign', 'CDT Codes', 'Staff Messages', 'Patient Messages', 'Reminders', 'Time Clock'],
-  front_desk: ['Dashboard', 'Schedule', 'Patients', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Reminders', 'Staff Messages', 'Time Clock'],
-  office_manager: ['Dashboard', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Invisalign', 'CDT Codes', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'Patient Messages', 'Reminders', 'Staff Messages', 'Reports', 'Insights', 'Tools', 'Time Clock'],
+  dental_assistant: ['Dashboard', 'Patient Flow', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Invisalign', 'CDT Codes', 'Staff Messages', 'Patient Messages', 'Reminders', 'Time Clock'],
+  front_desk: ['Dashboard', 'Patient Flow', 'Schedule', 'Patients', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'TC Proposals', 'Contracts', 'Patient Messages', 'Reminders', 'Staff Messages', 'Time Clock'],
+  office_manager: ['Dashboard', 'Patient Flow', 'Schedule', 'Patients', 'Imaging', 'Appliances', 'Invisalign', 'CDT Codes', 'Ledger', 'Invoices', 'Insurance', 'Claims', 'Payments', 'TC Proposals', 'Contracts', 'Patient Messages', 'Reminders', 'Staff Messages', 'Reports', 'Insights', 'Tools', 'AI Letters', 'Time Clock'],
   // doctor and owner get everything — no filter needed
 }
 

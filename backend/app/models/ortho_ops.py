@@ -117,10 +117,16 @@ class PatientInsuranceContract(Base):
 
     # Financial arrangement (from the accepted proposal)
     total_treatment_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    fee_type: Mapped[str] = mapped_column(String(30), default="standard")  # standard | phase_1 | phase_2 | limited | records_only | custom
+    discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     down_payment: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    expected_first_charges: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     insurance_estimate: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     patient_portion: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     estimated_months: Mapped[int | None] = mapped_column(Integer)
+    policy_notes: Mapped[str | None] = mapped_column(Text)
+    # Insurance must be verified before a contract is placed (active).
+    insurance_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Claim billing configuration (per patient × payer / private)
     payer_kind: Mapped[str] = mapped_column(String(20), default="insurance")  # insurance | private | direct
@@ -132,7 +138,7 @@ class PatientInsuranceContract(Base):
     next_claim_due: Mapped[date | None] = mapped_column(Date)
     daily_payment_poll: Mapped[bool] = mapped_column(Boolean, default=True)  # poll payer daily for paid/failed
 
-    status: Mapped[str] = mapped_column(String(20), default="active")  # draft | active | completed | cancelled
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft | active | completed | cancelled | archived
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -163,6 +169,30 @@ class ClaimPaymentPoll(Base):
     )
 
 
+class DoctorLetterStyle(Base):
+    """Per-doctor letter style profile — stored samples of how a provider writes letters.
+
+    OrthoFlow AI learns the doctor's wording over time by injecting these samples as few-shot
+    examples when generating/polishing letters. Prompt-time personalization (few-shot), NOT model
+    fine-tuning. use_count powers reasonable usage-based suggestions.
+    """
+    __tablename__ = "doctor_letter_styles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    letter_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    sample_text: Mapped[str] = mapped_column(Text, nullable=False)
+    tone: Mapped[str | None] = mapped_column(String(40))
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_letter_style_user_type", "user_id", "letter_type"),
+        Index("idx_letter_style_practice", "practice_id"),
+    )
+
+
 class AutomationRun(Base):
     """Audit record of an automation engine run — what OrthoFlow did automatically.
 
@@ -174,7 +204,7 @@ class AutomationRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
     run_date: Mapped[date] = mapped_column(Date, default=date.today)
-    task: Mapped[str] = mapped_column(String(40), nullable=False)  # recurring_claims | payment_poll | consult_verify
+    task: Mapped[str] = mapped_column(String(40), nullable=False)  # recurring_claims | payment_poll
     status: Mapped[str] = mapped_column(String(20), default="completed")  # completed | error | skipped
     items_processed: Mapped[int] = mapped_column(Integer, default=0)
     summary: Mapped[str | None] = mapped_column(Text)

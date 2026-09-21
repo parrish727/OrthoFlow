@@ -24,23 +24,27 @@ test.describe('Reports — categories', () => {
     await expect(page.getByTestId('category-report-result')).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(/✨/).first()).toBeVisible()
   })
-
-  test('consults-need-verification category is available', async ({ page }) => {
-    await expect(page.getByTestId('report-cat-consults_need_verification')).toBeVisible()
-    await page.getByTestId('report-cat-consults_need_verification').click()
-    await expect(page.getByTestId('category-report-result')).toBeVisible({ timeout: 15000 })
-  })
 })
 
 test.describe('OrthoFlow AI Assist', () => {
-  test('AI assist widget renders on the dashboard', async ({ page }) => {
-    await page.goto('/')
+  test('AI assist widget renders in the Finance section (Ledger)', async ({ page }) => {
+    await page.goto('/ledger')
     await page.waitForLoadState('networkidle')
     await page.getByTestId('ai-assist').waitFor({ state: 'attached', timeout: 20000 })
     await expect(page.getByText('OrthoFlow AI — What needs attention')).toBeVisible()
   })
 
-  test('automation activity widget renders + run-now works', async ({ page }) => {
+  test('finance cards are NOT on the dashboard (moved to Finance)', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    // AutomationActivity remains on the dashboard as an anchor that the page has loaded.
+    await page.getByTestId('automation-activity').waitFor({ state: 'attached', timeout: 20000 })
+    // The finance/revenue cards must no longer appear on the dashboard.
+    await expect(page.getByTestId('practice-impact')).toHaveCount(0)
+    await expect(page.getByTestId('ai-assist')).toHaveCount(0)
+  })
+
+  test('automation activity widget renders on dashboard + run-now works', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
     await page.getByTestId('automation-activity').waitFor({ state: 'attached', timeout: 20000 })
@@ -53,8 +57,8 @@ test.describe('OrthoFlow AI Assist', () => {
     expect(resp.status()).toBe(200)
   })
 
-  test('practice impact card leads with claims, savings, efficiency', async ({ page }) => {
-    await page.goto('/')
+  test('practice impact card leads with claims, savings, efficiency (Ledger)', async ({ page }) => {
+    await page.goto('/ledger')
     await page.waitForLoadState('networkidle')
     await page.getByTestId('practice-impact').waitFor({ state: 'attached', timeout: 20000 })
     await expect(page.getByText('OrthoFlow AI — Practice Impact')).toBeVisible()

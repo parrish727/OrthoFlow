@@ -6,8 +6,6 @@ Runs routine practice work automatically on a daily cadence so staff don't have 
                          already sent; ortho bills automatically from there). Manual contracts
                          are left for a human (surfaced by AI Assist, not auto-sent).
   2. payment_poll      — poll payers for paid/failed status on contracts with daily polling on.
-  3. consult_verify    — auto re-verify insurance eligibility for UPCOMING consults so coverage
-                         is verified BEFORE the visit without anyone remembering to do it.
 
 Each task writes one idempotent AutomationRun per practice per day (so re-runs are safe).
 Judgment calls (first claim, appeals, collections) are intentionally NOT automated — they're
@@ -16,15 +14,12 @@ surfaced by AI Assist for a human to action.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ortho_ops import PatientInsuranceContract, ClaimPaymentPoll, AutomationRun
-from app.models.finance import InsuranceSubscriber
-from app.models.clinical import Appointment, Patient
 
 logger = logging.getLogger(__name__)
 
@@ -110,74 +105,10 @@ async def run_payment_poll(db: AsyncSession, practice_id, run_date: date) -> dic
     return {"task": "payment_poll", "processed": polled, "paid": paid, "failed": failed}
 
 
-async def run_consult_verify(db: AsyncSession, practice_id, run_date: date, horizon_days: int = 2) -> dict:
-    """Auto re-verify insurance for consults in the next `horizon_days` so coverage is
-    verified BEFORE the visit. Stamps last_eligibility_check so the schedule shows INS ✓.
-
-    Uses the live Stedi client when the payer maps + Stedi is enabled; otherwise falls back
-    to affirming stored active coverage (sandbox-safe). Never blocks — it just verifies ahead.
-    """
-    if await _already_ran(db, practice_id, "consult_verify", run_date):
-        return {"task": "consult_verify", "skipped": True}
-
-    window_end = run_date + timedelta(days=horizon_days)
-    consults = (await db.execute(
-        select(Appointment).where(
-            Appointment.practice_id == practice_id,
-            Appointment.appointment_date >= run_date,
-            Appointment.appointment_date <= window_end,
-            Appointment.appointment_type.ilike("%consult%"),
-        )
-    )).scalars().all()
-
-    verified = 0
-    attempted = 0
-    for a in consults:
-        sub = (await db.execute(
-            select(InsuranceSubscriber).where(
-                InsuranceSubscriber.patient_id == a.patient_id,
-                InsuranceSubscriber.coverage_type == "primary").limit(1)
-        )).scalar_one_or_none()
-        if not sub:
-            continue
-        # Skip if already recently verified.
-        if sub.last_eligibility_check and (run_date - sub.last_eligibility_check.date()).days <= 30:
-            continue
-        attempted += 1
-        # Attempt live Stedi verification; fall back to stored coverage on any issue.
-        try:
-            from app.services.stedi_payers import resolve_stedi_test_payer
-            from app.core.config import settings
-            mapping = resolve_stedi_test_payer(sub.payer_id)
-            if settings.STEDI_ENABLED and settings.STEDI_API_KEY and mapping:
-                from app.services.stedi import StediClient
-                mock = mapping.get("mock_subscriber") or {}
-                res = await StediClient().check_eligibility({
-                    "trading_partner_service_id": mapping["stedi_payer_id"],
-                    "first_name": mock.get("first_name", ""), "last_name": mock.get("last_name", ""),
-                    "member_id": mock.get("member_id", ""), "date_of_birth": mock.get("date_of_birth", ""),
-                })
-                if res.coverage_active:
-                    sub.eligibility_status = "active"
-        except Exception as e:  # never let a clearinghouse hiccup break the daily run
-            logger.warning(f"Auto consult-verify fell back to stored coverage: {e}")
-        # Stamp verification time (this is what makes the schedule show INS ✓ pre-visit).
-        sub.last_eligibility_check = datetime.now(timezone.utc)
-        if not sub.eligibility_status:
-            sub.eligibility_status = "active"
-        verified += 1
-
-    summary = f"Auto-verified insurance for {verified} upcoming consult(s) (next {horizon_days} days)."
-    await _record(db, practice_id, "consult_verify", run_date, verified, summary,
-                  {"attempted": attempted, "horizon_days": horizon_days})
-    return {"task": "consult_verify", "processed": verified}
-
-
 async def run_all(db: AsyncSession, practice_id, run_date: date | None = None) -> dict:
     """Run all daily automations for a practice. Idempotent per day. Returns a summary."""
     run_date = run_date or date.today()
     results = []
-    results.append(await run_consult_verify(db, practice_id, run_date))
     results.append(await run_recurring_claims(db, practice_id, run_date))
     results.append(await run_payment_poll(db, practice_id, run_date))
     await db.commit()

@@ -34,6 +34,7 @@ except ImportError:
 
 from app.models.finance import (  # noqa: F401
     InsuranceSubscriber,
+    InsuranceBenefitPeriod,
     PatientLedgerEntry,
     ClaimLineItem,
     PaymentPosting,
@@ -97,11 +98,6 @@ from app.models.messaging import (  # noqa: F401
     ChatMessage,
 )
 
-from app.models.perio import (  # noqa: F401
-    PerioExam,
-    PerioReading,
-)
-
 from app.models.recall import HygieneRecall  # noqa: F401
 
 from app.models.permissions import UserPermission  # noqa: F401
@@ -115,4 +111,5 @@ from app.models.ortho_ops import (  # noqa: F401
     PatientInsuranceContract,
     ClaimPaymentPoll,
     AutomationRun,
+    DoctorLetterStyle,
 )

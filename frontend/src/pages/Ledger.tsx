@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { DollarSign, TrendingUp, Users, ChevronDown, Shield, FileText, CreditCard, UserCircle } from 'lucide-react'
 import { api } from '../lib/api'
+import AIAssist from '../components/AIAssist'
+import PracticeImpact from '../components/PracticeImpact'
 
 interface PatientBalance {
   id: string
@@ -20,6 +22,8 @@ interface LedgerEntry {
   running_balance: number | null
   posted_date: string | null
   payment_method: string | null
+  is_auto_pay?: boolean
+  auto_pay_status?: 'resolved' | 'failed' | null
 }
 
 export default function Ledger() {
@@ -48,8 +52,8 @@ export default function Ledger() {
       const res = await api.getLedgerRoster()
       if (res.ok) {
         const data = await res.json()
-        setPatients((data.patients || []).map((p: PatientBalance) => ({
-          id: p.id, first_name: p.first_name, last_name: p.last_name,
+        setPatients((data.patients || []).map((p: PatientBalance & { patient_id?: string }) => ({
+          id: p.patient_id || p.id, first_name: p.first_name, last_name: p.last_name,
           balance: p.balance, total_charges: p.total_charges, total_payments: p.total_payments,
         })))
       }
@@ -84,6 +88,16 @@ export default function Ledger() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900">Ledger</h2>
         <p className="text-sm text-gray-500 mt-0.5">Patient balances and transaction history</p>
+      </div>
+
+      {/* OrthoFlow AI — Practice Impact (claims → savings → efficiency) */}
+      <div className="mb-6">
+        <PracticeImpact />
+      </div>
+
+      {/* OrthoFlow AI — revenue-first next-best-actions */}
+      <div className="mb-6">
+        <AIAssist />
       </div>
 
       {/* Summary Cards */}
@@ -179,9 +193,33 @@ function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt,
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {entries.map(e => (
-                    <tr key={e.id}>
+                    <tr key={e.id} data-testid={`ledger-entry-${e.id}`} className={
+                      e.is_auto_pay && e.auto_pay_status === 'failed' ? 'bg-red-50'
+                      : e.is_auto_pay && e.auto_pay_status === 'resolved' ? 'bg-emerald-50/60'
+                      : ''
+                    }>
                       <td className="py-1.5 text-gray-500">{e.posted_date || '—'}</td>
-                      <td className="py-1.5 text-gray-700">{e.description}</td>
+                      <td className="py-1.5 text-gray-700">
+                        <span className="inline-flex items-center gap-1.5">
+                          {e.description}
+                          {e.is_auto_pay && (
+                            <span
+                              data-testid={`autopay-${e.auto_pay_status}-${e.id}`}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${
+                                e.auto_pay_status === 'failed'
+                                  ? 'bg-red-100 text-red-700 border-red-300'
+                                  : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                              }`}
+                              title={e.auto_pay_status === 'failed'
+                                ? 'Auto-pay failed — needs attention'
+                                : 'Auto-pay resolved'}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${e.auto_pay_status === 'failed' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                              {e.auto_pay_status === 'failed' ? 'AUTO-PAY FAILED' : 'AUTO-PAY'}
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="py-1.5"><span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${e.entry_type === 'charge' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{e.entry_type}</span></td>
                       <td className={`py-1.5 text-right font-medium ${e.amount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{fmt(e.amount)}</td>
                       <td className="py-1.5 text-right text-gray-500">{e.running_balance != null ? fmt(e.running_balance) : '—'}</td>

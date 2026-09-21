@@ -10,6 +10,7 @@ from app.api.routes import finance as finance_routes
 from app.api.routes import eligibility
 from app.api.routes import claims_workflow
 from app.api.routes import ai_claims
+from app.api.routes import ai_letters
 from app.api.routes import comm_preferences, comm_templates, comm_scheduler, comm_inbound, comm_dashboard
 from app.api.routes import imaging, imaging_alerts, imaging_ingest
 from app.api.routes import ai_intelligence, ai_denial_patterns, ai_referrals, ai_timeline
@@ -22,7 +23,6 @@ from app.api.routes import catalog
 from app.api.routes import restorative
 from app.api.routes import workflow
 from app.api.routes import messaging
-from app.api.routes import perio
 from app.api.routes import recall
 from app.api.routes import stedi_webhook
 from app.api.routes import virtual_visits
@@ -155,6 +155,7 @@ app.include_router(imaging_ingest.router, tags=["imaging"])
 app.include_router(ai_intelligence.router, tags=["ai-intelligence"])
 app.include_router(ai_denial_patterns.router, tags=["ai-intelligence"])
 app.include_router(ai_referrals.router, tags=["ai-intelligence"])
+app.include_router(ai_letters.router, tags=["ai-letters"])
 app.include_router(ai_timeline.router, tags=["ai-intelligence"])
 app.include_router(portal.router, tags=["patient-portal"])
 app.include_router(portal_admin.router, tags=["patient-portal-admin"])
@@ -169,7 +170,6 @@ app.include_router(catalog.router, tags=["catalog"])
 app.include_router(restorative.router, tags=["restorative-charting"])
 app.include_router(workflow.router, tags=["workflow"])
 app.include_router(messaging.router, tags=["messaging"])
-app.include_router(perio.router, tags=["perio-charting"])
 app.include_router(recall.router, tags=["hygiene-recall"])
 app.include_router(stedi_webhook.router, tags=["webhooks"])
 app.include_router(virtual_visits.router, tags=["virtual-visits"])

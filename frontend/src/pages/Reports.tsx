@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Download, DollarSign, TrendingUp, Percent, Clock, PieChart } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { api } from '../lib/api'
+import ReportBuilder from '../components/ReportBuilder'
 
 interface ProductionData {
   period: string
@@ -137,7 +138,7 @@ export default function Reports() {
   const monthlyData = collections?.monthly || []
 
   // Consultant reports state
-  const [reportTab, setReportTab] = useState<'categories' | 'financial' | 'consultant'>('categories')
+  const [reportTab, setReportTab] = useState<'categories' | 'financial' | 'consultant' | 'builder'>('categories')
   const [categories, setCategories] = useState<{ key: string; label: string; group: string }[]>([])
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [categoryReport, setCategoryReport] = useState<{ label: string; rows: Record<string, unknown>[]; summary: Record<string, unknown>; ai_suggestions: string[] } | null>(null)
@@ -173,9 +174,12 @@ export default function Reports() {
         <button data-testid="reports-tab-categories" onClick={() => setReportTab('categories')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'categories' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Report Categories</button>
         <button onClick={() => setReportTab('financial')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'financial' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Financial Reports</button>
         <button onClick={() => setReportTab('consultant')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'consultant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Consultant Reports</button>
+        <button data-testid="reports-tab-builder" onClick={() => setReportTab('builder')} className={`px-4 py-2 text-xs font-medium rounded-md transition-colors ${reportTab === 'builder' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Report Builder</button>
       </div>
 
-      {reportTab === 'categories' ? (
+      {reportTab === 'builder' && <ReportBuilder />}
+
+      {reportTab !== 'builder' && (reportTab === 'categories' ? (
         <div data-testid="reports-categories">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Report Categories</h2>
@@ -589,7 +593,7 @@ export default function Reports() {
         </div>
       )}
     </>
-    )}
+    ))}
     </>
   )
 }

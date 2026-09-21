@@ -48,6 +48,12 @@ class TreatmentPhase(str, enum.Enum):
 
 
 class PatientStatus(str, enum.Enum):
+    # TC lifecycle: a new patient lives in the TC section until their first actual visit.
+    # new_patient -> (TC outcome) scheduled_patient | pending | treatment_refused -> active (on first visit)
+    new_patient = "new_patient"
+    scheduled_patient = "scheduled_patient"
+    pending = "pending"
+    treatment_refused = "treatment_refused"
     active = "active"
     inactive = "inactive"
     prospective = "prospective"
@@ -184,10 +190,14 @@ class TreatmentNote(Base):
     patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("appointments.id"))
     author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    author_name: Mapped[str | None] = mapped_column(String(200))       # DA/doctor display name
+    author_initials: Mapped[str | None] = mapped_column(String(10))    # shows next to Treatment Notes
+    author_color: Mapped[str | None] = mapped_column(String(7))        # per-DA chosen color (hex)
     note_text: Mapped[str] = mapped_column(Text, nullable=False)
     ai_summary: Mapped[str | None] = mapped_column(Text)  # AI-generated summary of dictated note
     note_type: Mapped[str] = mapped_column(String(50), default="clinical")  # clinical, progress, referral
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=_utcnow)  # notes editable after 24h
 
     patient: Mapped["Patient"] = relationship(back_populates="treatment_notes")
     appointment: Mapped["Appointment | None"] = relationship(back_populates="treatment_notes")
