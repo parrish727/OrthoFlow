@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.audit import audit_log
-from app.models.finance import PatientLedgerEntry, PaymentPosting
+from app.models.finance import PatientLedgerEntry, PaymentPosting, InsuranceSubscriber
 from app.models.claims import InsuranceClaim
 from app.models.clinical import Appointment, Patient
 from app.models.portal import ReportSnapshot
@@ -24,6 +24,321 @@ from app.models.portal import ReportSnapshot
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+
+
+class ReportFilters(BaseModel):
+    # Patient dimensions
+    gender: str | None = None
+    min_age: int | None = None
+    max_age: int | None = None
+    treatment_status: str | None = None       # patients.status
+    treatment_phase: str | None = None
+    referral: str | None = None               # matches referring_doctor (contains)
+    has_referral: bool | None = None
+    # Insurance
+    insurance: str | None = None              # "has" | "none" | payer name (contains)
+    # Financial
+    payment_status: str | None = None         # "owes" | "paid_up"
+    min_balance: float | None = None
+    # Appointment / procedure
+    appointment_type: str | None = None       # appointments.appointment_type (contains)
+    procedure_cdt: str | None = None          # ledger cdt_code
+    # Time window (created / activity)
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+async def _run_patient_report(db: AsyncSession, practice_id, f: ReportFilters) -> list[dict]:
+    """Resolve the patient-tab report: patients matching the filter set, with balance + payer."""
+    q = select(Patient).where(Patient.practice_id == practice_id)
+    if f.gender:
+        q = q.where(Patient.gender == f.gender)
+    if f.treatment_status:
+        q = q.where(Patient.status == f.treatment_status)
+    if f.treatment_phase:
+        q = q.where(Patient.treatment_phase == f.treatment_phase)
+    if f.referral:
+        q = q.where(Patient.referring_doctor.ilike(f"%{f.referral}%"))
+    if f.has_referral is True:
+        q = q.where(Patient.referring_doctor.isnot(None))
+    if f.has_referral is False:
+        q = q.where(Patient.referring_doctor.is_(None))
+    if f.start_date:
+        q = q.where(func.date(Patient.created_at) >= f.start_date)
+    if f.end_date:
+        q = q.where(func.date(Patient.created_at) <= f.end_date)
+    patients = (await db.execute(q)).scalars().all()
+
+    # Age filter (computed from DOB).
+    today = date.today()
+    def age_of(p):
+        if not p.date_of_birth:
+            return None
+        return today.year - p.date_of_birth.year - ((today.month, today.day) < (p.date_of_birth.month, p.date_of_birth.day))
+    if f.min_age is not None:
+        patients = [p for p in patients if (a := age_of(p)) is not None and a >= f.min_age]
+    if f.max_age is not None:
+        patients = [p for p in patients if (a := age_of(p)) is not None and a <= f.max_age]
+
+    pids = [p.id for p in patients]
+    if not pids:
+        return []
+
+    # Balances (single grouped query).
+    bal_rows = (await db.execute(
+        select(PatientLedgerEntry.patient_id, func.sum(PatientLedgerEntry.amount))
+        .where(PatientLedgerEntry.practice_id == practice_id, PatientLedgerEntry.patient_id.in_(pids))
+        .group_by(PatientLedgerEntry.patient_id)
+    )).all()
+    bal_by = {str(pid): float(total or 0) for pid, total in bal_rows}
+
+    # Primary payer per patient.
+    subs = (await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.practice_id == practice_id,
+            InsuranceSubscriber.patient_id.in_(pids),
+            InsuranceSubscriber.coverage_type == "primary",
+        )
+    )).scalars().all()
+    payer_by = {str(s.patient_id): s.payer_name for s in subs}
+
+    # Patients who had a given procedure CDT (ledger) or appointment type.
+    proc_pids = None
+    if f.procedure_cdt:
+        rows = (await db.execute(
+            select(PatientLedgerEntry.patient_id).where(
+                PatientLedgerEntry.practice_id == practice_id,
+                PatientLedgerEntry.cdt_code == f.procedure_cdt,
+            ).distinct()
+        )).all()
+        proc_pids = {str(r[0]) for r in rows}
+    appt_pids = None
+    if f.appointment_type:
+        rows = (await db.execute(
+            select(Appointment.patient_id).where(
+                Appointment.practice_id == practice_id,
+                Appointment.appointment_type.ilike(f"%{f.appointment_type}%"),
+            ).distinct()
+        )).all()
+        appt_pids = {str(r[0]) for r in rows}
+
+    result = []
+    for p in patients:
+        pid = str(p.id)
+        bal = bal_by.get(pid, 0.0)
+        payer = payer_by.get(pid)
+        # Financial filters.
+        if f.payment_status == "owes" and bal <= 0:
+            continue
+        if f.payment_status == "paid_up" and bal > 0:
+            continue
+        if f.min_balance is not None and bal < f.min_balance:
+            continue
+        # Insurance filters.
+        if f.insurance == "has" and not payer:
+            continue
+        if f.insurance == "none" and payer:
+            continue
+        if f.insurance and f.insurance not in ("has", "none") and (not payer or f.insurance.lower() not in payer.lower()):
+            continue
+        # Procedure / appointment membership.
+        if proc_pids is not None and pid not in proc_pids:
+            continue
+        if appt_pids is not None and pid not in appt_pids:
+            continue
+        result.append({
+            "patient_id": pid,
+            "first_name": p.first_name, "last_name": p.last_name,
+            "gender": p.gender, "age": age_of(p),
+            "status": p.status, "treatment_phase": p.treatment_phase,
+            "referring_doctor": p.referring_doctor,
+            "payer_name": payer, "balance": round(bal, 2),
+            "email": p.email, "phone": p.phone,
+        })
+    return result
+
+
+@router.post("/builder/patient")
+async def report_builder_patient(
+    filters: ReportFilters,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Customizable PATIENT report — filter by any combination of dimensions."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = await _run_patient_report(db, practice_id, filters)
+    return {"tab": "patient", "count": len(rows), "rows": rows}
+
+
+@router.post("/builder/insurance")
+async def report_builder_insurance(
+    filters: ReportFilters,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Customizable INSURANCE report — insured patients + plan/benefit summary."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    # Reuse patient resolution, then attach insurance detail and drop the uninsured.
+    base = await _run_patient_report(db, practice_id, filters)
+    pids = [r["patient_id"] for r in base]
+    subs = (await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.practice_id == practice_id,
+            InsuranceSubscriber.patient_id.in_([UUID(p) for p in pids]) if pids else False,
+            InsuranceSubscriber.coverage_type == "primary",
+        )
+    )).scalars().all() if pids else []
+    sub_by = {str(s.patient_id): s for s in subs}
+    rows = []
+    for r in base:
+        s = sub_by.get(r["patient_id"])
+        if not s:
+            continue
+        remaining = float((s.ortho_lifetime_max or 0) - (s.ortho_lifetime_used or 0)) if s.ortho_lifetime_max is not None else None
+        rows.append({
+            **r,
+            "payer_name": s.payer_name, "plan_type": s.plan_type,
+            "lifetime_max": float(s.ortho_lifetime_max) if s.ortho_lifetime_max is not None else None,
+            "remaining_benefit": remaining,
+            "eligibility_status": s.eligibility_status,
+        })
+    return {"tab": "insurance", "count": len(rows), "rows": rows}
+
+
+class BundleMessageRequest(BaseModel):
+    filters: ReportFilters
+    channel: str = Field("sms", pattern="^(sms|email)$")
+    subject: str | None = None
+    body: str = Field(..., min_length=1, max_length=1600)
+
+
+@router.post("/builder/bundle-message")
+async def report_bundle_message(
+    body: BundleMessageRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Flagship cross-feature action: message everyone in a report result set.
+
+    Example: run the "patients who owe" report, then bundle-message them a balance reminder.
+    Logs one MessageLog per recipient (queued) via the communications pipeline.
+    """
+    from app.models.communications import MessageLog
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = await _run_patient_report(db, practice_id, body.filters)
+
+    queued = 0
+    for r in rows:
+        # Only message patients with a usable contact for the channel.
+        contact = r.get("email") if body.channel == "email" else r.get("phone")
+        if not contact:
+            continue
+        db.add(MessageLog(
+            practice_id=practice_id,
+            patient_id=UUID(r["patient_id"]),
+            direction="outbound",
+            channel=body.channel,
+            to_address=contact,
+            subject=body.subject,
+            body=body.body,
+            status="queued",
+            metadata_={"source": "report_bundle"},
+        ))
+        queued += 1
+    await db.commit()
+    await audit_log(db, practice_id, user["user_id"], "report.bundle_message", "message_log", f"queued={queued}")
+    return {"recipients_matched": len(rows), "messages_queued": queued, "channel": body.channel}
+
+
+@router.get("/eod")
+async def end_of_day_report(
+    for_date: date = Query(default_factory=date.today),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """End-of-Day report — everything that happened in the office on `for_date`.
+
+    Aggregates the day's activity into a single printable summary: appointments (by status),
+    payments collected, charges posted, insurance claims submitted, and contracts placed.
+    Powers the printable EOD view the office runs at close.
+    """
+    from app.models.ortho_ops import PatientInsuranceContract
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+
+    # Patient name lookup.
+    patients = (await db.execute(select(Patient).where(Patient.practice_id == practice_id))).scalars().all()
+    name_by_id = {str(p.id): f"{p.first_name} {p.last_name}" for p in patients}
+
+    # Appointments today by status.
+    appts = (await db.execute(
+        select(Appointment).where(
+            Appointment.practice_id == practice_id,
+            Appointment.appointment_date == for_date,
+        )
+    )).scalars().all()
+    appt_by_status: dict[str, int] = {}
+    for a in appts:
+        s = a.status.value if hasattr(a.status, "value") else str(a.status)
+        appt_by_status[s] = appt_by_status.get(s, 0) + 1
+
+    # Ledger activity today (payments + charges).
+    entries = (await db.execute(
+        select(PatientLedgerEntry).where(
+            PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.posted_date == for_date,
+        )
+    )).scalars().all()
+    payments = [e for e in entries if e.entry_type == "payment"]
+    charges = [e for e in entries if e.entry_type == "charge"]
+    total_collected = float(sum(abs(e.amount) for e in payments)) if payments else 0.0
+    total_charged = float(sum(e.amount for e in charges)) if charges else 0.0
+
+    # Claims submitted today.
+    claims = (await db.execute(
+        select(InsuranceClaim).where(
+            InsuranceClaim.practice_id == practice_id,
+            func.date(InsuranceClaim.submission_date) == for_date,
+        )
+    )).scalars().all()
+
+    # Contracts placed (activated) today.
+    contracts = (await db.execute(
+        select(PatientInsuranceContract).where(
+            PatientInsuranceContract.practice_id == practice_id,
+            func.date(PatientInsuranceContract.updated_at) == for_date,
+            PatientInsuranceContract.status == "active",
+        )
+    )).scalars().all()
+
+    return {
+        "date": for_date.isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "appointments": {
+            "total": len(appts),
+            "by_status": appt_by_status,
+        },
+        "financials": {
+            "payments_collected_count": len(payments),
+            "total_collected": total_collected,
+            "charges_posted_count": len(charges),
+            "total_charged": total_charged,
+            "payments": [
+                {"patient": name_by_id.get(str(e.patient_id), "Unknown"),
+                 "amount": float(abs(e.amount)), "method": e.payment_method, "description": e.description}
+                for e in payments
+            ],
+        },
+        "claims_submitted": [
+            {"id": str(c.id), "patient": name_by_id.get(str(c.patient_id), "Unknown"),
+             "status": c.status.value if hasattr(c.status, "value") else str(c.status)}
+            for c in claims
+        ],
+        "contracts_placed": [
+            {"id": str(c.id), "patient": name_by_id.get(str(c.patient_id), "Unknown"),
+             "total_fee": float(c.total_treatment_fee), "fee_type": c.fee_type}
+            for c in contracts
+        ],
+    }
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -568,7 +883,6 @@ REPORT_CATEGORIES = [
     {"key": "private_collections", "label": "Private Collections", "group": "financial"},
     {"key": "insurance_collections", "label": "Insurance Collections", "group": "financial"},
     {"key": "no_chart_notes_today", "label": "Appointments With No Chart Notes (Today)", "group": "clinical"},
-    {"key": "consults_need_verification", "label": "Consults Needing Insurance Verification", "group": "scheduling"},
 ]
 
 
@@ -763,42 +1077,6 @@ async def report_by_category(
                 })
         summary = {"count": len(rows), "date": report_date.isoformat()}
         ai_suggestions = ["Charts without notes should be documented before end of day for compliance and continuity."]
-
-    # ── Consults needing insurance verification (verify before the consult) ─────
-    elif key == "consults_need_verification":
-        appts = (await db.execute(
-            select(Appointment).where(
-                Appointment.practice_id == practice_id,
-                Appointment.appointment_date >= report_date,
-                Appointment.appointment_type.ilike("%consult%"),
-            ).order_by(Appointment.appointment_date, Appointment.start_time).limit(200)
-        )).scalars().all()
-        pmap = {str(p.id): p for p in (await db.execute(
-            select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
-        for a in appts:
-            sub = (await db.execute(
-                select(InsuranceSubscriber).where(
-                    InsuranceSubscriber.patient_id == a.patient_id,
-                    InsuranceSubscriber.coverage_type == "primary").limit(1)
-            )).scalar_one_or_none()
-            recent = bool(sub) and bool(sub.last_eligibility_check) and \
-                (report_date - sub.last_eligibility_check.date()).days <= 30
-            verified = bool(recent and sub and sub.eligibility_status == "active")
-            if verified:
-                continue
-            p = pmap.get(str(a.patient_id))
-            rows.append({
-                "appointment_id": str(a.id), "patient_id": str(a.patient_id),
-                "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
-                "date": a.appointment_date.isoformat(),
-                "payer_name": sub.payer_name if sub else "No insurance on file",
-                "status": "needs_verification" if sub else "no_insurance",
-            })
-        summary = {"count": len(rows)}
-        ai_suggestions = [
-            "Verify insurance eligibility before each consult so the doctor and TC can present accurate coverage and out-of-pocket at the visit.",
-            "Consults with no insurance on file should be confirmed as self-pay ahead of time.",
-        ]
 
     return {
         "key": key, "label": cat["label"], "group": cat["group"],

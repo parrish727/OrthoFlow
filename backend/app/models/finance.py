@@ -47,6 +47,11 @@ class InsuranceSubscriber(Base):
     ortho_lifetime_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     ortho_lifetime_used: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
     ortho_coverage_pct: Mapped[int | None] = mapped_column(Integer)
+    # Ortho lifetime-benefit period tracking. Ortho benefit is a LIFETIME maximum (no co-pay,
+    # accumulates across treatment phases). A "reset" = a new benefit period under a new job /
+    # insurer / plan level; the prior period is archived to insurance_benefit_periods.
+    benefit_period_started: Mapped[date | None] = mapped_column(Date)
+    benefit_reset_reason: Mapped[str | None] = mapped_column(String(50))  # new_job | new_insurer | plan_change | manual
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_eligibility_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     eligibility_status: Mapped[str | None] = mapped_column(String(20))
@@ -57,6 +62,37 @@ class InsuranceSubscriber(Base):
     __table_args__ = (
         Index("idx_ins_sub_practice_patient", "practice_id", "patient_id"),
         Index("idx_ins_sub_subscriber_id", "subscriber_id"),
+    )
+
+
+class InsuranceBenefitPeriod(Base):
+    """Archived ortho lifetime-benefit period for a patient's insurance plan.
+
+    When a patient's coverage resets (new job, new insurer, or a different plan level),
+    the prior lifetime-benefit period is archived here so the practice keeps a full audit
+    history of what each plan covered and how much was used, before the plan's live
+    lifetime max/used are reset for the new period.
+    """
+    __tablename__ = "insurance_benefit_periods"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    subscriber_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("insurance_subscribers.id"), nullable=False)
+    payer_name: Mapped[str | None] = mapped_column(String(200))
+    plan_name: Mapped[str | None] = mapped_column(String(200))
+    lifetime_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    lifetime_used: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
+    coverage_pct: Mapped[int | None] = mapped_column(Integer)
+    period_started: Mapped[date | None] = mapped_column(Date)
+    period_ended: Mapped[date] = mapped_column(Date, default=date.today)
+    reset_reason: Mapped[str | None] = mapped_column(String(50))  # new_job | new_insurer | plan_change | manual
+    archived_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_benefit_period_patient", "practice_id", "patient_id"),
+        Index("idx_benefit_period_subscriber", "subscriber_id"),
     )
 
 

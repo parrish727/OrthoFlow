@@ -61,6 +61,27 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
     setBusy(false)
   }
 
+  const [workDoneMsg, setWorkDoneMsg] = useState<string | null>(null)
+  async function workDone() {
+    // Checkout: post the entered procedure to the ledger AND let AI draft the insurance claim.
+    if (!newCharge.cdt_code || !newCharge.fee) { setWorkDoneMsg('Enter a CDT code and fee first.'); return }
+    setBusy(true)
+    const r = await api.workDone(patientId, {
+      procedures: [{ cdt_code: newCharge.cdt_code, description: newCharge.description, fee: parseFloat(newCharge.fee) }],
+    })
+    if (r.ok) {
+      const d = await r.json()
+      setWorkDoneMsg(d.claim_drafted
+        ? `Posted ${money(d.total_charged)} to ledger · claim drafted for review`
+        : `Posted ${money(d.total_charged)} to ledger · no active insurance`)
+      setNewCharge({ cdt_code: '', description: '', fee: '' })
+      await load()
+    } else {
+      setWorkDoneMsg('Checkout failed.')
+    }
+    setBusy(false)
+  }
+
   const shown = comments.filter(c => c.chart === commentChart)
 
   return (
@@ -108,8 +129,14 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
             <Receipt size={15} className="text-teal-600" /> Chart Charges
           </div>
-          <span className="text-xs text-gray-500">Queued: {money(chargeTotal)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Queued: {money(chargeTotal)}</span>
+            <button data-testid="work-done" onClick={workDone} disabled={busy} className="flex items-center gap-1 text-xs font-medium text-white bg-teal-600 rounded-lg px-2.5 py-1.5 hover:bg-teal-700 disabled:opacity-50">
+              <CheckCircle2 size={12} /> Work Done
+            </button>
+          </div>
         </div>
+        {workDoneMsg && <p data-testid="work-done-msg" className="text-[11px] text-teal-700 bg-teal-50 border border-teal-100 rounded-lg px-2.5 py-1.5 mb-3">{workDoneMsg}</p>}
         <div className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 mb-3">
           <input data-testid="charge-cdt" value={newCharge.cdt_code} onChange={e => setNewCharge(v => ({ ...v, cdt_code: e.target.value.toUpperCase() }))} placeholder="CDT (e.g. D8670)" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
           <input value={newCharge.description} onChange={e => setNewCharge(v => ({ ...v, description: e.target.value }))} placeholder="Description" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />

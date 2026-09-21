@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Zap, RefreshCw, CheckCircle2, FileText, CreditCard, ShieldCheck } from 'lucide-react'
+import { Zap, RefreshCw, CheckCircle2, FileText, CreditCard } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Run {
@@ -10,7 +10,6 @@ interface Run {
 const TASK_ICON: Record<string, typeof FileText> = {
   recurring_claims: FileText,
   payment_poll: CreditCard,
-  consult_verify: ShieldCheck,
 }
 
 export default function AutomationActivity() {

@@ -14,6 +14,7 @@ import PatientPortal from './pages/PatientPortal'
 
 // App pages (inside layout)
 import Dashboard from './pages/Dashboard'
+import PatientFlow from './pages/PatientFlow'
 import Schedule from './pages/Schedule'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
@@ -32,6 +33,7 @@ import Imaging from './pages/Imaging'
 import ImagingAlerts from './pages/ImagingAlerts'
 import AIInsights from './pages/AIInsights'
 import AITools from './pages/AITools'
+import AILetters from './pages/AILetters'
 import Reports from './pages/Reports'
 import Migration from './pages/Migration'
 import PortalAdmin from './pages/PortalAdmin'
@@ -46,6 +48,7 @@ import CDTCodeBrowser from './pages/CDTCodeBrowser'
 import StaffPermissions from './pages/StaffPermissions'
 import SetupWizard from './pages/SetupWizard'
 import TCProposal from './pages/TCProposal'
+import Contracts from './pages/Contracts'
 import Invisalign from './pages/Invisalign'
 
 import { useAuth } from './hooks/useAuth'
@@ -82,6 +85,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         {/* App routes (inside shared layout with sidebar) */}
         <Route element={<PrivateRoute><RoleGuard><AppLayout /></RoleGuard></PrivateRoute>}>
           <Route index element={<Dashboard />} />
+          <Route path="/patient-flow" element={<PatientFlow />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientDetail />} />
@@ -100,6 +104,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/imaging/alerts" element={<ImagingAlerts />} />
           <Route path="/insights" element={<AIInsights />} />
           <Route path="/tools" element={<AITools />} />
+          <Route path="/ai-letters" element={<AILetters />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/migration" element={<Migration />} />
           <Route path="/portal-admin" element={<PortalAdmin />} />
@@ -114,6 +119,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/settings/permissions" element={<StaffPermissions />} />
           <Route path="/setup" element={<SetupWizard />} />
           <Route path="/tc-proposals" element={<TCProposal />} />
+          <Route path="/contracts" element={<Contracts />} />
           <Route path="/invisalign" element={<Invisalign />} />
         </Route>
       </Routes>

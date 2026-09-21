@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.audit import audit_log
-from app.models.finance import InsuranceSubscriber, PatientLedgerEntry
+from app.models.finance import InsuranceSubscriber, PatientLedgerEntry, InsuranceBenefitPeriod
 from app.models.clinical import Patient
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
@@ -465,9 +465,123 @@ async def remove_insurance_plan(
     return {"status": "deactivated"}
 
 
+class BenefitResetRequest(BaseModel):
+    reason: str = Field(..., pattern="^(new_job|new_insurer|plan_change|manual)$")
+    new_lifetime_max: Decimal | None = None
+    new_coverage_pct: int | None = None
+    payer_name: str | None = None
+    plan_name: str | None = None
+
+
+@router.post("/insurance/{subscriber_id}/reset-benefit")
+async def reset_benefit_period(
+    subscriber_id: UUID,
+    body: BenefitResetRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Reset a patient's ortho lifetime benefit for a new benefit period.
+
+    Ortho benefit is a LIFETIME maximum. When a patient's coverage changes (new job, new
+    insurer, or a different plan level), the prior period is archived to
+    insurance_benefit_periods (audit history) and the plan's lifetime max/used are reset
+    for the new period. Optionally updates payer/plan/max/coverage to the new plan.
+    """
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    sub = (await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.id == subscriber_id,
+            InsuranceSubscriber.practice_id == practice_id,
+        )
+    )).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(404, "Insurance plan not found")
+
+    # Archive the current period before resetting.
+    archive = InsuranceBenefitPeriod(
+        practice_id=practice_id,
+        patient_id=sub.patient_id,
+        subscriber_id=sub.id,
+        payer_name=sub.payer_name,
+        plan_name=sub.plan_name,
+        lifetime_max=sub.ortho_lifetime_max,
+        lifetime_used=sub.ortho_lifetime_used,
+        coverage_pct=sub.ortho_coverage_pct,
+        period_started=sub.benefit_period_started,
+        period_ended=date.today(),
+        reset_reason=body.reason,
+        archived_by=UUID(user["user_id"]) if isinstance(user["user_id"], str) else user["user_id"],
+    )
+    db.add(archive)
+
+    # Start the new period.
+    if body.new_lifetime_max is not None:
+        sub.ortho_lifetime_max = body.new_lifetime_max
+    if body.new_coverage_pct is not None:
+        sub.ortho_coverage_pct = body.new_coverage_pct
+    if body.payer_name:
+        sub.payer_name = body.payer_name
+    if body.plan_name:
+        sub.plan_name = body.plan_name
+    sub.ortho_lifetime_used = Decimal("0")
+    sub.benefit_period_started = date.today()
+    sub.benefit_reset_reason = body.reason
+
+    await db.commit()
+    await db.refresh(sub)
+    await audit_log(db, practice_id, user["user_id"], "insurance.reset_benefit", "insurance_subscriber", str(subscriber_id))
+    return {"status": "reset", "archived_period_id": str(archive.id), "subscriber": _subscriber_dict(sub)}
+
+
+@router.get("/insurance/{subscriber_id}/benefit-history")
+async def benefit_history(
+    subscriber_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """List archived lifetime-benefit periods for a plan (audit history of resets)."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = (await db.execute(
+        select(InsuranceBenefitPeriod)
+        .where(
+            InsuranceBenefitPeriod.subscriber_id == subscriber_id,
+            InsuranceBenefitPeriod.practice_id == practice_id,
+        )
+        .order_by(InsuranceBenefitPeriod.period_ended.desc())
+    )).scalars().all()
+    return {
+        "count": len(rows),
+        "periods": [
+            {
+                "id": str(r.id),
+                "payer_name": r.payer_name,
+                "plan_name": r.plan_name,
+                "lifetime_max": float(r.lifetime_max) if r.lifetime_max else None,
+                "lifetime_used": float(r.lifetime_used) if r.lifetime_used else None,
+                "coverage_pct": r.coverage_pct,
+                "period_started": r.period_started.isoformat() if r.period_started else None,
+                "period_ended": r.period_ended.isoformat() if r.period_ended else None,
+                "reset_reason": r.reset_reason,
+            }
+            for r in rows
+        ],
+    }
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ledger_dict(e: PatientLedgerEntry) -> dict:
+    # ── Auto-pay classification (color-coded on the Ledger) ─────────────────────
+    # Recurring card-on-file auto-payments are identified by an AUTOPAY reference or an
+    # "auto-pay" description. A failed/declined auto-pay is surfaced RED; a posted one GREEN.
+    _ref = (e.reference_number or "").upper()
+    _desc = (e.description or "").lower()
+    _notes = (e.notes or "").lower()
+    is_auto_pay = _ref.startswith("AUTOPAY") or "auto-pay" in _desc or "autopay" in _desc
+    auto_pay_status = None
+    if is_auto_pay:
+        failed = any(k in _desc or k in _notes for k in ("failed", "declined", "returned", "nsf"))
+        auto_pay_status = "failed" if failed else "resolved"
     return {
         "id": str(e.id),
         "patient_id": str(e.patient_id),
@@ -483,6 +597,8 @@ def _ledger_dict(e: PatientLedgerEntry) -> dict:
         "payment_method": e.payment_method,
         "reference_number": e.reference_number,
         "notes": e.notes,
+        "is_auto_pay": is_auto_pay,
+        "auto_pay_status": auto_pay_status,
         "created_at": e.created_at.isoformat() if e.created_at else None,
     }
 
@@ -508,9 +624,16 @@ def _subscriber_dict(s: InsuranceSubscriber) -> dict:
         "deductible_met": float(s.deductible_met) if s.deductible_met else None,
         "annual_max": float(s.annual_max) if s.annual_max else None,
         "annual_used": float(s.annual_used) if s.annual_used else None,
-        "ortho_lifetime_max": float(s.ortho_lifetime_max) if s.ortho_lifetime_max else None,
-        "ortho_lifetime_used": float(s.ortho_lifetime_used) if s.ortho_lifetime_used else None,
+        "ortho_lifetime_max": float(s.ortho_lifetime_max) if s.ortho_lifetime_max is not None else None,
+        "ortho_lifetime_used": float(s.ortho_lifetime_used) if s.ortho_lifetime_used is not None else 0.0,
         "ortho_coverage_pct": s.ortho_coverage_pct,
+        # Ortho lifetime benefit (no co-pay). remaining_benefit = lifetime max − used.
+        "remaining_benefit": (
+            float(s.ortho_lifetime_max - (s.ortho_lifetime_used or 0))
+            if s.ortho_lifetime_max is not None else None
+        ),
+        "benefit_period_started": s.benefit_period_started.isoformat() if s.benefit_period_started else None,
+        "benefit_reset_reason": s.benefit_reset_reason,
         "is_active": s.is_active,
         "last_eligibility_check": s.last_eligibility_check.isoformat() if s.last_eligibility_check else None,
         "eligibility_status": s.eligibility_status,

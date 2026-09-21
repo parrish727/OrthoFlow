@@ -5,6 +5,9 @@ import { api } from '../lib/api'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import PatientOrthoPanel from '../components/PatientOrthoPanel'
+import PatientDocuments from '../components/PatientDocuments'
+import PatientAdminSummary from '../components/PatientAdminSummary'
+import PatientFinanceModal, { FinanceSection } from '../components/PatientFinanceModal'
 
 interface Patient {
   id: string
@@ -103,6 +106,8 @@ export default function PatientDetail() {
   const [patientImages, setPatientImages] = useState<Array<{ id: string; image_type?: string; file_name?: string; created_at?: string; notes?: string }>>([])
   const [imagesLoading, setImagesLoading] = useState(false)
   const [showImagesPanel, setShowImagesPanel] = useState(false)
+  const [patientTab, setPatientTab] = useState<'clinical' | 'administrative'>('clinical')
+  const [financeModal, setFinanceModal] = useState<FinanceSection | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const loadPatient = useCallback(async () => {
@@ -220,9 +225,9 @@ export default function PatientDetail() {
         {/* Back + Patient Name */}
         <div className="flex items-center gap-3 mb-6">
           <button
-            onClick={() => navigate('/patients')}
+            onClick={() => { if (window.history.length > 1) navigate(-1); else navigate('/patients') }}
             className="p-2 hover:bg-white rounded-lg transition-colors"
-            aria-label="Back to patients"
+            aria-label="Go back"
           >
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
@@ -279,6 +284,34 @@ export default function PatientDetail() {
           )}
         </div>
 
+        {/* Patient record tabs: Clinical Chart (clinical needs) vs Administrative (Frontdesk/Finance) */}
+        <div className="flex items-center gap-1 mb-6 border-b border-gray-200" data-testid="patient-tabs">
+          <button
+            data-testid="patient-tab-clinical"
+            onClick={() => setPatientTab('clinical')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              patientTab === 'clinical'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            Clinical Chart
+          </button>
+          <button
+            data-testid="patient-tab-administrative"
+            onClick={() => setPatientTab('administrative')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              patientTab === 'administrative'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            Administrative
+          </button>
+        </div>
+
+        {/* ── CLINICAL CHART TAB ── */}
+        <div style={{ display: patientTab === 'clinical' ? 'block' : 'none' }} data-testid="patient-clinical-panel">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column — Demographics + Tooth Chart */}
           <div className="lg:col-span-2 space-y-6">
@@ -456,6 +489,48 @@ export default function PatientDetail() {
             <NextVisitSection patientId={id || ''} patientName={`${patient.first_name} ${patient.last_name}`} />
           </div>
         </div>
+        </div>
+        {/* ── /CLINICAL CHART TAB ── */}
+
+        {/* ── ADMINISTRATIVE TAB (Frontdesk / Finance) ── */}
+        <div style={{ display: patientTab === 'administrative' ? 'block' : 'none' }} data-testid="patient-administrative-panel">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Financial — open each section as an in-place popup (no navigation away) */}
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Financial &amp; Insurance</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button data-testid="admin-open-ledger" onClick={() => setFinanceModal('ledger')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                    <Receipt size={13} /> Ledger
+                  </button>
+                  <button data-testid="admin-open-insurance" onClick={() => setFinanceModal('insurance')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                    <Shield size={13} /> Insurance
+                  </button>
+                  <button data-testid="admin-open-claims" onClick={() => setFinanceModal('claims')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                    <FileText size={13} /> Claims
+                  </button>
+                  <button data-testid="admin-open-payments" onClick={() => setFinanceModal('payments')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                    <Receipt size={13} /> Payments
+                  </button>
+                </div>
+              </div>
+
+              {/* Documents — TC proposals, contracts, letters save here */}
+              {id && <PatientDocuments patientId={id} />}
+            </div>
+
+            <div className="space-y-6">
+              {/* Self-contained Frontdesk/Finance summary — everything for this patient, inline */}
+              {id && <PatientAdminSummary patientId={id} onOpenSection={setFinanceModal} />}
+            </div>
+          </div>
+
+          {/* In-place finance popup — opens over the profile, does NOT navigate away */}
+          {id && financeModal && (
+            <PatientFinanceModal patientId={id} section={financeModal} onClose={() => setFinanceModal(null)} />
+          )}
+        </div>
+        {/* ── /ADMINISTRATIVE TAB ── */}
           </>
   )
 }

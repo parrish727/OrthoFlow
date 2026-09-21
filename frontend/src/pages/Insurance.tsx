@@ -38,6 +38,8 @@ interface InsurancePlan {
   deductible_amount: number | null
   deductible_met: number | null
   copay_amount: number | null
+  benefit_period_started: string | null
+  benefit_reset_reason: string | null
   effective_date: string | null
   termination_date: string | null
   is_active: boolean
@@ -236,7 +238,6 @@ export default function Insurance() {
                         {plans[r.patient_id].map(plan => {
                           const elig = eligibility[plan.id]
                           const orthoRemaining = (plan.ortho_lifetime_max ?? 0) - (plan.ortho_lifetime_used ?? 0)
-                          const annualRemaining = (plan.annual_max ?? 0) - (plan.annual_used ?? 0)
                           return (
                             <div key={plan.id} className="bg-white rounded-xl border border-gray-200/80 p-4">
                               <div className="flex items-start justify-between mb-3">
@@ -265,10 +266,16 @@ export default function Insurance() {
 
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <Metric label="Ortho Coverage" value={`${plan.ortho_coverage_pct ?? 0}%`} />
-                                <Metric label="Ortho Remaining" value={money(orthoRemaining)} accent="emerald" />
-                                <Metric label="Annual Remaining" value={money(annualRemaining)} />
-                                <Metric label="Copay" value={money(plan.copay_amount)} />
+                                <Metric label="Lifetime Max" value={money(plan.ortho_lifetime_max)} />
+                                <Metric label="Used" value={money(plan.ortho_lifetime_used)} />
+                                <Metric label="Remaining Benefit" value={money(orthoRemaining)} accent="emerald" />
                               </div>
+                              {plan.benefit_reset_reason && (
+                                <p className="text-[10px] text-gray-400 mt-1.5">
+                                  Benefit period reset ({plan.benefit_reset_reason.replace('_', ' ')})
+                                  {plan.benefit_period_started ? ` · started ${plan.benefit_period_started}` : ''}
+                                </p>
+                              )}
 
                               {/* Eligibility result + precognitive alerts */}
                               {elig && (

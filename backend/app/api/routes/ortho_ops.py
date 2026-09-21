@@ -21,7 +21,8 @@ from app.models.ortho_ops import (
     CustomCDTCode, PatientComment, ChartCharge, PatientInsuranceContract, ClaimPaymentPoll,
 )
 from app.models.clinical import Patient
-from app.models.finance import PatientLedgerEntry
+from app.models.finance import PatientLedgerEntry, ClaimLineItem, InsuranceSubscriber
+from app.models.claims import InsuranceClaim
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,127 @@ async def collect_chart_charge(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Checkout → Work Done → AI drafts a claim → assign to ledger
+# On appointment completion, the collected procedures post to the patient's ledger AND an
+# insurance claim is AI-drafted (status=draft) for review. Judgment-call submission stays a
+# human review step (consistent with the automation philosophy — nothing risky auto-sent).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class WorkDoneProcedure(BaseModel):
+    cdt_code: str = Field(..., min_length=2, max_length=20)
+    description: str | None = None
+    fee: Decimal = Field(..., gt=0)
+    tooth_numbers: str | None = None
+
+
+class WorkDoneRequest(BaseModel):
+    appointment_id: str | None = None
+    procedures: list[WorkDoneProcedure] = Field(..., min_length=1)
+    rendering_provider_npi: str | None = None
+    billing_provider_npi: str | None = None
+
+
+@router.post("/patients/{patient_id}/work-done")
+async def work_done(
+    patient_id: UUID, body: WorkDoneRequest,
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Complete checkout for a patient's visit: post procedure charges to the ledger and
+    AI-draft an insurance claim from the same procedures.
+
+    - Posts each procedure as a ledger charge (running balance maintained).
+    - If the patient has an active primary insurance plan, drafts an InsuranceClaim
+      (status=draft) + line items so the office can review then submit. No auto-submit.
+    - Marks the linked appointment completed when provided.
+    """
+    from app.models.clinical import Appointment, AppointmentStatus
+    practice_id = user["practice_id"]
+
+    patient = (await db.execute(
+        select(Patient).where(Patient.id == patient_id, Patient.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(404, "Patient not found")
+
+    # 1) Post charges to the ledger.
+    current = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == patient_id, PatientLedgerEntry.practice_id == practice_id)
+    )).scalar() or Decimal("0")
+    posted = []
+    service_date = date.today()
+    for p in body.procedures:
+        current = current + p.fee
+        db.add(PatientLedgerEntry(
+            practice_id=practice_id, patient_id=patient_id, entry_type="charge",
+            description=f"{p.cdt_code} — {p.description or 'Procedure'}", amount=p.fee,
+            running_balance=current, cdt_code=p.cdt_code, tooth_numbers=p.tooth_numbers,
+            service_date=service_date, posted_date=service_date, created_by=user["user_id"],
+        ))
+        posted.append({"cdt_code": p.cdt_code, "fee": float(p.fee)})
+
+    # 2) AI-draft a claim if the patient has an active primary plan.
+    sub = (await db.execute(
+        select(InsuranceSubscriber).where(
+            InsuranceSubscriber.patient_id == patient_id,
+            InsuranceSubscriber.practice_id == practice_id,
+            InsuranceSubscriber.is_active == True,
+            InsuranceSubscriber.coverage_type == "primary",
+        )
+    )).scalar_one_or_none()
+
+    claim_id = None
+    if sub:
+        total_billed = sum(p.fee for p in body.procedures)
+        # Claims table constrains payer_type to medicare|medicaid|commercial.
+        pt = (sub.plan_type or "").lower()
+        payer_type = "medicaid" if "medicaid" in pt else ("medicare" if "medicare" in pt else "commercial")
+        claim = InsuranceClaim(
+            practice_id=practice_id, patient_id=str(patient_id),
+            patient_name=f"{patient.first_name} {patient.last_name}",
+            subscriber_id=sub.subscriber_id, payer_id=sub.payer_id, payer_type=payer_type,
+            total_billed=total_billed,
+            rendering_provider_npi=body.rendering_provider_npi or "0000000000",
+            billing_provider_npi=body.billing_provider_npi or "0000000000",
+            service_date=service_date, status="draft",
+            cdt_codes=[{"code": p.cdt_code, "fee": float(p.fee)} for p in body.procedures],
+        )
+        db.add(claim)
+        await db.flush()
+        for i, p in enumerate(body.procedures, 1):
+            db.add(ClaimLineItem(
+                claim_id=claim.id, line_number=i, cdt_code=p.cdt_code, description=p.description,
+                tooth_numbers=p.tooth_numbers, quantity=1, billed_amount=p.fee, service_date=service_date,
+            ))
+        claim_id = str(claim.id)
+
+    # 3) Mark the appointment completed when provided.
+    appt_completed = False
+    if body.appointment_id:
+        appt = (await db.execute(
+            select(Appointment).where(
+                Appointment.id == UUID(body.appointment_id), Appointment.practice_id == practice_id)
+        )).scalar_one_or_none()
+        if appt:
+            appt.status = AppointmentStatus.completed
+            appt_completed = True
+
+    await db.commit()
+    await audit_log(db, practice_id, user["user_id"], "appointment.work_done", "patient", str(patient_id))
+    return {
+        "patient_id": str(patient_id),
+        "charges_posted": posted,
+        "total_charged": float(sum(p.fee for p in body.procedures)),
+        "claim_drafted": claim_id is not None,
+        "claim_id": claim_id,
+        "claim_status": "draft" if claim_id else None,
+        "appointment_completed": appt_completed,
+        "note": "Charges posted to ledger. Insurance claim drafted for review."
+                if claim_id else "Charges posted to ledger. No active insurance — no claim drafted.",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Per-patient insurance contract (from TC Proposal → Claims) + billing cadence
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -200,24 +322,38 @@ class ContractCreate(BaseModel):
     subscriber_id: str | None = None
     tc_proposal_id: str | None = None
     total_treatment_fee: Decimal = Field(..., gt=0)
+    fee_type: str = Field("standard", pattern="^(standard|phase_1|phase_2|limited|records_only|custom)$")
+    discount_amount: Decimal = Decimal("0")
+    expected_first_charges: Decimal = Decimal("0")
     down_payment: Decimal = Decimal("0")
     insurance_estimate: Decimal = Decimal("0")
     patient_portion: Decimal = Decimal("0")
     estimated_months: int | None = None
+    policy_notes: str | None = None
     payer_kind: str = Field("insurance", pattern="^(insurance|private|direct)$")
     billing_cadence: str = Field("monthly", pattern="^(monthly|quarterly)$")
     billing_mode: str = Field("auto", pattern="^(auto|manual)$")
     claim_destination: str = Field("clearinghouse", pattern="^(clearinghouse|private|direct|nctracks)$")
     daily_payment_poll: bool = True
+    status: str = Field("draft", pattern="^(draft|active)$")
     notes: str | None = None
 
 
 class ContractUpdate(BaseModel):
+    total_treatment_fee: Decimal | None = Field(None, gt=0)
+    fee_type: str | None = Field(None, pattern="^(standard|phase_1|phase_2|limited|records_only|custom)$")
+    discount_amount: Decimal | None = None
+    expected_first_charges: Decimal | None = None
+    down_payment: Decimal | None = None
+    insurance_estimate: Decimal | None = None
+    patient_portion: Decimal | None = None
+    estimated_months: int | None = None
+    policy_notes: str | None = None
     billing_cadence: str | None = Field(None, pattern="^(monthly|quarterly)$")
     billing_mode: str | None = Field(None, pattern="^(auto|manual)$")
     claim_destination: str | None = Field(None, pattern="^(clearinghouse|private|direct|nctracks)$")
     daily_payment_poll: bool | None = None
-    status: str | None = Field(None, pattern="^(draft|active|completed|cancelled)$")
+    status: str | None = Field(None, pattern="^(draft|active|completed|cancelled|archived)$")
     notes: str | None = None
 
 
@@ -270,6 +406,115 @@ async def update_contract(
     await db.commit()
     await audit_log(db, practice_id, user["user_id"], "contract.update", "patient_insurance_contract", str(contract_id))
     return _contract_dict(c)
+
+
+@router.post("/contracts/{contract_id}/verify-insurance")
+async def verify_contract_insurance(
+    contract_id: UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Verify the patient's insurance before the contract is placed.
+
+    Runs eligibility on the linked subscriber (or the patient's primary plan) and stamps
+    insurance_verified_at when coverage is active. Placing a contract requires this stamp.
+    """
+    from app.models.finance import InsuranceSubscriber
+    practice_id = user["practice_id"]
+    c = (await db.execute(
+        select(PatientInsuranceContract).where(
+            PatientInsuranceContract.id == contract_id, PatientInsuranceContract.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(404, "Contract not found")
+
+    # Resolve the subscriber (explicit link or the patient's primary plan).
+    sub = None
+    if c.subscriber_id:
+        sub = (await db.execute(select(InsuranceSubscriber).where(InsuranceSubscriber.id == c.subscriber_id))).scalar_one_or_none()
+    if not sub:
+        sub = (await db.execute(select(InsuranceSubscriber).where(
+            InsuranceSubscriber.patient_id == c.patient_id,
+            InsuranceSubscriber.practice_id == practice_id,
+            InsuranceSubscriber.coverage_type == "primary",
+        ))).scalar_one_or_none()
+
+    if c.payer_kind == "private":
+        # Private-pay contracts don't require an insurance check.
+        c.insurance_verified_at = datetime.now(timezone.utc)
+        await db.commit()
+        return {"id": str(contract_id), "verified": True, "payer_kind": "private", "note": "Private pay — no insurance verification required."}
+
+    if not sub:
+        raise HTTPException(400, "No insurance plan on file to verify. Add a plan or set payer_kind=private.")
+
+    active = bool(sub.is_active) and (sub.termination_date is None or sub.termination_date >= date.today())
+    if not active:
+        return {"id": str(contract_id), "verified": False, "reason": "Plan inactive or terminated — cannot place contract until resolved."}
+
+    c.insurance_verified_at = datetime.now(timezone.utc)
+    sub.last_eligibility_check = datetime.now(timezone.utc)
+    sub.eligibility_status = "active"
+    await db.commit()
+    await audit_log(db, practice_id, user["user_id"], "contract.verify_insurance", "patient_insurance_contract", str(contract_id))
+    return {"id": str(contract_id), "verified": True, "payer_name": sub.payer_name, "verified_at": c.insurance_verified_at.isoformat()}
+
+
+@router.post("/contracts/{contract_id}/place")
+async def place_contract(
+    contract_id: UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Place (activate) a contract. Requires insurance verified first (unless private pay).
+
+    Connects to the ledger: posts the down payment (credit) and expected first charges (charge)
+    so the patient's balance reflects the contract from day one. Moves the patient into the
+    scheduled_patient lifecycle status (they leave the TC "new patient" stage).
+    """
+    practice_id = user["practice_id"]
+    c = (await db.execute(
+        select(PatientInsuranceContract).where(
+            PatientInsuranceContract.id == contract_id, PatientInsuranceContract.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(404, "Contract not found")
+    if c.insurance_verified_at is None and c.payer_kind != "private":
+        raise HTTPException(400, "Verify insurance before placing this contract.")
+    if c.status == "active":
+        raise HTTPException(400, "Contract already active.")
+
+    # Running balance base.
+    current = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == c.patient_id, PatientLedgerEntry.practice_id == practice_id)
+    )).scalar() or Decimal("0")
+
+    # Expected first charges → charge (debit).
+    if c.expected_first_charges and c.expected_first_charges > 0:
+        current = current + c.expected_first_charges
+        db.add(PatientLedgerEntry(
+            practice_id=practice_id, patient_id=c.patient_id, entry_type="charge",
+            description="Contract — expected first charges", amount=c.expected_first_charges,
+            running_balance=current, posted_date=date.today(), created_by=user["user_id"],
+        ))
+    # Down payment → payment (credit, negative amount).
+    if c.down_payment and c.down_payment > 0:
+        current = current - c.down_payment
+        db.add(PatientLedgerEntry(
+            practice_id=practice_id, patient_id=c.patient_id, entry_type="payment",
+            description="Contract — down payment", amount=(-c.down_payment),
+            running_balance=current, posted_date=date.today(), payment_method="contract",
+            created_by=user["user_id"],
+        ))
+
+    c.status = "active"
+
+    # Lifecycle: patient leaves the TC "new patient" stage → scheduled_patient.
+    patient = (await db.execute(select(Patient).where(Patient.id == c.patient_id))).scalar_one_or_none()
+    if patient and patient.status in ("new_patient", "prospective", "pending", None):
+        patient.status = "scheduled_patient"
+
+    await db.commit()
+    await audit_log(db, practice_id, user["user_id"], "contract.place", "patient_insurance_contract", str(contract_id))
+    return {"id": str(contract_id), "status": "active", "patient_status": patient.status if patient else None,
+            "posted_charges": float(c.expected_first_charges or 0), "posted_down_payment": float(c.down_payment or 0)}
 
 
 @router.post("/contracts/{contract_id}/send-initial-claim")
@@ -415,85 +660,18 @@ def _contract_dict(c: PatientInsuranceContract) -> dict:
         "subscriber_id": str(c.subscriber_id) if c.subscriber_id else None,
         "tc_proposal_id": str(c.tc_proposal_id) if c.tc_proposal_id else None,
         "total_treatment_fee": float(c.total_treatment_fee),
+        "fee_type": c.fee_type,
+        "discount_amount": float(c.discount_amount),
+        "expected_first_charges": float(c.expected_first_charges),
         "down_payment": float(c.down_payment), "insurance_estimate": float(c.insurance_estimate),
         "patient_portion": float(c.patient_portion), "estimated_months": c.estimated_months,
+        "policy_notes": c.policy_notes,
+        "insurance_verified_at": c.insurance_verified_at.isoformat() if c.insurance_verified_at else None,
         "payer_kind": c.payer_kind, "billing_cadence": c.billing_cadence, "billing_mode": c.billing_mode,
         "claim_destination": c.claim_destination, "initial_claim_sent": c.initial_claim_sent,
         "initial_claim_date": c.initial_claim_date.isoformat() if c.initial_claim_date else None,
         "next_claim_due": c.next_claim_due.isoformat() if c.next_claim_due else None,
         "daily_payment_poll": c.daily_payment_poll, "status": c.status, "notes": c.notes,
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Pre-consultation insurance verification (readiness worklist)
-# Insurance must be verified BEFORE the consultation. This surfaces the day's consults
-# with their verification status so front desk can verify ahead of the visit.
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/consult-readiness")
-async def consult_readiness(
-    for_date: date = Query(default_factory=date.today),
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    """Consultation appointments for a date + insurance verification status.
-
-    verified = eligibility checked within 30 days AND coverage active. Anything else is a
-    to-do for front desk to verify before the consult.
-    """
-    from app.models.clinical import Appointment
-    from app.models.finance import InsuranceSubscriber
-
-    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
-
-    appts = (await db.execute(
-        select(Appointment).where(
-            Appointment.practice_id == practice_id,
-            Appointment.appointment_date == for_date,
-            Appointment.appointment_type.ilike("%consult%"),
-        ).order_by(Appointment.start_time)
-    )).scalars().all()
-
-    pmap = {str(p.id): p for p in (await db.execute(
-        select(Patient).where(Patient.practice_id == practice_id))).scalars().all()}
-
-    items = []
-    needs = 0
-    for a in appts:
-        sub = (await db.execute(
-            select(InsuranceSubscriber).where(
-                InsuranceSubscriber.patient_id == a.patient_id,
-                InsuranceSubscriber.coverage_type == "primary",
-            ).limit(1)
-        )).scalar_one_or_none()
-        p = pmap.get(str(a.patient_id))
-        if not sub:
-            status = "no_insurance"
-            verified = False
-        else:
-            recent = bool(sub.last_eligibility_check) and \
-                (date.today() - sub.last_eligibility_check.date()).days <= 30
-            verified = bool(recent and sub.eligibility_status == "active")
-            status = "verified" if verified else "needs_verification"
-        if not verified:
-            needs += 1
-        items.append({
-            "appointment_id": str(a.id), "patient_id": str(a.patient_id),
-            "patient_name": f"{p.first_name} {p.last_name}" if p else "—",
-            "start_time": a.start_time.isoformat() if a.start_time else None,
-            "appointment_type": a.appointment_type,
-            "payer_name": sub.payer_name if sub else None,
-            "subscriber_plan_id": str(sub.id) if sub else None,
-            "status": status, "verified": verified,
-            "last_checked": sub.last_eligibility_check.isoformat() if (sub and sub.last_eligibility_check) else None,
-        })
-
-    return {
-        "date": for_date.isoformat(),
-        "consult_count": len(items),
-        "needs_verification": needs,
-        "items": items,
     }
 
 

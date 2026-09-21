@@ -170,6 +170,11 @@ async def check_eligibility(
         remaining_benefit = _annual_remaining(sub)
 
     ortho_remaining = _ortho_remaining(sub)
+    # Orthodontics has NO co-pay and the benefit is a LIFETIME maximum. Surface the ortho
+    # lifetime remaining as the patient's remaining benefit; never show a co-pay for ortho.
+    copay = None
+    if ortho_remaining is not None:
+        remaining_benefit = ortho_remaining
     eligible = coverage_active and not errors
 
     # Persist eligibility snapshot to the subscriber record.

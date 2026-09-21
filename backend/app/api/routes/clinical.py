@@ -7,7 +7,7 @@ from uuid import UUID
 from datetime import date, time, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_, func, text
+from sqlalchemy import select, and_, func, text, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -276,6 +276,55 @@ async def create_da(body: DACreate, db: AsyncSession = Depends(get_db), user: di
 
 
 # ── Appointments / Schedule ───────────────────────────────────────────────────
+
+@router.get("/schedule/month")
+async def get_schedule_month(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Per-day appointment summary for a calendar month.
+
+    Powers the Dashboard monthly calendar: for each day, the total appointments and the count
+    already completed (the "OrthoFlow handled automatically" signal). Also returns a simple
+    AI-suggested optimization the doctor can accept or override.
+    """
+    practice_id = user["practice_id"]
+    rows = (await db.execute(
+        select(
+            Appointment.appointment_date,
+            func.count(Appointment.id),
+            func.count(case((Appointment.status == "completed", 1))),
+        ).where(
+            Appointment.practice_id == practice_id,
+            func.extract("year", Appointment.appointment_date) == year,
+            func.extract("month", Appointment.appointment_date) == month,
+            Appointment.status != "cancelled",
+        ).group_by(Appointment.appointment_date)
+    )).all()
+
+    days = {
+        d.isoformat(): {"date": d.isoformat(), "total": int(total or 0), "completed": int(done or 0)}
+        for d, total, done in rows
+    }
+
+    # Lightweight AI-style optimization suggestion (doctor can override; nothing auto-applied).
+    counts = [v["total"] for v in days.values()]
+    suggestion = None
+    if counts:
+        avg = sum(counts) / len(counts)
+        heavy = sorted([v for v in days.values() if v["total"] >= avg * 1.5], key=lambda x: -x["total"])[:3]
+        if heavy:
+            suggestion = {
+                "type": "load_balancing",
+                "message": "Some days are heavier than your monthly average. Consider spreading a few appointments to lighter days.",
+                "heavy_days": [h["date"] for h in heavy],
+                "avg_per_day": round(avg, 1),
+            }
+
+    return {"year": year, "month": month, "days": days, "ai_suggestion": suggestion}
+
 
 @router.get("/schedule")
 async def get_schedule(
@@ -589,22 +638,7 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         ).limit(1)
     )).scalar_one_or_none()
     is_medicaid = bool(sub) and (sub.plan_type or "").lower() == "medicaid"
-
-    # ── Pre-consultation insurance verification ────────────────────────────────
-    # Insurance should be verified BEFORE a consultation. Verified = a real eligibility
-    # check within the last 30 days AND active coverage. Consults surface this on the schedule
-    # so front desk can verify ahead of the visit (flag, not a hard block — some consults are
-    # self-pay).
-    appt_type = (a.appointment_type or "").lower()
-    is_consult = "consult" in appt_type
-    insurance_verified = None
-    if is_consult:
-        if not sub:
-            insurance_verified = False  # no insurance on file → needs verification / self-pay confirm
-        else:
-            recent = bool(sub.last_eligibility_check) and \
-                (date.today() - sub.last_eligibility_check.date()).days <= 30
-            insurance_verified = bool(recent and (sub.eligibility_status == "active"))
+    is_consult = "consult" in (a.appointment_type or "").lower()
 
     # ── Owes money / late-on-payment indicator ($) ─────────────────────────────
     balance = (await db.execute(
@@ -648,7 +682,6 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         "is_late": is_late,
         "balance": round(float(balance), 2),
         "is_consult": is_consult,
-        "insurance_verified": insurance_verified,
     }
 
 

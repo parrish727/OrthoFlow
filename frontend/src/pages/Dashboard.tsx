@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { api } from '../lib/api'
+import { localDateStr, localToday } from '../lib/dates'
 import Tooltip from '../components/Tooltip'
-import VisitTracker from '../components/VisitTracker'
-import AIAssist from '../components/AIAssist'
+import MonthlyCalendar from '../components/MonthlyCalendar'
 import AutomationActivity from '../components/AutomationActivity'
-import PracticeImpact from '../components/PracticeImpact'
 
 interface Invoice {
   id: string
@@ -32,23 +31,23 @@ export default function Dashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => localToday())
   const navigate = useNavigate()
 
   function shiftDate(days: number) {
     const d = new Date(selectedDate + 'T00:00:00')
     d.setDate(d.getDate() + days)
-    setSelectedDate(d.toISOString().split('T')[0])
+    setSelectedDate(localDateStr(d))
   }
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr + 'T00:00:00')
-    const today = new Date().toISOString().split('T')[0]
+    const today = localToday()
     if (dateStr === today) return 'Today'
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
-    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday'
+    if (dateStr === localDateStr(yesterday)) return 'Yesterday'
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
-    if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Tomorrow'
+    if (dateStr === localDateStr(tomorrow)) return 'Tomorrow'
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   }
 
@@ -77,7 +76,7 @@ export default function Dashboard() {
   const loadTodaysNotes = useCallback(async () => {
     setNotesLoading(true)
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = localToday()
       const res = await api.getSchedule(today)
       if (res.ok) {
         const data = await res.json()
@@ -159,9 +158,9 @@ export default function Dashboard() {
           <button onClick={() => shiftDate(1)} className="p-2 hover:bg-white rounded-lg transition-colors" aria-label="Next day">
             <ChevronRight size={20} className="text-gray-600" />
           </button>
-          {selectedDate !== new Date().toISOString().split('T')[0] && (
+          {selectedDate !== localToday() && (
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(localToday())}
               className="px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
             >
               Today
@@ -170,60 +169,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* OrthoFlow AI — Practice Impact (claims → savings → efficiency) */}
-      <div className="mb-6">
-        <PracticeImpact />
-      </div>
-
-      {/* OrthoFlow AI — role-aware next-best-actions + what it automated */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <AIAssist />
+      {/* OrthoFlow AI — what it automated */}
+      <div className="mb-8">
         <AutomationActivity />
       </div>
 
-      {/* Visit Tracker — Patient Flow */}
+      {/* Monthly Calendar — resizable; shows load + what OrthoFlow handled automatically */}
       <div className="mb-8">
-        <VisitTracker selectedDate={selectedDate} />
-      </div>
-
-      {/* Daily Huddle Summary */}
-      <div className="mt-8 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-          <FileText size={16} className="text-teal-600" />
-          <h3 className="font-medium text-gray-800">Today's Huddle</h3>
-          <span className="text-xs text-gray-400 ml-auto">{todaysNotes?.length || 0} patients scheduled</span>
-        </div>
-        {notesLoading ? (
-          <div className="px-6 py-10 text-center">
-            <Loader2 size={20} className="animate-spin text-gray-400 mx-auto" />
-            <p className="text-sm text-gray-400 mt-2">Loading schedule...</p>
-          </div>
-        ) : !todaysNotes || todaysNotes.length === 0 ? (
-          <div className="px-6 py-10 text-center">
-            <FileText size={28} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-sm text-gray-400">No appointments scheduled today</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {todaysNotes.map((note, idx) => (
-              <div key={idx} className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50/50 transition-colors">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{note.patient_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{note.note_preview || 'No preview available'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(note.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate(`/patients/${note.patient_id}`)}
-                  className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors whitespace-nowrap"
-                >
-                  View
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <MonthlyCalendar />
       </div>
     </>
   )

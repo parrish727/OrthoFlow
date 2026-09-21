@@ -35,7 +35,7 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermissions> = {
     label: 'Dental Assistant',
     navSections: ['main', 'clinical', 'comms'],
     allowedRoutes: [
-      '/', '/schedule', '/patients', '/patients/:id', '/time-tracking',
+      '/', '/patient-flow', '/schedule', '/patients', '/patients/:id', '/time-tracking',
       '/imaging', '/imaging/alerts', '/appliances', '/recall', '/cdt-codes',
       '/da-chat', '/communications', '/patient-messages',
       '/help',
@@ -46,8 +46,8 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermissions> = {
     label: 'Front Desk',
     navSections: ['main', 'finance', 'comms'],
     allowedRoutes: [
-      '/', '/schedule', '/patients', '/patients/:id', '/time-tracking',
-      '/ledger', '/invoices', '/insurance', '/claims', '/payments',
+      '/', '/patient-flow', '/schedule', '/patients', '/patients/:id', '/time-tracking',
+      '/ledger', '/invoices', '/insurance', '/claims', '/payments', '/tc-proposals', '/contracts',
       '/communications', '/patient-messages', '/da-chat',
       '/portal-admin', '/help',
     ],

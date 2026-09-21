@@ -37,18 +37,27 @@ export const api = {
   approveInvoice: (id: string) => request(`/api/v1/invoices/${id}/approve`, { method: 'POST' }),
   rejectInvoice: (id: string) => request(`/api/v1/invoices/${id}/reject`, { method: 'POST' }),
 
+  // Patient Documents (Administrative tab)
+  getPatientDocuments: (patientId: string) => request(`/api/v1/patients/${patientId}/documents`),
+  createPatientDocument: (
+    patientId: string,
+    data: { document_type: string; title: string; file_url?: string; mime_type?: string; file_size_bytes?: number; notes?: string },
+  ) => request(`/api/v1/patients/${patientId}/documents`, { method: 'POST', body: JSON.stringify(data) }),
+
   // Clinical — Phase 1
-  getPatients: (params: { search?: string; status?: string; page?: number }) => {
+  getPatients: (params: { search?: string; status?: string; page?: number; size?: number }) => {
     const q = new URLSearchParams()
     if (params.search) q.set('search', params.search)
     if (params.status) q.set('status', params.status)
     if (params.page) q.set('page', String(params.page))
+    if (params.size) q.set('size', String(params.size))
     return request(`/api/v1/patients?${q.toString()}`)
   },
   getPatient: (id: string) => request(`/api/v1/patients/${id}`),
   updatePatient: (id: string, data: Record<string, unknown>) =>
     request(`/api/v1/patients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getSchedule: (date: string) => request(`/api/v1/schedule?schedule_date=${date}`),
+  getScheduleMonth: (year: number, month: number) => request(`/api/v1/schedule/month?year=${year}&month=${month}`),
   getScheduleNotes: (date: string) => request(`/api/v1/schedule-notes?note_date=${date}`),
   createScheduleNote: (data: {
     note_date: string; content: string; origin?: string; category?: string;
@@ -107,6 +116,8 @@ export const api = {
     request(`/api/v1/ortho/patients/${patientId}/chart-charges`, { method: 'POST', body: JSON.stringify(data) }),
   collectChartCharge: (chargeId: string) =>
     request(`/api/v1/ortho/chart-charges/${chargeId}/collect`, { method: 'PATCH' }),
+  workDone: (patientId: string, data: { appointment_id?: string; procedures: { cdt_code: string; description?: string; fee: number; tooth_numbers?: string }[] }) =>
+    request(`/api/v1/ortho/patients/${patientId}/work-done`, { method: 'POST', body: JSON.stringify(data) }),
   getContracts: (patientId?: string) =>
     request(`/api/v1/ortho/contracts${patientId ? `?patient_id=${patientId}` : ''}`),
   createContract: (data: Record<string, unknown>) =>
@@ -115,8 +126,29 @@ export const api = {
     request(`/api/v1/ortho/contracts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   sendInitialClaim: (id: string) =>
     request(`/api/v1/ortho/contracts/${id}/send-initial-claim`, { method: 'POST' }),
-  getConsultReadiness: (date?: string) =>
-    request(`/api/v1/ortho/consult-readiness${date ? `?for_date=${date}` : ''}`),
+  verifyContractInsurance: (id: string) =>
+    request(`/api/v1/ortho/contracts/${id}/verify-insurance`, { method: 'POST' }),
+  placeContract: (id: string) =>
+    request(`/api/v1/ortho/contracts/${id}/place`, { method: 'POST' }),
+  archiveContract: (id: string) =>
+    request(`/api/v1/ortho/contracts/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'archived' }) }),
+  getEODReport: (date?: string) =>
+    request(`/api/v1/reports/eod${date ? `?for_date=${date}` : ''}`),
+  reportBuilderPatient: (filters: Record<string, unknown>) =>
+    request('/api/v1/reports/builder/patient', { method: 'POST', body: JSON.stringify(filters) }),
+  reportBuilderInsurance: (filters: Record<string, unknown>) =>
+    request('/api/v1/reports/builder/insurance', { method: 'POST', body: JSON.stringify(filters) }),
+  reportBundleMessage: (data: { filters: Record<string, unknown>; channel: string; subject?: string; body: string }) =>
+    request('/api/v1/reports/builder/bundle-message', { method: 'POST', body: JSON.stringify(data) }),
+
+  // ── AI Letters (multi-type + Gmail-style polish + per-doctor style) ──────────
+  getLetterTypes: () => request('/api/v1/ai/letters/types'),
+  generateLetter: (data: { patient_id?: string; letter_type: string; context?: string; tone?: string }) =>
+    request('/api/v1/ai/letters/generate', { method: 'POST', body: JSON.stringify(data) }),
+  polishLetter: (data: { text: string; tone: string; letter_type?: string }) =>
+    request('/api/v1/ai/letters/polish', { method: 'POST', body: JSON.stringify(data) }),
+  saveLetterStyle: (data: { letter_type: string; sample_text: string; tone?: string }) =>
+    request('/api/v1/ai/letters/save-style', { method: 'POST', body: JSON.stringify(data) }),
   getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
   getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
   runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),

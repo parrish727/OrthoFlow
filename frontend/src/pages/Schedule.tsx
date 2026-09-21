@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video, Bell, Sparkles, Pin, Plus, StickyNote } from 'lucide-react'
+import { Calendar, Clock, ChevronLeft, ChevronRight, Users, GripVertical, Clipboard, UserMinus, AlertCircle, RotateCw, X, CheckCircle2, CalendarPlus, LogIn, Video, Bell, Sparkles, Pin, Plus, StickyNote, DollarSign } from 'lucide-react'
 import { api } from '../lib/api'
+import { localDateStr, localToday } from '../lib/dates'
 import VideoRoom from '../components/VideoRoom'
 import ScheduleNextPopup from '../components/ScheduleNextPopup'
 
@@ -23,8 +24,6 @@ interface Appointment {
   owes_money?: boolean
   is_late?: boolean
   balance?: number
-  is_consult?: boolean
-  insurance_verified?: boolean | null
 }
 
 interface Chair {
@@ -157,7 +156,7 @@ function NoteCard({ note, onDismiss }: { note: SNote; onDismiss: (id: string) =>
 export default function Schedule() {
   const [schedule, setSchedule] = useState<ScheduleData | null>(null)
   const [das, setDas] = useState<DA[]>([])
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => localToday())
   const [loading, setLoading] = useState(true)
   const [phaseToast, setPhaseToast] = useState<{patient_name: string, previous_phase: string, new_phase: string} | null>(null)
   const [expandedAppt, setExpandedAppt] = useState<string | null>(null)
@@ -244,7 +243,7 @@ export default function Schedule() {
   function shiftDate(days: number) {
     const d = new Date(selectedDate + 'T00:00:00')
     d.setDate(d.getDate() + days)
-    setSelectedDate(d.toISOString().split('T')[0])
+    setSelectedDate(localDateStr(d))
   }
 
   // ── Drag-and-Drop: Appointment → Chair Column ──────────────────────────────
@@ -346,7 +345,7 @@ export default function Schedule() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(localToday())}
               className="px-3 py-1.5 text-sm font-medium text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
             >
               Today
@@ -595,6 +594,21 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   onScheduleNext: () => void
 }) {
   const [daDropHover, setDADropHover] = useState(false)
+  const [showBalance, setShowBalance] = useState(false)
+  const [balanceDetail, setBalanceDetail] = useState<{ total_charges: number; total_payments: number; balance: number } | null>(null)
+
+  async function toggleBalance(e: React.MouseEvent) {
+    e.stopPropagation()
+    const next = !showBalance
+    setShowBalance(next)
+    if (next && !balanceDetail) {
+      try {
+        const res = await api.getLedgerSummary(appointment.patient_id)
+        if (res.ok) setBalanceDetail(await res.json())
+      } catch { /* popup still shows appointment.balance fallback */ }
+    }
+  }
+
   const statusClass = appointment.status === 'completed'
     ? 'border-l-gray-300 bg-gray-50 opacity-60'
     : appointment.is_medicaid
@@ -622,43 +636,72 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <button
-                onClick={e => { e.stopPropagation(); onPatientClick() }}
-                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate text-left inline-flex items-center gap-1.5"
-                data-testid={`appt-patient-${appointment.id}`}
-              >
-                {appointment.patient_name}
-                {appointment.payer_badge === 'MC' && (
-                  <span
-                    data-testid={`mc-badge-${appointment.id}`}
-                    className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300"
-                    title="Medicaid"
-                  >MC</span>
-                )}
+              <div className="relative inline-flex items-center gap-1.5">
+                <button
+                  onClick={e => { e.stopPropagation(); onPatientClick() }}
+                  className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors truncate text-left inline-flex items-center gap-1.5"
+                  data-testid={`appt-patient-${appointment.id}`}
+                >
+                  {appointment.patient_name}
+                  {appointment.payer_badge === 'MC' && (
+                    <span
+                      data-testid={`mc-badge-${appointment.id}`}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-300"
+                      title="Medicaid"
+                    >MC</span>
+                  )}
+                </button>
                 {appointment.owes_money && (
-                  <span
+                  <button
+                    onClick={toggleBalance}
                     data-testid={`owes-badge-${appointment.id}`}
-                    className={`text-[11px] font-bold ${appointment.is_late ? 'text-red-600' : 'text-amber-600'}`}
+                    className={`text-[13px] font-bold leading-none px-1 rounded hover:bg-black/5 transition-colors ${appointment.is_late ? 'text-red-600' : 'text-amber-600'}`}
                     title={appointment.is_late
-                      ? `Late on payment — balance $${(appointment.balance ?? 0).toFixed(2)}`
-                      : `Owes $${(appointment.balance ?? 0).toFixed(2)}`}
-                  >${appointment.is_late ? '!' : ''}</span>
+                      ? `Late on payment — balance $${(appointment.balance ?? 0).toFixed(2)} · click for details`
+                      : `Owes $${(appointment.balance ?? 0).toFixed(2)} · click for details`}
+                    aria-label="Show balance"
+                  >${appointment.is_late ? '!' : ''}</button>
                 )}
-                {appointment.is_consult && appointment.insurance_verified === true && (
-                  <span
-                    data-testid={`ins-verified-${appointment.id}`}
-                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-300"
-                    title="Insurance verified for consult"
-                  >INS ✓</span>
+                {showBalance && (
+                  <div
+                    data-testid={`balance-popup-${appointment.id}`}
+                    onClick={e => e.stopPropagation()}
+                    className="absolute z-20 top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 text-left"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                        <DollarSign size={12} className={appointment.is_late ? 'text-red-500' : 'text-amber-500'} />
+                        Account Balance
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setShowBalance(false) }}
+                        className="text-gray-400 hover:text-gray-600"
+                        data-testid={`balance-popup-close-${appointment.id}`}
+                        aria-label="Close"
+                      ><X size={13} /></button>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-gray-500">Charges</span><span className="text-gray-800 font-medium">${(balanceDetail?.total_charges ?? 0).toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Paid</span><span className="text-emerald-700 font-medium">${Math.abs(balanceDetail?.total_payments ?? 0).toFixed(2)}</span></div>
+                      <div className="flex justify-between border-t border-gray-100 pt-1 mt-1">
+                        <span className="text-gray-600 font-semibold">Balance</span>
+                        <span
+                          data-testid={`balance-popup-amount-${appointment.id}`}
+                          className={`font-bold ${appointment.is_late ? 'text-red-600' : 'text-amber-600'}`}
+                        >${(balanceDetail?.balance ?? appointment.balance ?? 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {appointment.is_late && (
+                      <p className="text-[10px] text-red-600 mt-2">Past due &gt; 30 days — consider a reminder.</p>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); onPatientClick() }}
+                      data-testid={`balance-popup-ledger-${appointment.id}`}
+                      className="mt-2 w-full text-[11px] font-medium text-teal-700 hover:text-teal-800 text-center"
+                    >Open patient record →</button>
+                  </div>
                 )}
-                {appointment.is_consult && appointment.insurance_verified === false && (
-                  <span
-                    data-testid={`ins-unverified-${appointment.id}`}
-                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300"
-                    title="Verify insurance before this consultation"
-                  >VERIFY INS ⚠</span>
-                )}
-              </button>
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Clock size={12} className="text-gray-400" />
                 <span className="text-xs text-gray-500">
