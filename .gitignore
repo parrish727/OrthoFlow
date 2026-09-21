@@ -13,3 +13,7 @@ dist/
 # Brochure artifacts (lives in orthoflow-brochure/ project)
 orthoflow-agentic-brochure*
 og-image*
+# Local knowledge-cabinet notes — never commit (internal session pickups / context)
+SESSION_PICKUP_*.md
+PICKUP_NOTES.md
+PROJECT_CONTEXT.md
