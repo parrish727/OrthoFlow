@@ -1011,6 +1011,22 @@ async def seed_demo_flow():
             stale_visits_deleted = stale_visits.rowcount
             await db.flush()
 
+            # Delete scheduled_messages referencing those appointments (FK order) — reminders
+            # queued against the old appointments would otherwise block the appointment delete.
+            try:
+                from app.models.communications import ScheduledMessage
+                await db.execute(
+                    delete(ScheduledMessage).where(ScheduledMessage.appointment_id.in_(stale_appt_ids))
+                )
+            except Exception:
+                # Model location fallback: clear via raw table if the model import path differs.
+                from sqlalchemy import text as _text
+                await db.execute(
+                    _text("DELETE FROM scheduled_messages WHERE appointment_id = ANY(:ids)"),
+                    {"ids": stale_appt_ids},
+                )
+            await db.flush()
+
         # Also clean any visit statuses from previous days (catches orphaned entries)
         from sqlalchemy import cast, Date
         old_visits = await db.execute(
