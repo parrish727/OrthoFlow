@@ -16,15 +16,24 @@ export default function AILetters() {
   const [busy, setBusy] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [personalized, setPersonalized] = useState(false)
+  const [suggestions, setSuggestions] = useState<{ letter_type: string; use_count: number; has_saved_style: boolean }[]>([])
 
   useEffect(() => {
     api.getLetterTypes().then(async r => { if (r.ok) setTypes((await r.json()).types || []) })
+    loadSuggestions()
   }, [])
+
+  async function loadSuggestions() {
+    try {
+      const r = await api.getLetterSuggestions()
+      if (r.ok) { const d = await r.json(); setSuggestions((d.suggestions || []).filter((s: { use_count: number }) => s.use_count > 0).slice(0, 4)) }
+    } catch { /* silent */ }
+  }
 
   async function generate() {
     setBusy('generate'); setSaved(false)
     const r = await api.generateLetter({ letter_type: letterType, context, tone })
-    if (r.ok) { const d = await r.json(); setText(d.letter_text || ''); setPersonalized(!!d.personalized) }
+    if (r.ok) { const d = await r.json(); setText(d.letter_text || ''); setPersonalized(!!d.personalized); loadSuggestions() }
     else setText('AI is not available right now. Please try again.')
     setBusy(null)
   }
@@ -51,6 +60,35 @@ export default function AILetters() {
         <h2 className="text-2xl font-semibold text-gray-900 flex items-center gap-2"><Mail size={22} className="text-teal-600" /> AI Letters</h2>
         <p className="text-sm text-gray-500 mt-0.5">Draft any letter type, then polish it in one click. OrthoFlow learns your writing style over time.</p>
       </div>
+
+      {/* AI usage-based suggestions — your most-used letter types, one click to select */}
+      {suggestions.length > 0 && (
+        <div data-testid="letter-suggestions" className="mb-5 bg-violet-50/60 border border-violet-100 rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Sparkles size={14} className="text-violet-600" />
+            <span className="text-xs font-semibold text-violet-800">You use these most</span>
+            <span className="text-[11px] text-violet-500">— one click to start</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map(s => (
+              <button
+                key={s.letter_type}
+                data-testid={`suggestion-${s.letter_type}`}
+                onClick={() => setLetterType(s.letter_type)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  letterType === s.letter_type
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-100'
+                }`}
+              >
+                {s.letter_type.replace(/_/g, ' ')}
+                <span className={`text-[9px] rounded-full px-1.5 ${letterType === s.letter_type ? 'bg-violet-500' : 'bg-violet-100 text-violet-600'}`}>{s.use_count}×</span>
+                {s.has_saved_style && <Check size={10} className={letterType === s.letter_type ? 'text-white' : 'text-violet-500'} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls */}

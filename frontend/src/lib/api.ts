@@ -74,6 +74,11 @@ export const api = {
   getPatientNotes: (patientId: string) => request(`/api/v1/patients/${patientId}/notes`),
   createNote: (data: { patient_id: string; note_text: string; appointment_id?: string }) =>
     request('/api/v1/notes', { method: 'POST', body: JSON.stringify(data) }),
+  updateNote: (noteId: string, data: { note_text: string }) =>
+    request(`/api/v1/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getPatientAlerts: (patientId: string) => request(`/api/v1/patients/${patientId}/alerts`),
+  createPatientAlert: (patientId: string, data: { alert_type: string; severity: string; title: string; description?: string }) =>
+    request(`/api/v1/patients/${patientId}/alerts`, { method: 'POST', body: JSON.stringify(data) }),
   getToothChart: (patientId: string) => request(`/api/v1/patients/${patientId}/tooth-chart`),
   updateToothChart: (patientId: string, data: Record<string, unknown>) =>
     request(`/api/v1/patients/${patientId}/tooth-chart`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -149,6 +154,7 @@ export const api = {
     request('/api/v1/ai/letters/polish', { method: 'POST', body: JSON.stringify(data) }),
   saveLetterStyle: (data: { letter_type: string; sample_text: string; tone?: string }) =>
     request('/api/v1/ai/letters/save-style', { method: 'POST', body: JSON.stringify(data) }),
+  getLetterSuggestions: () => request('/api/v1/ai/letters/suggestions'),
   getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
   getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
   runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),
@@ -173,6 +179,8 @@ export const api = {
   },
   getClaim: (id: string) => request(`/api/v1/claims/${id}`),
   submitClaim: (id: string) => request(`/api/v1/claims/${id}/submit`, { method: 'PATCH' }),
+  updateClaimLineItem: (claimId: string, lineItemId: string, data: { cdt_code?: string; description?: string; tooth_numbers?: string; quantity?: number; billed_amount?: number }) =>
+    request(`/api/v1/claims/${claimId}/line-items/${lineItemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   aiDenialReview: (data: Record<string, unknown>) =>
     request('/api/v1/ai/claims/denial-review', { method: 'POST', body: JSON.stringify(data) }),
   getPaymentPostings: () => request('/api/v1/payments/postings'),
