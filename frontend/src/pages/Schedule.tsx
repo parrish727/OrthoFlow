@@ -17,6 +17,9 @@ interface Appointment {
   end_time: string
   duration_minutes: number
   status: string
+  visit_status?: string | null
+  confirmed_at?: string | null
+  confirmed_via?: string | null
   appointment_type: string | null
   notes: string | null
   is_medicaid?: boolean
@@ -596,6 +599,17 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
   const [daDropHover, setDADropHover] = useState(false)
   const [showBalance, setShowBalance] = useState(false)
   const [balanceDetail, setBalanceDetail] = useState<{ total_charges: number; total_payments: number; balance: number } | null>(null)
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleConfirm(e: React.MouseEvent) {
+    e.stopPropagation()
+    setConfirming(true)
+    try {
+      const r = await api.confirmAppointment(appointment.id, 'front_desk')
+      if (r.ok) onUpdate()
+    } catch { /* handled */ }
+    setConfirming(false)
+  }
 
   async function toggleBalance(e: React.MouseEvent) {
     e.stopPropagation()
@@ -651,6 +665,15 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
                     >MC</span>
                   )}
                 </button>
+                {appointment.confirmed_at && (
+                  <span
+                    data-testid={`appt-confirmed-${appointment.id}`}
+                    className="inline-flex items-center text-emerald-600"
+                    title={`Confirmed${appointment.confirmed_via ? ` via ${appointment.confirmed_via}` : ''}`}
+                  >
+                    <CheckCircle2 size={14} />
+                  </span>
+                )}
                 {appointment.owes_money && (
                   <button
                     onClick={toggleBalance}
@@ -727,6 +750,17 @@ function AppointmentCard({ appointment, das, expanded, isDragging, onToggle, onP
           <div className="flex items-center gap-2 mt-1.5">
             {appointment.appointment_type && (
               <span className="text-xs text-gray-500">{appointment.appointment_type}</span>
+            )}
+            {!appointment.confirmed_at && appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+              <button
+                data-testid={`appt-confirm-${appointment.id}`}
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 hover:bg-emerald-100 disabled:opacity-50 inline-flex items-center gap-1"
+                title="Mark this appointment confirmed (after reminder call/text/email)"
+              >
+                <CheckCircle2 size={11} /> {confirming ? 'Confirming…' : 'Confirm'}
+              </button>
             )}
             {assignedDA && (
               <span className="flex items-center gap-1 text-[10px] text-gray-500 ml-auto">

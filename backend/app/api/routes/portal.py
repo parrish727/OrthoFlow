@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.audit import audit_log
 from app.core.auth import hash_password, verify_password
-from app.models.portal import PortalAccount, PortalForm, PortalFormSubmission, PortalMessage
+from app.models.portal import PortalAccount, PortalForm, PortalFormSubmission, PortalMessage, AppointmentNotification
 from app.models.clinical import Patient, Appointment, TreatmentNote
 
 logger = logging.getLogger(__name__)
@@ -877,3 +877,134 @@ async def reschedule_appointment(
     await db.commit()
 
     return {"status": "reschedule_requested", "message": "Your office will contact you to confirm a new time."}
+
+
+# ── Appointment confirmation / cancellation + notification feed ───────────────
+
+async def _add_notification(
+    db: AsyncSession, *, practice_id, patient_id, appointment_id, audience: str,
+    kind: str, title: str, body: str | None = None, action_url: str | None = None,
+) -> None:
+    """Create an appointment notification (patient feed or office-side)."""
+    db.add(AppointmentNotification(
+        practice_id=practice_id, patient_id=patient_id, appointment_id=appointment_id,
+        audience=audience, kind=kind, title=title, body=body, action_url=action_url,
+    ))
+
+
+async def _load_appt_for_patient(db: AsyncSession, appt_id: str, patient: dict) -> Appointment:
+    appt = (await db.execute(
+        select(Appointment).where(
+            Appointment.id == uuid.UUID(appt_id),
+            Appointment.patient_id == patient["patient_id"],
+            Appointment.practice_id == patient["practice_id"],
+        )
+    )).scalar_one_or_none()
+    if not appt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    return appt
+
+
+@router.post("/appointments/{appointment_id}/confirm")
+async def patient_confirm_appointment(
+    appointment_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient confirms their appointment via MyOrthoChart. Syncs the confirmation across all
+    channels (the office Schedule shows the same confirmed status + checkmark)."""
+    appt = await _load_appt_for_patient(db, appointment_id, patient)
+    appt.confirmed_at = datetime.now(timezone.utc)
+    appt.confirmed_via = "portal"
+    if appt.status == "scheduled":
+        appt.status = "confirmed"
+    # Office-side awareness that the patient confirmed via the portal.
+    await _add_notification(
+        db, practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+        audience="office", kind="confirmed",
+        title="Patient confirmed via MyOrthoChart",
+        body=f"Appointment on {appt.appointment_date} at {str(appt.start_time)[:5]} confirmed by the patient.",
+    )
+    await db.commit()
+    return {"id": str(appt.id), "status": appt.status, "confirmed_at": appt.confirmed_at.isoformat(), "confirmed_via": "portal"}
+
+
+@router.post("/appointments/{appointment_id}/cancel")
+async def patient_cancel_appointment(
+    appointment_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient cancels via MyOrthoChart → notifies the office + queues an automated follow-up."""
+    appt = await _load_appt_for_patient(db, appointment_id, patient)
+    if appt.status in ("cancelled", "completed"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Appointment already {appt.status}")
+    appt.status = "cancelled"
+    appt.confirmed_at = None
+    appt.confirmed_via = None
+    # Office-side notification/report of the portal cancellation.
+    await _add_notification(
+        db, practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+        audience="office", kind="cancelled",
+        title="Appointment cancelled via MyOrthoChart",
+        body=f"Patient cancelled the {appt.appointment_type or 'appointment'} on {appt.appointment_date}. Follow up to reschedule.",
+        action_url=f"/schedule",
+    )
+    # Patient-facing automated follow-up (OrthoFlow nudges them to reschedule).
+    await _add_notification(
+        db, practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+        audience="patient", kind="follow_up",
+        title="Let's get you rescheduled",
+        body="Your appointment was cancelled. Tap to request a new time — staying on schedule keeps treatment on track.",
+        action_url="/portal/appointments",
+    )
+    await db.commit()
+    return {"id": str(appt.id), "status": "cancelled"}
+
+
+@router.get("/notifications")
+async def get_patient_notifications(
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+) -> dict:
+    """Patient's notification feed of appointment activities (confirmations, virtual visits,
+    cancellations, follow-ups)."""
+    rows = (await db.execute(
+        select(AppointmentNotification).where(
+            AppointmentNotification.practice_id == patient["practice_id"],
+            AppointmentNotification.patient_id == patient["patient_id"],
+            AppointmentNotification.audience == "patient",
+        ).order_by(AppointmentNotification.created_at.desc()).limit(min(limit, 100))
+    )).scalars().all()
+    return {
+        "notifications": [
+            {
+                "id": str(n.id), "kind": n.kind, "title": n.title, "body": n.body,
+                "action_url": n.action_url, "is_read": n.is_read,
+                "created_at": n.created_at.isoformat() if n.created_at else "",
+            }
+            for n in rows
+        ],
+        "unread": sum(1 for n in rows if not n.is_read),
+    }
+
+
+@router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    n = (await db.execute(
+        select(AppointmentNotification).where(
+            AppointmentNotification.id == uuid.UUID(notification_id),
+            AppointmentNotification.patient_id == patient["patient_id"],
+            AppointmentNotification.audience == "patient",
+        )
+    )).scalar_one_or_none()
+    if not n:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    n.is_read = True
+    await db.commit()
+    return {"id": str(n.id), "is_read": True}

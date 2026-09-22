@@ -87,6 +87,8 @@ export const api = {
   getDentalAssistants: () => request('/api/v1/dental-assistants'),
   updateAppointment: (id: string, data: Record<string, unknown>) =>
     request(`/api/v1/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  confirmAppointment: (id: string, via: string = 'front_desk') =>
+    request(`/api/v1/appointments/${id}/confirm`, { method: 'PATCH', body: JSON.stringify({ via }) }),
 
   // AI Assistant
   aiNoteAssist: (data: { patient_id: string; raw_input: string; appointment_type?: string }) =>

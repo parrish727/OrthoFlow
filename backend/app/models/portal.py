@@ -170,3 +170,35 @@ class MigrationJob(Base):
     __table_args__ = (
         Index("idx_migration_jobs_practice", "practice_id", "status"),
     )
+
+
+# ── Appointment Notifications (patient feed + office-side sync) ────────────────
+
+class AppointmentNotification(Base):
+    """Notification/activity feed tied to a patient's appointments.
+
+    Powers: the MyOrthoChart patient notification feed (confirmation requests, virtual-visit
+    ready-to-join, cancellations, automated follow-ups) AND the office-side awareness of
+    portal-initiated events (e.g. a patient cancelling via MyOrthoChart).
+
+    audience: 'patient' (shown in portal) or 'office' (shown to staff).
+    kind: confirm_request | confirmed | virtual_visit_ready | cancelled | follow_up | reminder
+    """
+    __tablename__ = "appointment_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)
+    audience: Mapped[str] = mapped_column(String(10), default="patient")
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    action_url: Mapped[str | None] = mapped_column(String(300))
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_appt_notif_patient", "practice_id", "patient_id", "audience"),
+        Index("idx_appt_notif_appt", "appointment_id"),
+    )
