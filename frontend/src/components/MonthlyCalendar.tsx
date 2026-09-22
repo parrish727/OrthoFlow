@@ -156,38 +156,38 @@ export default function MonthlyCalendar() {
       {/* Inline day expansion — short view of what's happening on the clicked day */}
       {selectedDay && (
         <div className="border-t border-gray-100 bg-gray-50/60 px-5 py-4" data-testid="calendar-day-detail">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-gray-800">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-lg font-bold text-gray-900">
               {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </h4>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-gray-500">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-700">
                 {dayAppts.length} appt{dayAppts.length === 1 ? '' : 's'}
                 {(() => { const done = dayAppts.filter(a => a.status === 'completed').length; return done ? ` · ${done} done` : '' })()}
               </span>
-              <button onClick={() => navigate('/schedule')} className="text-[11px] font-medium text-teal-600 hover:text-teal-700">Open Schedule →</button>
+              <button onClick={() => navigate('/schedule')} className="text-sm font-semibold text-teal-700 hover:text-teal-800 underline underline-offset-2">Open Schedule →</button>
             </div>
           </div>
           {dayLoading ? (
-            <div className="py-4 text-center"><Loader2 size={16} className="animate-spin text-gray-400 mx-auto" /></div>
+            <div className="py-4 text-center"><Loader2 size={20} className="animate-spin text-gray-400 mx-auto" /></div>
           ) : dayAppts.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">Nothing scheduled this day.</p>
+            <p className="text-base text-gray-500 py-3">Nothing scheduled this day.</p>
           ) : (
-            <div className="space-y-1 max-h-56 overflow-y-auto">
+            <div className="space-y-2 max-h-80 overflow-y-auto">
               {dayAppts.map(a => (
                 <button
                   key={a.id}
                   data-testid="day-detail-appt"
                   onClick={() => a.patient_id && navigate(`/patients/${a.patient_id}`)}
-                  className="w-full flex items-center gap-2 text-left bg-white rounded-lg border border-gray-100 px-3 py-1.5 hover:border-teal-200 transition-colors"
+                  className="w-full flex items-center gap-3 text-left bg-white rounded-xl border-2 border-gray-200 px-4 py-3 hover:border-teal-400 transition-colors"
                 >
-                  <span className="text-xs font-mono text-gray-500 w-12 shrink-0">{(a.start_time || '').slice(0, 5)}</span>
-                  <span className="text-sm text-gray-800 truncate flex-1">{a.patient_name || 'Patient'}</span>
-                  {a.is_consult && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">Consult</span>}
-                  {a.is_medicaid && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">MC</span>}
-                  {a.owes_money && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">$</span>}
-                  <span className="text-[10px] text-gray-400 shrink-0">{a.appointment_type || ''}</span>
-                  {a.status === 'completed' && <Check size={11} className="text-emerald-500 shrink-0" />}
+                  <span className="text-base font-mono font-semibold text-gray-700 w-16 shrink-0">{(a.start_time || '').slice(0, 5)}</span>
+                  <span className="text-lg font-semibold text-gray-900 truncate flex-1">{a.patient_name || 'Patient'}</span>
+                  {a.is_consult && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-800">Consult</span>}
+                  {a.is_medicaid && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-violet-100 text-violet-800">MC</span>}
+                  {a.owes_money && <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">$</span>}
+                  <span className="text-sm font-medium text-gray-600 shrink-0">{a.appointment_type || ''}</span>
+                  {a.status === 'completed' && <Check size={18} className="text-emerald-600 shrink-0" strokeWidth={3} />}
                 </button>
               ))}
             </div>

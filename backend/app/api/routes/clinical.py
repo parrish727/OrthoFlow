@@ -497,18 +497,30 @@ async def confirm_appointment(
     appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(404, "Appointment not found")
+    already_confirmed = appt.confirmed_at is not None
     appt.confirmed_at = datetime.now(timezone.utc)
     appt.confirmed_via = body.via
     if appt.status == "scheduled":
         appt.status = "confirmed"
     appt.updated_at = datetime.now(timezone.utc)
-    db.add(AppointmentNotification(
-        practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
-        audience="patient", kind="confirmed",
-        title="Appointment confirmed",
-        body=f"Your {appt.appointment_type or 'appointment'} on {appt.appointment_date} at {str(appt.start_time)[:5]} is confirmed.",
-        action_url="/portal/appointments",
-    ))
+    # Idempotent: only drop a 'confirmed' notification if one isn't already on this appointment
+    # (prevents duplicate feed entries when Confirm is clicked more than once or across channels).
+    if not already_confirmed:
+        existing_notif = (await db.execute(
+            select(AppointmentNotification.id).where(
+                AppointmentNotification.appointment_id == appt.id,
+                AppointmentNotification.kind == "confirmed",
+                AppointmentNotification.audience == "patient",
+            ).limit(1)
+        )).first()
+        if existing_notif is None:
+            db.add(AppointmentNotification(
+                practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+                audience="patient", kind="confirmed",
+                title="Appointment confirmed",
+                body=f"Your {appt.appointment_type or 'appointment'} on {appt.appointment_date} at {str(appt.start_time)[:5]} is confirmed.",
+                action_url="/portal/appointments",
+            ))
     await db.commit()
     await db.refresh(appt)
     await audit_log(db, user["practice_id"], user["user_id"], "appointment.confirm", "appointment", str(appt_id))
@@ -562,6 +574,22 @@ async def create_note(
     fallback) so notes are attributable at a glance on the chart."""
     await _get_patient(db, body.patient_id, user["practice_id"])  # verify ownership
 
+    # Idempotency guard: return the existing note if an identical one (same patient + note_text)
+    # was just created (<60s) — blocks accidental double-submit (e.g. Next Visit "Save" clicked
+    # twice) without preventing legitimately distinct notes.
+    from datetime import timedelta as _td
+    payload = body.model_dump()
+    _recent = (await db.execute(
+        select(TreatmentNote).where(
+            TreatmentNote.practice_id == user["practice_id"],
+            TreatmentNote.patient_id == body.patient_id,
+            TreatmentNote.note_text == payload.get("note_text"),
+            TreatmentNote.created_at >= datetime.now(timezone.utc) - _td(seconds=60),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if _recent is not None:
+        return _note_dict(_recent)
+
     author_name, author_initials, author_color = await _resolve_author(db, user["user_id"])
 
     note = TreatmentNote(
@@ -570,7 +598,7 @@ async def create_note(
         author_name=author_name,
         author_initials=author_initials,
         author_color=author_color,
-        **body.model_dump(),
+        **payload,
     )
     db.add(note)
     await db.commit()
