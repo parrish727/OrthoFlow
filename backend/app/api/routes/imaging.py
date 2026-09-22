@@ -41,6 +41,19 @@ ALLOWED_IMAGE_TYPES = [
     "photo_extraoral", "photo_smile", "full_mouth_series", "occlusal", "other",
 ]
 
+# Record types — the clinical classification of what's being captured. All photos/images are
+# "records"; progress_records are taken mid-treatment (e.g. doctor updating photos during tx).
+ALLOWED_RECORD_TYPES = [
+    "initial_records", "progress_records", "final_records", "retention_records", "other_records",
+]
+RECORD_TYPE_LABELS = {
+    "initial_records": "Initial Records",
+    "progress_records": "Progress Records",
+    "final_records": "Final Records",
+    "retention_records": "Retention Records",
+    "other_records": "Records",
+}
+
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +140,7 @@ async def upload_image(
     series_id: str | None = Form(None),
     tooth_numbers: str | None = Form(None),
     description: str | None = Form(None),
+    record_type: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -139,6 +153,17 @@ async def upload_image(
             status_code=400,
             detail=f"Invalid image_type. Allowed: {', '.join(ALLOWED_IMAGE_TYPES)}",
         )
+
+    # Record type: all photos/images are records; progress_records are captured mid-treatment.
+    # Stored as a tag prefix on the description (no schema migration this wave).
+    if record_type:
+        if record_type not in ALLOWED_RECORD_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid record_type. Allowed: {', '.join(ALLOWED_RECORD_TYPES)}",
+            )
+        label = RECORD_TYPE_LABELS.get(record_type, record_type)
+        description = f"[{label}] {description}".strip() if description else f"[{label}]"
 
     # Validate content type
     content_type = file.content_type or "application/octet-stream"

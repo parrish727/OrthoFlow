@@ -10,6 +10,9 @@ interface ChartCharge {
   id: string; cdt_code: string; description: string | null; fee: number
   status: string; created_at: string | null
 }
+interface ChargePreset {
+  key: string; label: string; cdt_code: string; description: string; fee: number
+}
 
 function money(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -22,6 +25,8 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
   const [commentChart, setCommentChart] = useState<'info' | 'clinical'>('info')
   const [newComment, setNewComment] = useState('')
   const [newCharge, setNewCharge] = useState({ cdt_code: '', description: '', fee: '' })
+  const [presets, setPresets] = useState<ChargePreset[]>([])
+  const [presetKey, setPresetKey] = useState('')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -34,6 +39,20 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
   }, [patientId])
 
   useEffect(() => { load() }, [load])
+
+  // Load Today's Charges presets once.
+  useEffect(() => {
+    api.getChargePresets().then(async r => {
+      if (r.ok) { const d = await r.json(); setPresets(d.presets || []) }
+    }).catch(() => {})
+  }, [])
+
+  // Selecting a preset fills CDT + description + fee (all still editable).
+  function applyPreset(key: string) {
+    setPresetKey(key)
+    const p = presets.find(x => x.key === key)
+    if (p) setNewCharge({ cdt_code: p.cdt_code, description: p.description, fee: p.fee ? String(p.fee) : '' })
+  }
 
   async function addComment() {
     if (!newComment.trim()) return
@@ -50,7 +69,7 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
       cdt_code: newCharge.cdt_code, description: newCharge.description,
       fee: parseFloat(newCharge.fee),
     })
-    if (r.ok) { setNewCharge({ cdt_code: '', description: '', fee: '' }); await load() }
+    if (r.ok) { setNewCharge({ cdt_code: '', description: '', fee: '' }); setPresetKey(''); await load() }
     setBusy(false)
   }
 
@@ -123,11 +142,11 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
         </div>
       </div>
 
-      {/* Chart charges — add under next appointment, collect at checkout */}
-      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
+      {/* Today's Charges — pick a preset or enter a CDT charge; collect at checkout */}
+      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4" data-testid="todays-charges">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            <Receipt size={15} className="text-teal-600" /> Chart Charges
+            <Receipt size={15} className="text-teal-600" /> Today's Charges
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Queued: {money(chargeTotal)}</span>
@@ -137,11 +156,29 @@ export default function PatientOrthoPanel({ patientId }: { patientId: string }) 
           </div>
         </div>
         {workDoneMsg && <p data-testid="work-done-msg" className="text-[11px] text-teal-700 bg-teal-50 border border-teal-100 rounded-lg px-2.5 py-1.5 mb-3">{workDoneMsg}</p>}
-        <div className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 mb-3">
-          <input data-testid="charge-cdt" value={newCharge.cdt_code} onChange={e => setNewCharge(v => ({ ...v, cdt_code: e.target.value.toUpperCase() }))} placeholder="CDT (e.g. D8670)" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
-          <input value={newCharge.description} onChange={e => setNewCharge(v => ({ ...v, description: e.target.value }))} placeholder="Description" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
-          <input data-testid="charge-fee" value={newCharge.fee} onChange={e => setNewCharge(v => ({ ...v, fee: e.target.value }))} placeholder="Fee" inputMode="decimal" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
-          <button data-testid="charge-add" onClick={addCharge} disabled={busy} className="px-2.5 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700 disabled:opacity-50 flex items-center"><Plus size={14} /></button>
+        <div className="space-y-2 mb-3">
+          {/* Preset (CDT) dropdown — fills CDT + description + fee */}
+          <select
+            data-testid="charge-preset"
+            value={presetKey}
+            onChange={e => applyPreset(e.target.value)}
+            className="w-full text-sm px-2.5 py-2 rounded-lg border border-gray-200 bg-white outline-none focus:ring-2 focus:ring-teal-100"
+          >
+            <option value="">Select a charge (CDT)…</option>
+            {presets.map(p => (
+              <option key={p.key} value={p.key}>{p.label} — {p.cdt_code}{p.fee ? ` ($${p.fee})` : ''}</option>
+            ))}
+          </select>
+          {/* CDT + Fee row */}
+          <div className="grid grid-cols-[1fr_100px] gap-2">
+            <input data-testid="charge-cdt" value={newCharge.cdt_code} onChange={e => setNewCharge(v => ({ ...v, cdt_code: e.target.value.toUpperCase() }))} placeholder="CDT (e.g. D8670)" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
+            <input data-testid="charge-fee" value={newCharge.fee} onChange={e => setNewCharge(v => ({ ...v, fee: e.target.value }))} placeholder="Fee" inputMode="decimal" className="text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
+          </div>
+          {/* Description gets its own full-width row */}
+          <div className="flex gap-2">
+            <input data-testid="charge-description" value={newCharge.description} onChange={e => setNewCharge(v => ({ ...v, description: e.target.value }))} placeholder="Description" className="flex-1 text-sm px-2.5 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-teal-100" />
+            <button data-testid="charge-add" onClick={addCharge} disabled={busy} className="px-3 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700 disabled:opacity-50 flex items-center gap-1"><Plus size={14} /> Add</button>
+          </div>
         </div>
         <div className="space-y-1.5 max-h-56 overflow-y-auto">
           {charges.length === 0 ? (

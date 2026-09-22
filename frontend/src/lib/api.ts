@@ -117,6 +117,7 @@ export const api = {
     request(`/api/v1/ortho/patients/${patientId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
   getChartCharges: (patientId: string) =>
     request(`/api/v1/ortho/patients/${patientId}/chart-charges`),
+  getChargePresets: () => request('/api/v1/ortho/charge-presets'),
   addChartCharge: (patientId: string, data: Record<string, unknown>) =>
     request(`/api/v1/ortho/patients/${patientId}/chart-charges`, { method: 'POST', body: JSON.stringify(data) }),
   collectChartCharge: (chargeId: string) =>
@@ -159,6 +160,7 @@ export const api = {
   getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
   runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),
   getPracticeImpact: () => request('/api/v1/ortho/practice-impact'),
+  getPracticeImpactDrilldown: (kind: string) => request(`/api/v1/ortho/practice-impact/drilldown?kind=${encodeURIComponent(kind)}`),
 
   // ── Recent patient searches (last 5) ────────────────────────────────────────
   getRecentSearches: () => request('/api/v1/recent-searches'),

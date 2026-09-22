@@ -115,6 +115,26 @@ async def add_comment(
 # Chart charges (attach CDT charge under next appointment; collect at checkout)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Today's Charges — common orthodontic same-day charge presets. Fees are in dollars and are
+# sensible defaults; a practice can override the fee at entry (and per-practice configurable
+# defaults land in a later wave). Keyed list drives the "Today's Charges" CDT dropdown.
+CHARGE_PRESETS: list[dict] = [
+    {"key": "office_visit", "label": "Office Visit", "cdt_code": "D8670", "description": "Periodic orthodontic treatment visit", "fee": 0.0},
+    {"key": "upper_essix", "label": "Upper Essix", "cdt_code": "D8680", "description": "Essix retainer — upper", "fee": 150.0},
+    {"key": "lower_essix", "label": "Lower Essix", "cdt_code": "D8680", "description": "Essix retainer — lower", "fee": 150.0},
+    {"key": "loose_lingual", "label": "Loose Lingual", "cdt_code": "D8999", "description": "Re-bond loose lingual (bonded) retainer", "fee": 65.0},
+    {"key": "upper_lingual_retainer", "label": "Upper Lingual Retainer", "cdt_code": "D8680", "description": "Fixed lingual (bonded) retainer — upper", "fee": 250.0},
+    {"key": "lower_lingual_retainer", "label": "Lower Lingual Retainer", "cdt_code": "D8680", "description": "Fixed lingual (bonded) retainer — lower", "fee": 250.0},
+    {"key": "loose_bracket", "label": "Loose Bracket", "cdt_code": "D8999", "description": "Re-bond loose/broken bracket", "fee": 65.0},
+]
+
+
+@router.get("/charge-presets")
+async def list_charge_presets(user: dict = Depends(get_current_user)):
+    """Ortho same-day charge presets for the Today's Charges dropdown."""
+    return {"presets": CHARGE_PRESETS}
+
+
 class ChartChargeCreate(BaseModel):
     cdt_code: str
     description: str | None = None
@@ -122,6 +142,7 @@ class ChartChargeCreate(BaseModel):
     tooth_numbers: str | None = None
     appointment_id: str | None = None
     is_custom_code: bool = False
+    idempotency_key: str | None = None
 
 
 @router.get("/patients/{patient_id}/chart-charges")
@@ -145,6 +166,20 @@ async def add_chart_charge(
     db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
 ):
     practice_id = user["practice_id"]
+    # Idempotency: avoid duplicate identical queued charges for the same patient on the same day
+    # (protects against double-clicks / retries so the patient ledger isn't double-charged).
+    dupe = (await db.execute(
+        select(ChartCharge).where(
+            ChartCharge.practice_id == practice_id,
+            ChartCharge.patient_id == patient_id,
+            ChartCharge.cdt_code == body.cdt_code,
+            ChartCharge.fee == body.fee,
+            ChartCharge.status == "queued",
+            func.date(ChartCharge.created_at) == date.today(),
+        )
+    )).scalars().first()
+    if dupe is not None:
+        return _charge_dict(dupe)
     c = ChartCharge(
         practice_id=practice_id, patient_id=patient_id, appointment_id=body.appointment_id,
         cdt_code=body.cdt_code, description=body.description, fee=body.fee,
@@ -966,23 +1001,23 @@ async def practice_impact(
 
     # ── Prioritized impact items (claims first, then savings, then efficiency) ──
     items = [
-        {"priority": 1, "category": "claims", "label": "Revenue recoverable from denied claims",
+        {"priority": 1, "category": "claims", "kind": "denied", "label": "Revenue recoverable from denied claims",
          "amount": recoverable, "detail": f"{denied_count} denied claim(s) worth ${denied_dollars:,.0f} billed; "
                                           f"~50% typically recoverable on appeal.", "action_route": "/claims"},
-        {"priority": 1, "category": "claims", "label": "Unbilled claims ready to send",
+        {"priority": 1, "category": "claims", "kind": "draft", "label": "Unbilled claims ready to send",
          "amount": round(draft_dollars, 2), "detail": "Draft claims not yet submitted — send to capture revenue.",
          "action_route": "/claims"},
-        {"priority": 1, "category": "claims", "label": "Claims in flight (awaiting payer)",
+        {"priority": 1, "category": "claims", "kind": "in_flight", "label": "Claims in flight (awaiting payer)",
          "amount": round(in_flight, 2), "detail": "Submitted/accepted claims awaiting adjudication.",
          "action_route": "/claims"},
-        {"priority": 2, "category": "savings", "label": "Outstanding A/R to collect",
+        {"priority": 2, "category": "savings", "kind": "outstanding_ar", "label": "Outstanding A/R to collect",
          "amount": round(outstanding_ar, 2), "detail": "Patient + insurance balances outstanding.",
          "action_route": "/ledger"},
-        {"priority": 2, "category": "savings", "label": "Denials avoided by pre-consult verification",
+        {"priority": 2, "category": "savings", "kind": "denial_avoidance", "label": "Denials avoided by pre-consult verification",
          "amount": denial_avoidance, "detail": f"{verified_consults} consult(s) auto-verified this month "
                                                f"before the visit — prevents downstream denials & rework.",
          "action_route": "/reports"},
-        {"priority": 3, "category": "efficiency", "label": "Staff time saved by automation",
+        {"priority": 3, "category": "efficiency", "kind": "automation", "label": "Staff time saved by automation",
          "amount": None, "hours": hours_saved,
          "detail": f"{automated_actions} routine action(s) handled automatically this month "
                    f"(~{hours_saved} staff hours saved).", "action_route": "/"},
@@ -999,3 +1034,81 @@ async def practice_impact(
         },
         "items": items,
     }
+
+
+@router.get("/practice-impact/drilldown")
+async def practice_impact_drilldown(
+    kind: str = Query(..., description="Impact item kind: denied|draft|in_flight|outstanding_ar|denial_avoidance|automation"),
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Drill-down behind an OrthoFlow AI Practice-Impact insight — returns the exact source
+    claims/findings the number was computed from, so the office can see how & where the AI
+    reached its conclusion (transparency for the Ledger AI insight)."""
+    from app.models.claims import InsuranceClaim
+    from app.models.ortho_ops import AutomationRun
+
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    today = date.today()
+    month_start = today.replace(day=1)
+    sources: list[dict] = []
+
+    async def _patient_name(pid) -> str:
+        p = (await db.execute(select(Patient).where(Patient.id == pid))).scalar_one_or_none()
+        return f"{p.first_name} {p.last_name}" if p else "Patient"
+
+    if kind in ("denied", "draft", "in_flight"):
+        status_map = {"denied": ["denied"], "draft": ["draft"], "in_flight": ["submitted", "accepted"]}
+        rows = (await db.execute(
+            select(InsuranceClaim).where(
+                InsuranceClaim.practice_id == practice_id,
+                InsuranceClaim.status.in_(status_map[kind]),
+            ).order_by(InsuranceClaim.service_date.desc())
+        )).scalars().all()
+        for c in rows:
+            sources.append({
+                "type": "claim", "id": str(c.id), "patient_id": str(c.patient_id),
+                "patient_name": await _patient_name(c.patient_id),
+                "claim_number": c.claim_number, "status": c.status,
+                "total_billed": float(c.total_billed or 0),
+                "total_paid": float(c.total_paid or 0) if c.total_paid is not None else None,
+                "denial_reason": getattr(c, "denial_reason", None),
+                "service_date": c.service_date.isoformat() if c.service_date else None,
+                "route": f"/claims?patient_id={c.patient_id}",
+            })
+        method = {
+            "denied": "50% of total billed on denied claims is typically recoverable on appeal.",
+            "draft": "Sum of total billed on draft (unsent) claims.",
+            "in_flight": "Sum of total billed on submitted/accepted claims awaiting adjudication.",
+        }[kind]
+    elif kind == "outstanding_ar":
+        rows = (await db.execute(
+            select(PatientLedgerEntry.patient_id, func.sum(PatientLedgerEntry.amount).label("bal"))
+            .where(PatientLedgerEntry.practice_id == practice_id)
+            .group_by(PatientLedgerEntry.patient_id)
+            .having(func.sum(PatientLedgerEntry.amount) > 0)
+        )).all()
+        for pid, bal in rows:
+            sources.append({
+                "type": "balance", "patient_id": str(pid), "patient_name": await _patient_name(pid),
+                "balance": float(bal or 0), "route": f"/ledger?patient_id={pid}",
+            })
+        method = "Sum of positive patient ledger balances (charges minus payments)."
+    elif kind in ("denial_avoidance", "automation"):
+        task_filter = [AutomationRun.run_date >= month_start, AutomationRun.practice_id == practice_id]
+        if kind == "denial_avoidance":
+            task_filter.append(AutomationRun.task == "consult_verify")
+        rows = (await db.execute(
+            select(AutomationRun).where(*task_filter).order_by(AutomationRun.run_date.desc())
+        )).scalars().all()
+        for r in rows:
+            sources.append({
+                "type": "automation_run", "id": str(r.id), "task": r.task, "label": r.label,
+                "run_date": r.run_date.isoformat() if r.run_date else None,
+                "items_processed": r.items_processed, "summary": r.summary, "route": "/",
+            })
+        method = ("Verified consults × $150 avg exposure prevented." if kind == "denial_avoidance"
+                  else "Automated actions this month × ~4 min manual work each.")
+    else:
+        raise HTTPException(400, f"Unknown drilldown kind: {kind}")
+
+    return {"kind": kind, "method": method, "count": len(sources), "sources": sources}

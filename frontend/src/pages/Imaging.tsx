@@ -66,6 +66,7 @@ export default function Imaging() {
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadType, setUploadType] = useState('pano')
+  const [uploadRecordType, setUploadRecordType] = useState('progress_records')
   const [uploadDesc, setUploadDesc] = useState('')
   const [uploadTeeth, setUploadTeeth] = useState('')
   const [expandedSeries, setExpandedSeries] = useState<string[]>([])
@@ -135,6 +136,7 @@ useEffect(() => {
       form.append('file', file)
       form.append('patient_id', selectedPatient.id)
       form.append('image_type', uploadType)
+      if (uploadRecordType) form.append('record_type', uploadRecordType)
       if (uploadDesc) form.append('description', uploadDesc)
       if (uploadTeeth) form.append('tooth_numbers', uploadTeeth)
       await api.uploadImage(form)
@@ -236,7 +238,14 @@ useEffect(() => {
             {/* Upload Zone */}
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 mb-6">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Upload Images</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <select data-testid="upload-record-type" value={uploadRecordType} onChange={e => setUploadRecordType(e.target.value)} className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                  <option value="initial_records">Initial Records</option>
+                  <option value="progress_records">Progress Records</option>
+                  <option value="final_records">Final Records</option>
+                  <option value="retention_records">Retention Records</option>
+                  <option value="other_records">Records</option>
+                </select>
                 <select value={uploadType} onChange={e => setUploadType(e.target.value)} className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                   <option value="pano">Panoramic</option>
                   <option value="ceph">Cephalometric</option>

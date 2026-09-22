@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  FileText, Search, ChevronRight, ChevronDown, Loader2, Send,
+  FileText, Search, ChevronRight, Loader2, Send,
   Shield, Receipt, CreditCard, UserCircle, Edit2, Save, X,
 } from 'lucide-react'
 import { api } from '../lib/api'
@@ -48,7 +48,7 @@ export default function Claims() {
   const [meta, setMeta] = useState<{ count: number; total_claims: number }>({ count: 0, total_claims: 0 })
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [activePatient, setActivePatient] = useState<RosterEntry | null>(null)
   const [claimsByPatient, setClaimsByPatient] = useState<Record<string, Claim[]>>({})
   const [loadingClaims, setLoadingClaims] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
@@ -71,20 +71,25 @@ export default function Claims() {
 
   useEffect(() => {
     const pid = searchParams.get('patient_id')
-    if (pid && roster.length > 0) expand(pid)
+    if (pid && roster.length > 0) {
+      const entry = roster.find(r => r.patient_id === pid)
+      if (entry) openPatient(entry)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roster])
 
-  async function expand(patientId: string) {
-    if (expandedId === patientId) { setExpandedId(null); return }
-    setExpandedId(patientId)
-    if (!claimsByPatient[patientId]) {
-      setLoadingClaims(patientId)
+  // Open the patient's Claims in a modal popup (stays on the Claims page — does not navigate away).
+  // Patient-idempotent: everything inside the popup is scoped to this patient_id.
+  async function openPatient(entry: RosterEntry) {
+    setActivePatient(entry)
+    setEditingClaimId(null)
+    if (!claimsByPatient[entry.patient_id]) {
+      setLoadingClaims(entry.patient_id)
       try {
-        const res = await api.getClaimsByPatient(patientId)
+        const res = await api.getClaimsByPatient(entry.patient_id)
         if (res.ok) {
           const data = await res.json()
-          setClaimsByPatient(prev => ({ ...prev, [patientId]: data.claims || [] }))
+          setClaimsByPatient(prev => ({ ...prev, [entry.patient_id]: data.claims || [] }))
         }
       } catch { /* handled */ }
       setLoadingClaims(null)
@@ -141,102 +146,121 @@ export default function Claims() {
         </div>
       ) : (
         <div className="space-y-2" data-testid="claims-roster">
-          {filtered.map(r => {
-            const isOpen = expandedId === r.patient_id
-            return (
-              <div key={r.patient_id} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                <button
-                  data-testid={`claims-row-${r.patient_id}`}
-                  onClick={() => expand(r.patient_id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                >
-                  {isOpen ? <ChevronDown size={16} className="text-gray-400 shrink-0" /> : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-gray-900">{r.patient_name}</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Object.entries(r.status_counts).map(([st, ct]) => (
-                        <span key={st} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGES[st] || 'bg-gray-100 text-gray-600'}`}>
-                          {ct} {st}
-                        </span>
-                      ))}
-                    </div>
+          {filtered.map(r => (
+            <div key={r.patient_id} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <button
+                data-testid={`claims-row-${r.patient_id}`}
+                onClick={() => openPatient(r)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-gray-900">{r.patient_name}</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {Object.entries(r.status_counts).map(([st, ct]) => (
+                      <span key={st} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGES[st] || 'bg-gray-100 text-gray-600'}`}>
+                        {ct} {st}
+                      </span>
+                    ))}
                   </div>
-                  <div className="hidden sm:block text-right shrink-0">
-                    <p className="text-xs text-gray-400">Billed</p>
-                    <p className="text-sm font-medium text-gray-900">{money(r.total_billed)}</p>
-                  </div>
-                  <div className="hidden md:block text-right shrink-0 w-24">
-                    <p className="text-xs text-gray-400">Outstanding</p>
-                    <p className={`text-sm font-medium ${r.total_outstanding > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{money(r.total_outstanding)}</p>
-                  </div>
-                </button>
+                </div>
+                <div className="hidden sm:block text-right shrink-0">
+                  <p className="text-xs text-gray-400">Billed</p>
+                  <p className="text-sm font-medium text-gray-900">{money(r.total_billed)}</p>
+                </div>
+                <div className="hidden md:block text-right shrink-0 w-24">
+                  <p className="text-xs text-gray-400">Outstanding</p>
+                  <p className={`text-sm font-medium ${r.total_outstanding > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{money(r.total_outstanding)}</p>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 shrink-0" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
-                {isOpen && (
-                  <div className="border-t border-gray-100 p-4 bg-gray-50/50" data-testid={`claims-panel-${r.patient_id}`}>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <QuickLink icon={UserCircle} label="Patient Record" onClick={() => navigate(`/patients/${r.patient_id}`)} />
-                      <QuickLink icon={Shield} label="Insurance" onClick={() => navigate(`/insurance?patient_id=${r.patient_id}`)} />
-                      <QuickLink icon={Receipt} label="Ledger" onClick={() => navigate(`/ledger?patient_id=${r.patient_id}`)} />
-                      <QuickLink icon={CreditCard} label="Payments" onClick={() => navigate(`/payments?patient_id=${r.patient_id}`)} />
-                    </div>
-
-                    {loadingClaims === r.patient_id ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-400 py-4"><Loader2 size={14} className="animate-spin" /> Loading claims…</div>
-                    ) : (claimsByPatient[r.patient_id] || []).length === 0 ? (
-                      <p className="text-sm text-gray-400 py-2">No claims found.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {claimsByPatient[r.patient_id].map(claim => (
-                          <div key={claim.id} className="bg-white rounded-xl border border-gray-200/80 p-3.5">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900 text-sm">{claim.claim_number || 'Draft claim'}</span>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGES[claim.status] || 'bg-gray-100 text-gray-600'}`}>{claim.status}</span>
-                                </div>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  Service {claim.service_date} · Billed {money(claim.total_billed)}
-                                  {claim.total_paid != null ? ` · Paid ${money(claim.total_paid)}` : ''}
-                                  {claim.patient_responsibility != null ? ` · Patient ${money(claim.patient_responsibility)}` : ''}
-                                </p>
-                                {claim.denial_reason && <p className="text-xs text-red-600 mt-0.5">Denial: {claim.denial_reason}</p>}
-                              </div>
-                              {claim.status === 'draft' && (
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button
-                                    data-testid={`edit-claim-${claim.id}`}
-                                    onClick={() => setEditingClaimId(editingClaimId === claim.id ? null : claim.id)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                                  ><Edit2 size={12} /> {editingClaimId === claim.id ? 'Close' : 'Edit'}</button>
-                                  <button
-                                    data-testid={`submit-claim-${claim.id}`}
-                                    onClick={() => submitClaim(r.patient_id, claim.id)}
-                                    disabled={submitting === claim.id}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {submitting === claim.id ? <><Loader2 size={12} className="animate-spin" /> Submitting…</> : <><Send size={12} /> Submit</>}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                            {claim.status === 'draft' && editingClaimId === claim.id && (
-                              <ClaimLineEditor
-                                claimId={claim.id}
-                                onSaved={async () => {
-                                  const r2 = await api.getClaimsByPatient(r.patient_id)
-                                  if (r2.ok) { const d = await r2.json(); setClaimsByPatient(prev => ({ ...prev, [r.patient_id]: d.claims || [] })) }
-                                }}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+      {/* Patient Claims popup — stays on the Claims page (does not navigate away) */}
+      {activePatient && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setActivePatient(null)}
+          data-testid="claims-modal"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            data-testid={`claims-panel-${activePatient.patient_id}`}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
+              <div>
+                <h3 className="font-semibold text-gray-900">{activePatient.patient_name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {activePatient.claim_count} claims · Billed {money(activePatient.total_billed)} · Outstanding {money(activePatient.total_outstanding)}
+                </p>
               </div>
-            )
-          })}
+              <button data-testid="claims-modal-close" onClick={() => setActivePatient(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="p-5">
+              <div className="flex flex-wrap gap-2 mb-4">
+                <QuickLink icon={UserCircle} label="Patient Record" onClick={() => navigate(`/patients/${activePatient.patient_id}`)} />
+                <QuickLink icon={Shield} label="Insurance" onClick={() => navigate(`/insurance?patient_id=${activePatient.patient_id}`)} />
+                <QuickLink icon={Receipt} label="Ledger" onClick={() => navigate(`/ledger?patient_id=${activePatient.patient_id}`)} />
+                <QuickLink icon={CreditCard} label="Payments" onClick={() => navigate(`/payments?patient_id=${activePatient.patient_id}`)} />
+              </div>
+
+              {loadingClaims === activePatient.patient_id ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400 py-4"><Loader2 size={14} className="animate-spin" /> Loading claims…</div>
+              ) : (claimsByPatient[activePatient.patient_id] || []).length === 0 ? (
+                <p className="text-sm text-gray-400 py-2">No claims found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {claimsByPatient[activePatient.patient_id].map(claim => (
+                    <div key={claim.id} className="bg-white rounded-xl border border-gray-200/80 p-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 text-sm">{claim.claim_number || 'Draft claim'}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGES[claim.status] || 'bg-gray-100 text-gray-600'}`}>{claim.status}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Service {claim.service_date} · Billed {money(claim.total_billed)}
+                            {claim.total_paid != null ? ` · Paid ${money(claim.total_paid)}` : ''}
+                            {claim.patient_responsibility != null ? ` · Patient ${money(claim.patient_responsibility)}` : ''}
+                          </p>
+                          {claim.denial_reason && <p className="text-xs text-red-600 mt-0.5">Denial: {claim.denial_reason}</p>}
+                        </div>
+                        {claim.status === 'draft' && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              data-testid={`edit-claim-${claim.id}`}
+                              onClick={() => setEditingClaimId(editingClaimId === claim.id ? null : claim.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            ><Edit2 size={12} /> {editingClaimId === claim.id ? 'Close' : 'Edit'}</button>
+                            <button
+                              data-testid={`submit-claim-${claim.id}`}
+                              onClick={() => submitClaim(activePatient.patient_id, claim.id)}
+                              disabled={submitting === claim.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
+                            >
+                              {submitting === claim.id ? <><Loader2 size={12} className="animate-spin" /> Submitting…</> : <><Send size={12} /> Submit</>}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {claim.status === 'draft' && editingClaimId === claim.id && (
+                        <ClaimLineEditor
+                          claimId={claim.id}
+                          onSaved={async () => {
+                            const r2 = await api.getClaimsByPatient(activePatient.patient_id)
+                            if (r2.ok) { const d = await r2.json(); setClaimsByPatient(prev => ({ ...prev, [activePatient.patient_id]: d.claims || [] })) }
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
