@@ -371,6 +371,30 @@ async def create_patient_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a document reference (file already in MinIO, pass the URL)."""
+    # Idempotency guard: block an accidental double-submit (same patient + type + title created
+    # within the last 60s). Legitimate later revisions (different title/timestamp) still create a
+    # new versioned document — TC proposals are intentionally kept as a version history.
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    recent = (await db.execute(
+        select(PatientDocument.id).where(
+            PatientDocument.practice_id == uuid.UUID(user["practice_id"]),
+            PatientDocument.patient_id == uuid.UUID(patient_id),
+            PatientDocument.document_type == payload.document_type,
+            PatientDocument.title == payload.title,
+            PatientDocument.created_at >= _dt.now(_tz.utc) - _td(seconds=60),
+        ).limit(1)
+    )).first()
+    if recent is not None:
+        existing = (await db.execute(
+            select(PatientDocument).where(PatientDocument.id == recent[0])
+        )).scalar_one()
+        return DocumentResponse(
+            id=str(existing.id), patient_id=str(existing.patient_id),
+            document_type=existing.document_type, title=existing.title,
+            file_url=existing.file_url, file_size_bytes=existing.file_size_bytes,
+            mime_type=existing.mime_type, uploaded_by=str(existing.uploaded_by),
+            notes=existing.notes, created_at=_ts(existing.created_at),
+        )
     doc = PatientDocument(
         id=uuid.uuid4(),
         practice_id=uuid.UUID(user["practice_id"]),

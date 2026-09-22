@@ -884,8 +884,25 @@ async def reschedule_appointment(
 async def _add_notification(
     db: AsyncSession, *, practice_id, patient_id, appointment_id, audience: str,
     kind: str, title: str, body: str | None = None, action_url: str | None = None,
+    dedupe: bool = True,
 ) -> None:
-    """Create an appointment notification (patient feed or office-side)."""
+    """Create an appointment notification (patient feed or office-side).
+
+    Idempotent by default: skips insertion if a notification with the same
+    (appointment_id, audience, kind) already exists, so repeated confirm/cancel/etc.
+    actions never stack duplicate feed entries. Pass dedupe=False for intentionally
+    repeatable notifications (e.g. recurring reminders).
+    """
+    if dedupe and appointment_id is not None:
+        exists = (await db.execute(
+            select(AppointmentNotification.id).where(
+                AppointmentNotification.appointment_id == appointment_id,
+                AppointmentNotification.audience == audience,
+                AppointmentNotification.kind == kind,
+            ).limit(1)
+        )).first()
+        if exists is not None:
+            return
     db.add(AppointmentNotification(
         practice_id=practice_id, patient_id=patient_id, appointment_id=appointment_id,
         audience=audience, kind=kind, title=title, body=body, action_url=action_url,
@@ -914,17 +931,19 @@ async def patient_confirm_appointment(
     """Patient confirms their appointment via MyOrthoChart. Syncs the confirmation across all
     channels (the office Schedule shows the same confirmed status + checkmark)."""
     appt = await _load_appt_for_patient(db, appointment_id, patient)
+    already_confirmed = appt.confirmed_at is not None
     appt.confirmed_at = datetime.now(timezone.utc)
     appt.confirmed_via = "portal"
     if appt.status == "scheduled":
         appt.status = "confirmed"
-    # Office-side awareness that the patient confirmed via the portal.
-    await _add_notification(
-        db, practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
-        audience="office", kind="confirmed",
-        title="Patient confirmed via MyOrthoChart",
-        body=f"Appointment on {appt.appointment_date} at {str(appt.start_time)[:5]} confirmed by the patient.",
-    )
+    # Office-side awareness that the patient confirmed via the portal (deduped in _add_notification).
+    if not already_confirmed:
+        await _add_notification(
+            db, practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+            audience="office", kind="confirmed",
+            title="Patient confirmed via MyOrthoChart",
+            body=f"Appointment on {appt.appointment_date} at {str(appt.start_time)[:5]} confirmed by the patient.",
+        )
     await db.commit()
     return {"id": str(appt.id), "status": appt.status, "confirmed_at": appt.confirmed_at.isoformat(), "confirmed_via": "portal"}
 
