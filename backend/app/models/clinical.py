@@ -160,6 +160,8 @@ class Appointment(Base):
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
     status: Mapped[str] = mapped_column(String(20), default="scheduled")
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set when patient/office confirms
+    confirmed_via: Mapped[str | None] = mapped_column(String(20))  # call | text | email | front_desk | portal
     appointment_type: Mapped[str | None] = mapped_column(String(100))  # e.g. "Adjustment", "Bonding", "Consultation"
     procedure_codes: Mapped[str | None] = mapped_column(Text)  # comma-separated CDT codes
     notes: Mapped[str | None] = mapped_column(Text)  # appointment-specific notes
