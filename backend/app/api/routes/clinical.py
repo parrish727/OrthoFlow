@@ -477,6 +477,44 @@ async def update_appointment(
     return response
 
 
+class ConfirmAppointmentRequest(BaseModel):
+    via: str = "call"  # call | text | email | front_desk
+
+
+@router.patch("/appointments/{appt_id}/confirm")
+async def confirm_appointment(
+    appt_id: UUID,
+    body: ConfirmAppointmentRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Front desk confirms an appointment (after a call/text/email reminder). Sets a confirmation
+    that syncs everywhere (Schedule checkmark) and mirrors the MyOrthoChart portal confirm."""
+    from app.models.portal import AppointmentNotification
+    result = await db.execute(
+        select(Appointment).where(Appointment.id == appt_id, Appointment.practice_id == user["practice_id"])
+    )
+    appt = result.scalar_one_or_none()
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    appt.confirmed_at = datetime.now(timezone.utc)
+    appt.confirmed_via = body.via
+    if appt.status == "scheduled":
+        appt.status = "confirmed"
+    appt.updated_at = datetime.now(timezone.utc)
+    db.add(AppointmentNotification(
+        practice_id=appt.practice_id, patient_id=appt.patient_id, appointment_id=appt.id,
+        audience="patient", kind="confirmed",
+        title="Appointment confirmed",
+        body=f"Your {appt.appointment_type or 'appointment'} on {appt.appointment_date} at {str(appt.start_time)[:5]} is confirmed.",
+        action_url="/portal/appointments",
+    ))
+    await db.commit()
+    await db.refresh(appt)
+    await audit_log(db, user["practice_id"], user["user_id"], "appointment.confirm", "appointment", str(appt_id))
+    return {"id": str(appt.id), "status": appt.status, "confirmed_at": appt.confirmed_at.isoformat(), "confirmed_via": appt.confirmed_via}
+
+
 @router.delete("/appointments/{appt_id}")
 async def cancel_appointment(
     appt_id: UUID,
@@ -721,6 +759,8 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
         "duration_minutes": a.duration_minutes,
         "status": a.status,
         "visit_status": visit_status,
+        "confirmed_at": a.confirmed_at.isoformat() if a.confirmed_at else None,
+        "confirmed_via": a.confirmed_via,
         "appointment_type": a.appointment_type,
         "notes": a.notes,
         # Precognitive schedule indicators

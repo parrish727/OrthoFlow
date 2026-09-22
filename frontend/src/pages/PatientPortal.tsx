@@ -29,6 +29,17 @@ interface Appointment {
   end_time: string
   type: string | null
   status: string
+  confirmed_at?: string | null
+}
+
+interface PortalNotification {
+  id: string
+  kind: string
+  title: string
+  body: string | null
+  action_url: string | null
+  is_read: boolean
+  created_at: string
 }
 
 interface Message {
@@ -58,7 +69,7 @@ interface TreatmentProgress {
   milestones: { name: string; completed: boolean }[]
 }
 
-type PortalSection = 'home' | 'schedule' | 'messages' | 'visits' | 'billing' | 'documents' | 'forms' | 'settings'
+type PortalSection = 'home' | 'schedule' | 'messages' | 'visits' | 'billing' | 'documents' | 'forms' | 'notifications' | 'settings'
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -89,6 +100,7 @@ export default function PatientPortal() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [dashboard, setDashboard] = useState<PortalDashboard | null>(null)
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [notifications, setNotifications] = useState<PortalNotification[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [forms, setForms] = useState<FormItem[]>([])
   const [progress, setProgress] = useState<TreatmentProgress | null>(null)
@@ -186,7 +198,7 @@ export default function PatientPortal() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [dashRes, apptRes, msgRes, formRes, progRes, billRes, docRes] = await Promise.all([
+      const [dashRes, apptRes, msgRes, formRes, progRes, billRes, docRes, notifRes] = await Promise.all([
         portalRequest('/api/v1/portal/dashboard'),
         portalRequest('/api/v1/portal/appointments'),
         portalRequest('/api/v1/portal/messages'),
@@ -194,6 +206,7 @@ export default function PatientPortal() {
         portalRequest('/api/v1/portal/treatment-progress'),
         portalRequest('/api/v1/portal/billing'),
         portalRequest('/api/v1/portal/documents'),
+        portalRequest('/api/v1/portal/notifications'),
       ])
       if (dashRes.ok) setDashboard(await dashRes.json())
       if (apptRes.ok) { const d = await apptRes.json(); setAppointments(d.appointments || []) }
@@ -202,11 +215,29 @@ export default function PatientPortal() {
       if (progRes.ok) setProgress(await progRes.json())
       if (billRes.ok) setBilling(await billRes.json())
       if (docRes.ok) { const d = await docRes.json(); setDocuments(d.documents || []) }
+      if (notifRes.ok) { const d = await notifRes.json(); setNotifications(d.notifications || []) }
     } catch {}
     setLoading(false)
   }, [portalRequest])
 
   useEffect(() => { if (isAuthenticated) loadAll() }, [isAuthenticated, loadAll])
+
+  // Confirm / cancel an appointment from MyOrthoChart (syncs to the office).
+  const confirmAppt = useCallback(async (id: string) => {
+    const r = await portalRequest(`/api/v1/portal/appointments/${id}/confirm`, { method: 'POST', body: '{}' })
+    if (r.ok) loadAll()
+  }, [portalRequest, loadAll])
+
+  const cancelAppt = useCallback(async (id: string) => {
+    if (!confirm('Cancel this appointment? The office will be notified.')) return
+    const r = await portalRequest(`/api/v1/portal/appointments/${id}/cancel`, { method: 'POST', body: '{}' })
+    if (r.ok) loadAll()
+  }, [portalRequest, loadAll])
+
+  const markNotifRead = useCallback(async (id: string) => {
+    const r = await portalRequest(`/api/v1/portal/notifications/${id}/read`, { method: 'PATCH', body: '{}' })
+    if (r.ok) setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+  }, [portalRequest])
 
   // Load form fields when active
   useEffect(() => {
@@ -403,6 +434,7 @@ export default function PatientPortal() {
                   { id: 'visits' as const, icon: CalendarCheck, label: 'Visits' },
                   { id: 'billing' as const, icon: CreditCard, label: 'Billing' },
                   { id: 'documents' as const, icon: FileText, label: 'Documents' },
+                  { id: 'notifications' as const, icon: Bell, label: 'Notifications', badge: notifications.filter(n => !n.is_read).length || undefined },
                   { id: 'forms' as const, icon: FileText, label: 'My Records / Forms', badge: dashboard?.pending_forms },
                 ] as const).map(item => (
                   <button key={item.id} onClick={() => navigateTo(item.id)} className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ${activeSection === item.id ? 'bg-teal-50 text-teal-700 border-r-2 border-teal-500' : 'text-gray-700 hover:bg-gray-50'}`}>
@@ -635,12 +667,19 @@ export default function PatientPortal() {
                         {isToday && <div className="mb-2 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-medium inline-block">It's time for your visit!</div>}
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{appt.type || 'Appointment'}</p>
+                            <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                              {appt.type || 'Appointment'}
+                              {appt.confirmed_at && <CheckCircle size={14} className="text-emerald-500" />}
+                            </p>
                             <p className="text-xs text-gray-500">{formatDate(appt.date)} at {formatTime(appt.start_time)}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{isVirtual ? '📹 Virtual Visit' : '🏥 In-Person'}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{isVirtual ? '📹 Virtual Visit' : '🏥 In-Person'}{appt.confirmed_at ? ' · Confirmed' : ''}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
+                            {!appt.confirmed_at && appt.status !== 'cancelled' && (
+                              <button data-testid={`portal-confirm-${appt.id}`} onClick={() => confirmAppt(appt.id)} className="text-xs text-emerald-600 font-medium">Confirm</button>
+                            )}
                             <button onClick={() => { setRescheduleApptId(appt.id); navigateTo('schedule') }} className="text-xs text-teal-600 font-medium">Reschedule</button>
+                            <button data-testid={`portal-cancel-${appt.id}`} onClick={() => cancelAppt(appt.id)} className="text-xs text-red-500 font-medium">Cancel</button>
                             {isVirtual && isToday && <button className="text-xs text-blue-600 font-medium">Join Visit</button>}
                           </div>
                         </div>
@@ -781,6 +820,42 @@ export default function PatientPortal() {
                     </div>
                     <ChevronRight size={16} className="text-gray-400 shrink-0" />
                   </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ NOTIFICATIONS FEED ═══ */}
+        {activeSection === 'notifications' && (
+          <div className="space-y-4" data-testid="portal-notifications">
+            <h2 className="text-xl font-semibold text-gray-900">Notifications</h2>
+            <p className="text-sm text-gray-500">Your appointment activity — confirmations, virtual visits, cancellations, and follow-ups.</p>
+            {notifications.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
+                <Bell size={28} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-400">No notifications yet.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
+                {notifications.map(n => (
+                  <button
+                    key={n.id}
+                    data-testid={`portal-notification-${n.id}`}
+                    onClick={() => { markNotifRead(n.id); if (n.action_url) navigateTo((n.action_url.split('/').pop() as PortalSection) || 'home') }}
+                    className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${n.is_read ? '' : 'bg-teal-50/40'}`}
+                  >
+                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${n.is_read ? 'bg-transparent' : 'bg-teal-500'}`} />
+                    {n.kind === 'virtual_visit_ready' ? <Video size={16} className="text-teal-600 shrink-0 mt-0.5" />
+                      : n.kind === 'cancelled' ? <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                      : n.kind === 'confirmed' ? <CheckCircle size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                      : <Bell size={16} className="text-gray-400 shrink-0 mt-0.5" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{n.title}</p>
+                      {n.body && <p className="text-xs text-gray-500 leading-snug">{n.body}</p>}
+                      <p className="text-[10px] text-gray-400 mt-0.5">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</p>
+                    </div>
+                  </button>
                 ))}
               </div>
             )}

@@ -96,6 +96,14 @@ def _build_join_url(room_name: str, token: str) -> str:
     return f"{base_url}/join?room={room_name}&token={token}"
 
 
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -157,6 +165,23 @@ async def create_virtual_visit(
     }
 
     join_url = _build_join_url(room_name, staff_token)
+
+    # Notify the patient (MyOrthoChart) that the doctor has opened the virtual visit — the patient
+    # gets a join notification on their end. One-way initiation: only staff creates the visit.
+    try:
+        from app.models.portal import AppointmentNotification
+        db.add(AppointmentNotification(
+            practice_id=uuid.UUID(user["practice_id"]),
+            patient_id=uuid.UUID(body.patient_id),
+            appointment_id=uuid.UUID(body.appointment_id) if _is_uuid(body.appointment_id) else None,
+            audience="patient", kind="virtual_visit_ready",
+            title="Your doctor is ready — join your virtual visit",
+            body="Tap to join your video visit now.",
+            action_url="/portal",
+        ))
+        await db.commit()
+    except Exception:
+        await db.rollback()
 
     return VisitResponse(
         visit_id=visit_id,
