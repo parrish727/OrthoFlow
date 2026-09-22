@@ -55,7 +55,12 @@ export default function ClinicalEnhancements({ patientId }: Props) {
       authFetch(`/api/v1/patients/${patientId}/aligners`).then(r => r.ok ? r.json() : []),
       authFetch(`/api/v1/patients/${patientId}/family`).then(r => r.ok ? r.json() : { family: null, members: [] }),
     ]).then(([a, e, al, f]) => {
-      setAlerts(a)
+      // Exclude allergy/medical alerts here — those are surfaced in the top Emergency Medical
+      // banner. Showing them again clutters the demo. Keep only other active alert types.
+      const others = (Array.isArray(a) ? a : []).filter(
+        (x: Alert) => x.is_active && x.alert_type !== 'allergy' && x.alert_type !== 'medical'
+      )
+      setAlerts(others)
       setElastics(e)
       setAligners(al)
       setFamily(f)
@@ -90,7 +95,7 @@ export default function ClinicalEnhancements({ patientId }: Props) {
                 <AlertTriangle className="h-3 w-3" /> Alerts
               </p>
               <div className="space-y-2">
-                {alerts.map(alert => (
+                {alerts.slice(0, 3).map(alert => (
                   <div key={alert.id} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-xs ${SEVERITY_COLORS[alert.severity] || 'bg-gray-100'}`}>
                     <span className="font-bold uppercase text-[9px] mt-0.5">{alert.severity}</span>
                     <div className="flex-1">

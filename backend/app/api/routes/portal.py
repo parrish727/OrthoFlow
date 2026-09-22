@@ -675,30 +675,55 @@ async def get_treatment_progress(
 @router.get("/virtual-visits/active")
 async def get_patient_active_visits(
     patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get active virtual visits for this patient, including join token."""
-    from app.api.routes.virtual_visits import _visits, _build_join_url
+    """Get open (waiting/live) virtual visits for this patient, including join token + live status."""
+    from app.api.routes.virtual_visits import _build_join_url
+    from app.models.portal import VirtualVisit
 
-    patient_id = patient["patient_id"]
-    practice_id = patient["practice_id"]
+    rows = (await db.execute(
+        select(VirtualVisit).where(
+            VirtualVisit.practice_id == patient["practice_id"],
+            VirtualVisit.patient_id == patient["patient_id"],
+            VirtualVisit.status != "ended",
+        ).order_by(VirtualVisit.created_at.desc())
+    )).scalars().all()
 
-    active = []
-    for visit in _visits.values():
-        if (
-            visit["practice_id"] == practice_id
-            and visit["patient_id"] == patient_id
-            and visit["status"] == "active"
-        ):
-            join_url = _build_join_url(visit["room_name"], visit["patient_token"])
-            active.append({
-                "visit_id": visit["visit_id"],
-                "room_name": visit["room_name"],
-                "patient_token": visit["patient_token"],
-                "join_url": join_url,
-                "created_at": visit["created_at"],
-            })
-
+    active = [{
+        "visit_id": str(v.id),
+        "room_name": v.room_name,
+        "patient_token": v.patient_token,
+        "join_url": _build_join_url(v.room_name, v.patient_token),
+        "status": v.status,
+        "created_at": v.created_at.isoformat() if v.created_at else "",
+    } for v in rows]
     return {"visits": active, "has_active": len(active) > 0}
+
+
+@router.post("/virtual-visits/{visit_id}/join")
+async def patient_join_virtual_visit(
+    visit_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient joins the visit → flips status waiting→live so the office sees they've joined
+    (status sync). Idempotent: no-op if already live/ended. One-way: patient can only join."""
+    from app.models.portal import VirtualVisit
+    v = (await db.execute(
+        select(VirtualVisit).where(
+            VirtualVisit.id == uuid.UUID(visit_id),
+            VirtualVisit.patient_id == patient["patient_id"],
+            VirtualVisit.practice_id == patient["practice_id"],
+        )
+    )).scalar_one_or_none()
+    if not v:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
+    if v.status == "waiting":
+        v.status = "live"
+        v.patient_joined_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"visit_id": str(v.id), "status": v.status}
+
 
 
 # ── Billing (Patient-facing) ─────────────────────────────────────────────────

@@ -99,6 +99,7 @@ class NoteCreate(BaseModel):
     appointment_id: UUID | None = None
     note_text: str = Field(..., min_length=1)
     note_type: str = "clinical"
+    author_user_id: UUID | None = None  # optional: attribute the note to a chosen staff member
 
 
 class NoteUpdate(BaseModel):
@@ -579,6 +580,7 @@ async def create_note(
     # twice) without preventing legitimately distinct notes.
     from datetime import timedelta as _td
     payload = body.model_dump()
+    author_user_id = payload.pop("author_user_id", None)  # not a TreatmentNote column
     _recent = (await db.execute(
         select(TreatmentNote).where(
             TreatmentNote.practice_id == user["practice_id"],
@@ -590,11 +592,14 @@ async def create_note(
     if _recent is not None:
         return _note_dict(_recent)
 
-    author_name, author_initials, author_color = await _resolve_author(db, user["user_id"])
+    # Author defaults to the logged-in user, but the writer may attribute the note to a chosen
+    # staff member (author_user_id). author_id keeps the actual logged-in user for audit.
+    resolved_author_id = author_user_id or user["user_id"]
+    author_name, author_initials, author_color = await _resolve_author(db, resolved_author_id)
 
     note = TreatmentNote(
         practice_id=user["practice_id"],
-        author_id=user["user_id"],
+        author_id=resolved_author_id,
         author_name=author_name,
         author_initials=author_initials,
         author_color=author_color,

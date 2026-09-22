@@ -17,11 +17,31 @@ export default function AILetters() {
   const [saved, setSaved] = useState(false)
   const [personalized, setPersonalized] = useState(false)
   const [suggestions, setSuggestions] = useState<{ letter_type: string; use_count: number; has_saved_style: boolean }[]>([])
+  const [contacts, setContacts] = useState<{ id: string; name: string; practice_name: string | null; email: string | null }[]>([])
+  const [toEmail, setToEmail] = useState('')
+  const [sendMsg, setSendMsg] = useState<string | null>(null)
 
   useEffect(() => {
     api.getLetterTypes().then(async r => { if (r.ok) setTypes((await r.json()).types || []) })
     loadSuggestions()
+    api.getReferringContacts().then(async r => { if (r.ok) setContacts((await r.json()).contacts || []) }).catch(() => {})
   }, [])
+
+  async function sendLetterEmail() {
+    if (!toEmail.trim() || !text.trim()) { setSendMsg('Pick a recipient and generate a letter first.'); return }
+    setBusy('send'); setSendMsg(null)
+    const r = await api.sendLetter({
+      to_email: toEmail.trim(),
+      subject: (types.find(t => t.key === letterType)?.description || 'Letter from your orthodontic office'),
+      body: text,
+      thank_you: 'Thank you,',
+    })
+    if (r.ok) {
+      const d = await r.json()
+      setSendMsg(d.sent ? `Sent to ${toEmail} ✓` : (d.message || 'Email relay not configured — set SMTP to send.'))
+    } else setSendMsg('Send failed.')
+    setBusy(null)
+  }
 
   async function loadSuggestions() {
     try {
@@ -128,6 +148,42 @@ export default function AILetters() {
             <button data-testid="save-style" onClick={saveStyle} disabled={busy !== null || text.trim().length < 20} className="ml-auto flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-40">
               {saved ? <><Check size={12} /> Saved</> : <><Save size={12} /> Teach my style</>}
             </button>
+          </div>
+
+          {/* Send to a recipient email via the built-in relay (e.g. a referring doctor) */}
+          <div className="mt-4 pt-4 border-t border-gray-100" data-testid="letter-send-panel">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Mail size={13} className="text-teal-600" />
+              <span className="text-xs font-semibold text-gray-700">Send this letter by email</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                data-testid="letter-contact-select"
+                value={toEmail}
+                onChange={e => setToEmail(e.target.value)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+              >
+                <option value="">Referring doctor…</option>
+                {contacts.filter(c => c.email).map(c => (
+                  <option key={c.id} value={c.email as string}>{c.name}{c.practice_name ? ` — ${c.practice_name}` : ''}</option>
+                ))}
+              </select>
+              <input
+                data-testid="letter-to-email"
+                type="email"
+                value={toEmail}
+                onChange={e => setToEmail(e.target.value)}
+                placeholder="or type an email…"
+                className="flex-1 min-w-[180px] text-xs border border-gray-200 rounded-lg px-2.5 py-1.5"
+              />
+              <button
+                data-testid="letter-send"
+                onClick={sendLetterEmail}
+                disabled={busy !== null || !text.trim() || !toEmail.trim()}
+                className="text-xs px-3 py-1.5 rounded-lg bg-teal-600 text-white font-medium hover:bg-teal-700 disabled:opacity-40"
+              >{busy === 'send' ? 'Sending…' : 'Send'}</button>
+            </div>
+            {sendMsg && <p data-testid="letter-send-msg" className="text-[11px] text-gray-600 mt-1.5">{sendMsg}</p>}
           </div>
         </div>
       </div>

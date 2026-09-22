@@ -215,3 +215,23 @@ class AutomationRun(Base):
         Index("idx_automation_practice_date", "practice_id", "run_date"),
         Index("idx_automation_task_date", "practice_id", "task", "run_date", unique=True),
     )
+
+
+class ReferringContact(Base):
+    """A referring doctor / contact the practice can send referral & thank-you letters to."""
+    __tablename__ = "referring_contacts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    practice_name: Mapped[str | None] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(30))
+    address: Mapped[str | None] = mapped_column(Text)
+    specialty: Mapped[str | None] = mapped_column(String(100))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_referring_contacts_practice", "practice_id", "is_active"),
+    )

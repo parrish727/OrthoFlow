@@ -215,3 +215,94 @@ async def save_style(
     await db.commit()
     await audit_log(db, practice_id, user["user_id"], "ai_letter.save_style", "letter_style", body.letter_type)
     return {"id": str(row.id), "letter_type": body.letter_type, "saved": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Referring-doctor contacts + built-in email relay (send AI letters directly)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from app.models.ortho_ops import ReferringContact
+from app.services import email_relay
+
+
+class ContactCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    practice_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    specialty: str | None = None
+
+
+class SendLetterRequest(BaseModel):
+    to_email: str = Field(..., min_length=3, max_length=255)
+    subject: str = Field(..., min_length=1, max_length=200)
+    # Letter-format fields: Practice, Address, Location, Contact, Intro, Body, Thank you, From
+    practice: str = ""
+    address: str = ""
+    location: str = ""
+    contact: str = ""
+    intro: str = ""
+    body: str = Field(..., min_length=1)
+    thank_you: str = "Thank you,"
+    from_line: str = ""
+
+
+def _contact_dict(c: ReferringContact) -> dict:
+    return {
+        "id": str(c.id), "name": c.name, "practice_name": c.practice_name,
+        "email": c.email, "phone": c.phone, "address": c.address,
+        "specialty": c.specialty, "is_active": c.is_active,
+    }
+
+
+@router.get("/contacts")
+async def list_referring_contacts(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Referring-doctor contact list (for referral + thank-you letters)."""
+    rows = (await db.execute(
+        select(ReferringContact).where(
+            ReferringContact.practice_id == user["practice_id"], ReferringContact.is_active == True
+        ).order_by(ReferringContact.name)
+    )).scalars().all()
+    return {"contacts": [_contact_dict(c) for c in rows]}
+
+
+@router.post("/contacts", status_code=201)
+async def create_referring_contact(body: ContactCreate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Add a referring-doctor contact. Idempotent: dedupes on (practice, name, email)."""
+    dupe = (await db.execute(
+        select(ReferringContact).where(
+            ReferringContact.practice_id == user["practice_id"],
+            ReferringContact.name == body.name,
+            ReferringContact.email == body.email,
+            ReferringContact.is_active == True,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if dupe is not None:
+        return _contact_dict(dupe)
+    c = ReferringContact(practice_id=user["practice_id"], **body.model_dump())
+    db.add(c)
+    await db.commit()
+    await db.refresh(c)
+    return _contact_dict(c)
+
+
+@router.get("/relay/status")
+async def email_relay_status(user: dict = Depends(get_current_user)):
+    """Built-in email relay configuration status."""
+    return email_relay.relay_status()
+
+
+@router.post("/send")
+async def send_letter(body: SendLetterRequest, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Send an AI letter to a recipient email via the built-in relay, in the standard letter
+    format. (Future: send AS the doctor's own business email — email_relay is the abstraction.)"""
+    letter = email_relay.format_letter(
+        practice=body.practice, address=body.address, location=body.location,
+        contact=body.contact, intro=body.intro, body=body.body,
+        thank_you=body.thank_you, from_line=body.from_line,
+    )
+    result = email_relay.send_email(to_addr=body.to_email, subject=body.subject, body=letter,
+                                    from_name=body.practice or None)
+    await audit_log(db, user["practice_id"], user["user_id"], "letter.send", "email", body.to_email)
+    return result

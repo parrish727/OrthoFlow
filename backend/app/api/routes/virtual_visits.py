@@ -27,10 +27,6 @@ LIVEKIT_API_KEY: str = os.environ.get("LIVEKIT_API_KEY", "APIorthoflow")
 LIVEKIT_API_SECRET: str = os.environ.get("LIVEKIT_API_SECRET", "")
 LIVEKIT_URL: str = os.environ.get("LIVEKIT_URL", "ws://livekit:7880")
 
-# ── In-Memory Store (temporary — DB model to follow) ──────────────────────────
-
-_visits: dict[str, dict[str, Any]] = {}
-
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 
@@ -166,27 +162,51 @@ async def create_virtual_visit(
 
     join_url = _build_join_url(room_name, staff_token)
 
-    # Notify the patient (MyOrthoChart) that the doctor has opened the virtual visit — the patient
-    # gets a join notification on their end. One-way initiation: only staff creates the visit.
-    try:
-        from app.models.portal import AppointmentNotification
-        db.add(AppointmentNotification(
+    # Persist the visit (idempotent: reuse a still-open visit for the same appointment so a
+    # doctor clicking "start" twice doesn't create duplicate rooms/rows).
+    from app.models.portal import VirtualVisit, AppointmentNotification
+    appt_uuid = uuid.UUID(body.appointment_id) if _is_uuid(body.appointment_id) else None
+    existing = None
+    if appt_uuid is not None:
+        existing = (await db.execute(
+            select(VirtualVisit).where(
+                VirtualVisit.practice_id == uuid.UUID(user["practice_id"]),
+                VirtualVisit.appointment_id == appt_uuid,
+                VirtualVisit.status != "ended",
+            ).limit(1)
+        )).scalar_one_or_none()
+
+    if existing is not None:
+        visit = existing
+    else:
+        visit = VirtualVisit(
             practice_id=uuid.UUID(user["practice_id"]),
             patient_id=uuid.UUID(body.patient_id),
-            appointment_id=uuid.UUID(body.appointment_id) if _is_uuid(body.appointment_id) else None,
-            audience="patient", kind="virtual_visit_ready",
+            appointment_id=appt_uuid,
+            room_name=room_name,
+            staff_token=staff_token,
+            patient_token=patient_token,
+            status="waiting",
+            created_by=uuid.UUID(user["user_id"]),
+        )
+        db.add(visit)
+        await db.flush()
+        # Notify the patient (MyOrthoChart) that the doctor opened the visit — deduped by the
+        # notification helper analog (only on first creation). One-way: only staff creates.
+        db.add(AppointmentNotification(
+            practice_id=visit.practice_id, patient_id=visit.patient_id,
+            appointment_id=appt_uuid, audience="patient", kind="virtual_visit_ready",
             title="Your doctor is ready — join your virtual visit",
-            body="Tap to join your video visit now.",
-            action_url="/portal",
+            body="Tap to join your video visit now.", action_url="/portal",
         ))
-        await db.commit()
-    except Exception:
-        await db.rollback()
+    await db.commit()
+    await db.refresh(visit)
 
+    join_url = _build_join_url(room_name, visit.staff_token)
     return VisitResponse(
-        visit_id=visit_id,
-        room_name=room_name,
-        staff_token=staff_token,
+        visit_id=str(visit.id),
+        room_name=visit.room_name,
+        staff_token=visit.staff_token,
         join_url=join_url,
     )
 
@@ -194,45 +214,47 @@ async def create_virtual_visit(
 @router.get("/active", response_model=list[ActiveVisitResponse])
 async def get_active_visits(
     user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[ActiveVisitResponse]:
-    """Get all currently active virtual visits for the practice."""
-    active = [
+    """Get all currently open (waiting/live) virtual visits for the practice."""
+    from app.models.portal import VirtualVisit
+    rows = (await db.execute(
+        select(VirtualVisit).where(
+            VirtualVisit.practice_id == uuid.UUID(user["practice_id"]),
+            VirtualVisit.status != "ended",
+        ).order_by(VirtualVisit.created_at.desc())
+    )).scalars().all()
+    return [
         ActiveVisitResponse(
-            visit_id=v["visit_id"],
-            room_name=v["room_name"],
-            status=v["status"],
-            created_at=v["created_at"],
-            appointment_id=v["appointment_id"],
-            patient_id=v["patient_id"],
+            visit_id=str(v.id), room_name=v.room_name, status=v.status,
+            created_at=v.created_at.isoformat() if v.created_at else "",
+            appointment_id=str(v.appointment_id) if v.appointment_id else "",
+            patient_id=str(v.patient_id),
         )
-        for v in _visits.values()
-        if v["practice_id"] == user["practice_id"] and v["status"] == "active"
+        for v in rows
     ]
-    return active
 
 
 @router.get("/{visit_id}", response_model=VisitDetailResponse)
 async def get_virtual_visit(
     visit_id: str,
     user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> VisitDetailResponse:
     """Get visit details including patient join token (used by MyOrthoChart)."""
-    visit = _visits.get(visit_id)
+    from app.models.portal import VirtualVisit
+    visit = (await db.execute(
+        select(VirtualVisit).where(VirtualVisit.id == uuid.UUID(visit_id))
+    )).scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
-
-    if visit["practice_id"] != user["practice_id"]:
+    if str(visit.practice_id) != str(user["practice_id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    join_url = _build_join_url(visit["room_name"], visit["patient_token"])
-
+    join_url = _build_join_url(visit.room_name, visit.patient_token)
     return VisitDetailResponse(
-        visit_id=visit["visit_id"],
-        room_name=visit["room_name"],
-        patient_token=visit["patient_token"],
-        join_url=join_url,
-        status=visit["status"],
-        created_at=visit["created_at"],
+        visit_id=str(visit.id), room_name=visit.room_name, patient_token=visit.patient_token,
+        join_url=join_url, status=visit.status,
+        created_at=visit.created_at.isoformat() if visit.created_at else "",
     )
 
 
@@ -240,28 +262,27 @@ async def get_virtual_visit(
 async def end_virtual_visit(
     visit_id: str,
     user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    """End a virtual visit and delete the LiveKit room."""
-    visit = _visits.get(visit_id)
+    """End a virtual visit (idempotent) and delete the LiveKit room. Syncs 'ended' to the patient."""
+    from app.models.portal import VirtualVisit
+    visit = (await db.execute(
+        select(VirtualVisit).where(VirtualVisit.id == uuid.UUID(visit_id))
+    )).scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
-
-    if visit["practice_id"] != user["practice_id"]:
+    if str(visit.practice_id) != str(user["practice_id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    if visit["status"] != "active":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Visit already ended")
-
-    # Delete LiveKit room
+    if visit.status == "ended":
+        return {"status": "ended", "visit_id": visit_id}  # idempotent
     try:
         if livekit_api is not None:
             lkapi = livekit_api.LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-            await lkapi.room.delete_room(livekit_api.DeleteRoomRequest(room=visit["room_name"]))
+            await lkapi.room.delete_room(livekit_api.DeleteRoomRequest(room=visit.room_name))
             await lkapi.aclose()
     except Exception:
         pass  # Best-effort cleanup
-
-    visit["status"] = "ended"
-    visit["ended_at"] = datetime.now(timezone.utc).isoformat()
-
+    visit.status = "ended"
+    visit.ended_at = datetime.now(timezone.utc)
+    await db.commit()
     return {"status": "ended", "visit_id": visit_id}

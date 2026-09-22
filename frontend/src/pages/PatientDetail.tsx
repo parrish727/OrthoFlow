@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Users, Edit2, Save, X, Clock, FileText, CalendarDays, Wand2, AlertCircle, CheckCircle, Undo2, Image, Receipt, Shield, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import PatientOrthoPanel from '../components/PatientOrthoPanel'
@@ -588,12 +589,13 @@ export default function PatientDetail() {
               </div>
             )}
 
-            {/* Wire & Appliance Tracking */}
-            {chart && (
-              <WireTrackingSection
-                patientId={id || ''}
-                chart={chart}
-                onChartUpdated={setChart}
+            {/* Treatment Notes moved here (swapped with Wire & Appliance Tracking placement) */}
+            {id && (
+              <TreatmentNotesCard
+                patientId={id}
+                notes={notes}
+                onNoteAdded={note => setNotes(prev => [note, ...prev])}
+                onNoteUpdated={updated => setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))}
               />
             )}
           </div>
@@ -677,48 +679,14 @@ export default function PatientDetail() {
             {/* Ortho ops: comments (info/clinical) + chart charges */}
             {id && <PatientOrthoPanel patientId={id} />}
 
-            {/* Documents — visible inside the clinical chart (also available on the Documents tab) */}
-            <div data-testid="clinical-documents" className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
-                <FileText size={14} className="text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-800">Documents</h3>
-                <button
-                  onClick={() => setPatientTab('documents')}
-                  data-testid="clinical-documents-viewall"
-                  className="text-[11px] font-medium text-teal-600 hover:text-teal-700 ml-auto"
-                >View all →</button>
-              </div>
-              {id && <PatientDocuments patientId={id} testId="clinical-documents-list" />}
-            </div>
-
-            {/* Treatment Notes + Assistant — DA's primary daily surface (elevated prominence) */}
-            <div data-testid="treatment-notes-card" className="bg-white rounded-2xl border-2 border-teal-300/70 shadow-md overflow-hidden ring-1 ring-teal-100">
-              <div className="px-5 py-3.5 border-b border-teal-100 bg-teal-50/60 flex items-center gap-2">
-                <FileText size={18} className="text-teal-600" />
-                <h3 className="text-base font-bold text-gray-900">Treatment Notes</h3>
-                <span data-testid="treatment-notes-count" className="text-xs font-semibold text-teal-700 bg-teal-100 rounded-full px-2 py-0.5 ml-auto">{notes.length}</span>
-              </div>
-
-              {/* Add Note with Assist */}
-              <NoteInput
+            {/* Wire & Appliance Tracking moved here (swapped with Treatment Notes placement) */}
+            {chart && (
+              <WireTrackingSection
                 patientId={id || ''}
-                onNoteAdded={note => setNotes(prev => [note, ...prev])}
+                chart={chart}
+                onChartUpdated={setChart}
               />
-
-              <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-50">
-                {notes.length === 0 ? (
-                  <p className="px-5 py-6 text-xs text-gray-400 text-center">No notes yet</p>
-                ) : (
-                  notes.map(note => (
-                    <TreatmentNoteItem
-                      key={note.id}
-                      note={note}
-                      onNoteUpdated={updated => setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Next Visit Section */}
             <NextVisitSection patientId={id || ''} patientName={`${patient.first_name} ${patient.last_name}`} />
@@ -1098,6 +1066,33 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
   )
 }
 
+function TreatmentNotesCard({ patientId, notes, onNoteAdded, onNoteUpdated }: {
+  patientId: string
+  notes: TreatmentNote[]
+  onNoteAdded: (n: TreatmentNote) => void
+  onNoteUpdated: (n: TreatmentNote) => void
+}) {
+  return (
+    <div data-testid="treatment-notes-card" className="bg-white rounded-2xl border-2 border-teal-300/70 shadow-md overflow-hidden ring-1 ring-teal-100">
+      <div className="px-5 py-3.5 border-b border-teal-100 bg-teal-50/60 flex items-center gap-2">
+        <FileText size={18} className="text-teal-600" />
+        <h3 className="text-base font-bold text-gray-900">Treatment Notes</h3>
+        <span data-testid="treatment-notes-count" className="text-xs font-semibold text-teal-700 bg-teal-100 rounded-full px-2 py-0.5 ml-auto">{notes.length}</span>
+      </div>
+      <NoteInput patientId={patientId} onNoteAdded={onNoteAdded} />
+      <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-50">
+        {notes.length === 0 ? (
+          <p className="px-5 py-6 text-xs text-gray-400 text-center">No notes yet</p>
+        ) : (
+          notes.map(note => (
+            <TreatmentNoteItem key={note.id} note={note} onNoteUpdated={onNoteUpdated} />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded: (note: TreatmentNote) => void }) {
   const [rawInput, setRawInput] = useState('')
   const [structuredNote, setStructuredNote] = useState('')
@@ -1107,6 +1102,21 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
   const [assisting, setAssisting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mode, setMode] = useState<'raw' | 'assisted'>('raw')
+
+  // Author attribution: defaults to the logged-in account; the writer can pick a different staff
+  // member (e.g. the DA actually writing) from this dropdown.
+  const { userId } = useAuth()
+  const [team, setTeam] = useState<{ id: string; full_name: string }[]>([])
+  const [authorId, setAuthorId] = useState('')
+  useEffect(() => {
+    api.request('/api/v1/team/').then(async r => {
+      if (r.ok) {
+        const d = await r.json()
+        setTeam(Array.isArray(d) ? d : d.members || [])
+      }
+    }).catch(() => {})
+  }, [])
+  useEffect(() => { if (userId && !authorId) setAuthorId(userId) }, [userId, authorId])
 
   async function handleAIAssist() {
     if (!rawInput.trim()) return
@@ -1127,7 +1137,7 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
     const noteText = mode === 'assisted' ? structuredNote : rawInput
     if (!noteText.trim()) return
     setSaving(true)
-    const res = await api.createNote({ patient_id: patientId, note_text: noteText.trim() })
+    const res = await api.createNote({ patient_id: patientId, note_text: noteText.trim(), ...(authorId ? { author_user_id: authorId } : {}) })
     if (res.ok) {
       const note = await res.json()
       onNoteAdded(note)
@@ -1159,6 +1169,21 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
 
   return (
     <div className="px-5 py-3 border-b border-gray-50">
+      {/* Author attribution — defaults to the logged-in account; override to whoever is writing */}
+      <div className="flex items-center gap-2 mb-2">
+        <label className="text-[11px] font-medium text-gray-500">Written by</label>
+        <select
+          data-testid="note-author-select"
+          value={authorId}
+          onChange={e => setAuthorId(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+        >
+          {team.length === 0 && <option value={authorId}>Me (logged in)</option>}
+          {team.map(m => (
+            <option key={m.id} value={m.id}>{m.full_name}{m.id === userId ? ' (me)' : ''}</option>
+          ))}
+        </select>
+      </div>
       {mode === 'raw' ? (
         <>
           <textarea

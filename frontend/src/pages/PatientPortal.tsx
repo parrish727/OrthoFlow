@@ -115,7 +115,7 @@ export default function PatientPortal() {
   // Video state
   const [showVideoRoom, setShowVideoRoom] = useState(false)
   const [videoRoomData, setVideoRoomData] = useState<{ room_name: string; token: string } | null>(null)
-  const [activeVisit, setActiveVisit] = useState<{ visit_id: string; room_name: string; patient_token: string } | null>(null)
+  const [activeVisit, setActiveVisit] = useState<{ visit_id: string; room_name: string; patient_token: string; status?: string } | null>(null)
   const [visitNotification, setVisitNotification] = useState(false)
 
   // Form state
@@ -238,6 +238,15 @@ export default function PatientPortal() {
     const r = await portalRequest(`/api/v1/portal/notifications/${id}/read`, { method: 'PATCH', body: '{}' })
     if (r.ok) setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
   }, [portalRequest])
+
+  // Join the doctor-initiated virtual visit: tell the backend (flips waiting→live so the office
+  // sees the patient joined), then open the video room. One-way: patient can only join.
+  const joinVisit = useCallback(async () => {
+    if (!activeVisit) return
+    try { await portalRequest(`/api/v1/portal/virtual-visits/${activeVisit.visit_id}/join`, { method: 'POST', body: '{}' }) } catch { /* best effort */ }
+    setVideoRoomData({ room_name: activeVisit.room_name, token: activeVisit.patient_token })
+    setShowVideoRoom(true)
+  }, [activeVisit, portalRequest])
 
   // Load form fields when active
   useEffect(() => {
@@ -483,16 +492,18 @@ export default function PatientPortal() {
             </AnimatePresence>
 
             {activeVisit && (
-              <div className="bg-gradient-to-r from-teal-50 to-teal-100 rounded-2xl border border-teal-200 p-4">
+              <div className="bg-gradient-to-r from-teal-50 to-teal-100 rounded-2xl border border-teal-200 p-4" data-testid="portal-active-visit">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Video size={18} className="text-teal-600" />
                     <div>
                       <p className="font-medium text-gray-900 text-sm">Virtual Visit Ready</p>
-                      <p className="text-xs text-gray-500">Your doctor will be with you shortly</p>
+                      <p className="text-xs text-gray-500">
+                        {activeVisit.status === 'live' ? "You're connected — your doctor can see you're here" : 'Your doctor is ready — tap Join to connect'}
+                      </p>
                     </div>
                   </div>
-                  <button onClick={() => { setVideoRoomData({ room_name: activeVisit.room_name, token: activeVisit.patient_token }); setShowVideoRoom(true) }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium">
+                  <button data-testid="portal-join-visit" onClick={joinVisit} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium">
                     Join Visit
                   </button>
                 </div>
@@ -680,7 +691,7 @@ export default function PatientPortal() {
                             )}
                             <button onClick={() => { setRescheduleApptId(appt.id); navigateTo('schedule') }} className="text-xs text-teal-600 font-medium">Reschedule</button>
                             <button data-testid={`portal-cancel-${appt.id}`} onClick={() => cancelAppt(appt.id)} className="text-xs text-red-500 font-medium">Cancel</button>
-                            {isVirtual && isToday && <button className="text-xs text-blue-600 font-medium">Join Visit</button>}
+                            {isVirtual && isToday && activeVisit && <button onClick={joinVisit} className="text-xs text-blue-600 font-medium">Join Visit</button>}
                           </div>
                         </div>
                       </div>

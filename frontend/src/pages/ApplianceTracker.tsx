@@ -431,6 +431,19 @@ function TrackerView({ prescriptions, statusFilter, setStatusFilter, isOverdue, 
                     {rx.priority === 'rush' && <span className="text-xs font-bold text-orange-600 uppercase">Rush</span>}
                     {rx.priority === 'emergency' && <span className="text-xs font-bold text-red-600 uppercase">Emergency</span>}
                     {rx.priority === 'normal' && <span className="text-xs text-gray-400">Normal</span>}
+                    <button
+                      data-testid={`vendor-link-${rx.id}`}
+                      onClick={async () => {
+                        const res = await fetch_api(`/api/appliances/prescriptions/${rx.id}/vendor-link`, 'POST')
+                        if (res) {
+                          const link = `${window.location.origin}${res.vendor_url}`
+                          try { await navigator.clipboard.writeText(link) } catch { /* ignore */ }
+                          alert(`Lab update link copied — share with the lab to let them update this order's status:\n\n${link}`)
+                        }
+                      }}
+                      className="ml-2 text-[11px] font-medium text-teal-600 hover:text-teal-700"
+                      title="Generate a link the lab uses to update this order's status"
+                    >Lab link</button>
                   </td>
                 </tr>
               ))}

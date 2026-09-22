@@ -69,6 +69,7 @@ export default function TimeTracking() {
   const [payrollSummary, setPayrollSummary] = useState<PayrollSummaryEntry[]>([])
   const [payRates, setPayRates] = useState<PayRateEntry[]>([])
   const [team, setTeam] = useState<TeamMember[]>([])
+  const [adpStatus, setAdpStatus] = useState<{ provider: string; connected: boolean; mode: string; message: string } | null>(null)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 13)
@@ -119,6 +120,10 @@ export default function TimeTracking() {
         const teamData = await teamRes.json()
         setTeam(Array.isArray(teamData) ? teamData : teamData.members || [])
       }
+      try {
+        const adpRes = await api.request('/api/v1/time/adp/status')
+        if (adpRes.ok) setAdpStatus(await adpRes.json())
+      } catch { /* silent */ }
     } catch (e) { /* silent */ }
   }, [isAdmin, startDate, endDate])
 
@@ -131,6 +136,27 @@ export default function TimeTracking() {
     }
     init()
   }, [fetchStatus, fetchMyHours, fetchAdminData])
+
+  // Export hours (strictly hours — no pay) as CSV for the payroll company + office records.
+  function exportHoursCSV() {
+    if (!staffHours.length) return
+    const header = ['Staff Name', 'Staff ID', 'Total Hours', 'Period Start', 'Period End']
+    const rows = staffHours.map(s => [
+      `"${(s.staff_name || '').replace(/"/g, '""')}"`,
+      s.staff_id,
+      (s.total_hours ?? 0).toFixed(2),
+      startDate,
+      endDate,
+    ])
+    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `orthoflow-hours-${startDate}_to_${endDate}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function handleClockIn() {
     setClockLoading(true)
@@ -378,6 +404,15 @@ export default function TimeTracking() {
                   onChange={e => setEndDate(e.target.value)}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1"
                 />
+                <button
+                  data-testid="export-hours-csv"
+                  onClick={exportHoursCSV}
+                  disabled={staffHours.length === 0}
+                  className="text-xs font-medium text-teal-700 border border-teal-200 bg-teal-50 rounded-lg px-2.5 py-1 hover:bg-teal-100 disabled:opacity-50"
+                  title="Export hours as CSV for your payroll company / office records"
+                >
+                  Export Hours (CSV)
+                </button>
               </div>
             </div>
             {staffHours.length === 0 ? (
@@ -416,141 +451,29 @@ export default function TimeTracking() {
             )}
           </div>
 
-          {/* Payroll Summary */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <DollarSign size={16} />
-              Payroll Summary
-            </h3>
-            {payrollSummary.length === 0 ? (
-              <p className="text-sm text-gray-400">No payroll data for this period</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 font-medium text-gray-600">Staff</th>
-                      <th className="text-right py-2 font-medium text-gray-600">Hours</th>
-                      <th className="text-right py-2 font-medium text-gray-600">Rate</th>
-                      <th className="text-right py-2 font-medium text-gray-600">Pay</th>
-                      <th className="text-right py-2 font-medium text-gray-600">Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payrollSummary.map(item => (
-                      <tr key={item.staff_id} className="border-b border-gray-50">
-                        <td className="py-2.5 text-gray-900">{item.staff_name}</td>
-                        <td className="py-2.5 text-right text-gray-700">{item.hours.toFixed(1)}</td>
-                        <td className="py-2.5 text-right text-gray-700">${item.rate.toFixed(2)}</td>
-                        <td className="py-2.5 text-right font-medium text-gray-900">${item.pay.toFixed(2)}</td>
-                        <td className="py-2.5 text-right">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            item.worker_type === 'permanent'
-                              ? 'bg-teal-100 text-teal-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {item.worker_type}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200">
-                      <td className="py-2.5 font-semibold text-gray-900">Total</td>
-                      <td className="py-2.5 text-right font-semibold text-gray-900">
-                        {payrollSummary.reduce((s, i) => s + i.hours, 0).toFixed(1)}
-                      </td>
-                      <td />
-                      <td className="py-2.5 text-right font-semibold text-gray-900">
-                        ${payrollSummary.reduce((s, i) => s + i.pay, 0).toFixed(2)}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+          {/* Payroll note — this view is strictly hours; payroll is handled by your payroll company. */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm" data-testid="timeclock-hours-only-note">
+            <p className="text-xs text-gray-500">
+              This Time Clock tracks <span className="font-medium text-gray-700">hours only</span>. Use
+              <span className="font-medium text-gray-700"> Export Hours (CSV)</span> to send to your payroll company and keep for office records.
+              Pay rates and payroll calculations are managed by your payroll provider (ADP), not here.
+            </p>
           </div>
 
-          {/* Set Pay Rate Form */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <Calendar size={16} />
-              Set Pay Rate
-            </h3>
-            <form onSubmit={handleSetPayRate} className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[160px]">
-                <label className="text-xs text-gray-500 block mb-1">Staff Member</label>
-                <select
-                  value={rateStaffId}
-                  onChange={e => setRateStaffId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  required
-                >
-                  <option value="">Select staff...</option>
-                  {team.map(m => (
-                    <option key={m.id} value={m.id}>{m.full_name}</option>
-                  ))}
-                </select>
+          {/* ADP Time Clock connection (hours only) */}
+          {adpStatus && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm" data-testid="adp-status">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${adpStatus.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                <h3 className="text-sm font-semibold text-gray-900">ADP Time Clock</h3>
+                <span className="text-[10px] uppercase tracking-wide text-gray-400">{adpStatus.mode}</span>
+                <span className={`ml-auto text-xs font-medium ${adpStatus.connected ? 'text-green-600' : 'text-gray-500'}`}>
+                  {adpStatus.connected ? 'Connected' : 'Not configured'}
+                </span>
               </div>
-              <div className="w-28">
-                <label className="text-xs text-gray-500 block mb-1">Rate ($/hr)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={rateAmount}
-                  onChange={e => setRateAmount(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  placeholder="25.00"
-                  required
-                />
-              </div>
-              <div className="w-36">
-                <label className="text-xs text-gray-500 block mb-1">Worker Type</label>
-                <select
-                  value={rateWorkerType}
-                  onChange={e => setRateWorkerType(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="permanent">Permanent</option>
-                  <option value="temporary">Temporary</option>
-                </select>
-              </div>
-              <button
-                type="submit"
-                disabled={rateLoading}
-                className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
-              >
-                {rateLoading ? 'Saving...' : 'Set Rate'}
-              </button>
-            </form>
-
-            {/* Current pay rates */}
-            {payRates.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-500 mb-2">Current Rates</p>
-                <div className="space-y-1">
-                  {payRates.map(r => (
-                    <div key={r.id} className="flex items-center justify-between text-sm py-1">
-                      <span className="text-gray-700">{r.staff_name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">${r.hourly_rate.toFixed(2)}/hr</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          r.worker_type === 'permanent'
-                            ? 'bg-teal-100 text-teal-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {r.worker_type}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+              <p className="text-xs text-gray-500 mt-1.5">{adpStatus.message}</p>
+            </div>
+          )}
         </>
       )}
 

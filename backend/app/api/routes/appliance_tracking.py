@@ -837,3 +837,89 @@ def _rx_to_response(rx: AppliancePrescription, lab_name: str | None = None, pati
         rush_fee=float(rx.rush_fee) if rx.rush_fee else None,
         created_at=rx.created_at.isoformat() if rx.created_at else "",
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VENDOR / LAB PORTAL — lab updates order status inside OrthoFlow via a scoped token
+# (Specialty Appliances & generic labs have no public API, so the lab logs in with the
+# per-order token the office shares. Reuses the same status lifecycle + history.)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import secrets as _secrets
+
+
+class VendorStatusUpdate(BaseModel):
+    status: str
+    tracking_number: str | None = None
+    lab_case_number: str | None = None
+    notes: str | None = None
+
+
+@router.post("/prescriptions/{rx_id}/vendor-link")
+async def generate_vendor_link(
+    rx_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Staff generates (idempotently) the vendor token the lab uses to update this order's status."""
+    rx = await _get_prescription(db, rx_id, user["practice_id"])
+    if not rx.vendor_token:
+        rx.vendor_token = _secrets.token_urlsafe(24)
+        await db.commit()
+        await db.refresh(rx)
+    return {"rx_id": str(rx.id), "vendor_token": rx.vendor_token,
+            "vendor_url": f"/vendor/appliance/{rx.vendor_token}"}
+
+
+async def _rx_by_vendor_token(db: AsyncSession, token: str) -> AppliancePrescription:
+    rx = (await db.execute(
+        select(AppliancePrescription).where(AppliancePrescription.vendor_token == token)
+    )).scalar_one_or_none()
+    if not rx:
+        raise HTTPException(status_code=404, detail="Invalid vendor link")
+    return rx
+
+
+@router.get("/vendor/{token}")
+async def vendor_view_order(token: str, db: AsyncSession = Depends(get_db)) -> dict:
+    """Lab-facing (token-scoped, no staff auth) view of the order they're fabricating."""
+    rx = await _rx_by_vendor_token(db, token)
+    lab_name = (await db.execute(select(Lab.name).where(Lab.id == rx.lab_id))).scalar_one_or_none()
+    return {
+        "rx_id": str(rx.id), "appliance_type": rx.appliance_type, "appliance_name": rx.appliance_name,
+        "arch": rx.arch, "status": rx.status, "priority": rx.priority, "lab_name": lab_name,
+        "rx_notes": rx.rx_notes, "special_instructions": rx.special_instructions,
+        "allowed_statuses": [s.value for s in ApplianceStatus],
+    }
+
+
+@router.post("/vendor/{token}/status")
+async def vendor_update_status(
+    token: str, payload: VendorStatusUpdate, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Lab updates the order status via the vendor portal (token-scoped). Idempotent: a no-op
+    if the status is unchanged. Reflects immediately in OrthoFlow's appliance tracker."""
+    rx = await _rx_by_vendor_token(db, token)
+    if payload.status not in [s.value for s in ApplianceStatus]:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {payload.status}")
+    if rx.status == payload.status and not payload.tracking_number and not payload.lab_case_number:
+        return {"rx_id": str(rx.id), "status": rx.status, "unchanged": True}  # idempotent
+
+    old_status = rx.status
+    rx.status = payload.status
+    if payload.tracking_number:
+        rx.tracking_number = payload.tracking_number
+    if payload.lab_case_number:
+        rx.lab_case_number = payload.lab_case_number
+    today = date.today()
+    if payload.status == "received_by_lab" and not rx.date_received_by_lab:
+        rx.date_received_by_lab = today
+    elif payload.status == "shipped" and not rx.date_shipped:
+        rx.date_shipped = today
+
+    db.add(ApplianceStatusHistory(
+        prescription_id=rx.id, previous_status=old_status, new_status=payload.status,
+        changed_by=None, notes=f"[vendor portal] {payload.notes or ''}".strip(),
+    ))
+    await db.commit()
+    return {"rx_id": str(rx.id), "status": rx.status}

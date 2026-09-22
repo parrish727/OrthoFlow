@@ -162,6 +162,12 @@ export const api = {
   saveLetterStyle: (data: { letter_type: string; sample_text: string; tone?: string }) =>
     request('/api/v1/ai/letters/save-style', { method: 'POST', body: JSON.stringify(data) }),
   getLetterSuggestions: () => request('/api/v1/ai/letters/suggestions'),
+  getReferringContacts: () => request('/api/v1/ai/letters/contacts'),
+  createReferringContact: (data: Record<string, unknown>) =>
+    request('/api/v1/ai/letters/contacts', { method: 'POST', body: JSON.stringify(data) }),
+  getEmailRelayStatus: () => request('/api/v1/ai/letters/relay/status'),
+  sendLetter: (data: Record<string, unknown>) =>
+    request('/api/v1/ai/letters/send', { method: 'POST', body: JSON.stringify(data) }),
   getAIAssist: (role: string) => request(`/api/v1/ortho/ai-assist?role=${role}`),
   getAutomationActivity: (days?: number) => request(`/api/v1/ortho/automation/activity${days ? `?days=${days}` : ''}`),
   runAutomation: () => request('/api/v1/ortho/automation/run', { method: 'POST' }),
