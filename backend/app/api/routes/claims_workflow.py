@@ -38,6 +38,14 @@ class LineItemCreate(BaseModel):
     service_date: date
 
 
+class LineItemUpdate(BaseModel):
+    cdt_code: str | None = Field(default=None, min_length=5, max_length=10)
+    description: str | None = None
+    tooth_numbers: str | None = None
+    quantity: int | None = Field(default=None, ge=1)
+    billed_amount: Decimal | None = Field(default=None, gt=0)
+
+
 class ClaimCreateFull(BaseModel):
     patient_id: str
     subscriber_plan_id: str | None = None  # insurance_subscriber to bill
@@ -278,6 +286,52 @@ async def get_claim_detail(
     result = _claim_dict(claim)
     result["line_items"] = [_line_item_dict(li) for li in lines]
     return result
+
+
+@router.patch("/{claim_id}/line-items/{line_item_id}")
+async def update_claim_line_item(
+    claim_id: UUID,
+    line_item_id: UUID,
+    body: LineItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Edit a line item on a DRAFT claim. Recomputes the claim's total_billed.
+
+    Only draft claims are editable — once submitted, a claim is locked (corrections go through
+    the payer as a corrected claim / appeal).
+    """
+    practice_id = user["practice_id"]
+    claim = (await db.execute(
+        select(InsuranceClaim).where(InsuranceClaim.id == claim_id, InsuranceClaim.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not claim:
+        raise HTTPException(404, "Claim not found")
+    if claim.status != "draft":
+        raise HTTPException(409, f"Only draft claims can be edited (this claim is '{claim.status}').")
+
+    line = (await db.execute(
+        select(ClaimLineItem).where(
+            ClaimLineItem.id == line_item_id, ClaimLineItem.claim_id == claim_id
+        )
+    )).scalar_one_or_none()
+    if not line:
+        raise HTTPException(404, "Line item not found")
+
+    data = body.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        setattr(line, field, value)
+
+    # Recompute claim total_billed from all line items.
+    all_lines = (await db.execute(
+        select(ClaimLineItem).where(ClaimLineItem.claim_id == claim_id)
+    )).scalars().all()
+    claim.total_billed = sum((li.billed_amount for li in all_lines), Decimal("0"))
+
+    await db.commit()
+    await db.refresh(line)
+    await audit_log(db, practice_id, user["user_id"], "claim.line_item.update", "insurance_claim", str(claim_id))
+    return {"claim_id": str(claim_id), "total_billed": float(claim.total_billed), "line_item": _line_item_dict(line)}
 
 
 @router.patch("/{claim_id}/submit")

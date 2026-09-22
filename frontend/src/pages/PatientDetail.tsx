@@ -42,6 +42,12 @@ interface TreatmentNote {
   note_text: string
   ai_summary: string | null
   note_type: string
+  author_id?: string | null
+  author_name?: string | null
+  author_initials?: string | null
+  author_color?: string | null
+  updated_at?: string | null
+  editable?: boolean
   created_at: string | null
 }
 
@@ -93,6 +99,213 @@ function renderNoteText(text: string) {
   }
   return <p className="text-xs text-gray-700 leading-relaxed">{text}</p>
 }
+interface PatientAlertItem {
+  id: string
+  alert_type: string
+  severity: string
+  title: string
+  description: string | null
+  is_active: boolean
+}
+
+function EmergencyMedicalBanner({ patientId }: { patientId: string }) {
+  const [alerts, setAlerts] = useState<PatientAlertItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+  const [severity, setSeverity] = useState('high')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.getPatientAlerts(patientId)
+      if (res.ok) {
+        const all: PatientAlertItem[] = await res.json()
+        // Emergency medical = active allergy/medical alerts (the must-see-first info).
+        setAlerts(all.filter(a => a.is_active && (a.alert_type === 'allergy' || a.alert_type === 'medical')))
+      }
+    } catch { /* silent */ }
+    setLoading(false)
+  }, [patientId])
+
+  useEffect(() => { load() }, [load])
+
+  async function save() {
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      const res = await api.createPatientAlert(patientId, { alert_type: 'medical', severity, title: title.trim() })
+      if (res.ok) { setTitle(''); setSeverity('high'); setAdding(false); await load() }
+    } catch { /* silent */ }
+    setSaving(false)
+  }
+
+  const isCritical = alerts.some(a => a.severity === 'critical' || a.severity === 'high')
+
+  if (loading) return null
+
+  return (
+    <div
+      data-testid="emergency-medical-banner"
+      className={`mb-6 rounded-2xl border-2 shadow-sm overflow-hidden ${
+        alerts.length === 0
+          ? 'border-gray-200 bg-white'
+          : isCritical
+            ? 'border-red-300 bg-red-50'
+            : 'border-amber-300 bg-amber-50'
+      }`}
+    >
+      <div className="px-5 py-3 flex items-center gap-2">
+        <AlertCircle size={18} className={alerts.length === 0 ? 'text-gray-400' : isCritical ? 'text-red-600' : 'text-amber-600'} />
+        <h3 className={`text-sm font-bold ${alerts.length === 0 ? 'text-gray-700' : isCritical ? 'text-red-800' : 'text-amber-800'}`}>
+          Emergency Medical
+        </h3>
+        <span data-testid="emergency-medical-count" className="text-xs font-semibold text-gray-500 ml-1">{alerts.length}</span>
+        <button
+          data-testid="emergency-medical-add"
+          onClick={() => setAdding(v => !v)}
+          className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 hover:text-teal-700"
+        ><Plus size={12} /> Add</button>
+      </div>
+
+      <div className="px-5 pb-3">
+        {alerts.length === 0 ? (
+          <p className="text-xs text-gray-500">No emergency medical alerts on file. Add allergies or critical medical conditions here.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {alerts.map(a => (
+              <li key={a.id} data-testid={`emergency-medical-item-${a.id}`} className="flex items-center gap-2">
+                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  a.severity === 'critical' ? 'bg-red-600 text-white' :
+                  a.severity === 'high' ? 'bg-red-100 text-red-700 border border-red-300' :
+                  'bg-amber-100 text-amber-700 border border-amber-300'
+                }`}>{a.severity}</span>
+                <span className="text-[10px] uppercase text-gray-400">{a.alert_type}</span>
+                <span className="text-xs font-semibold text-gray-800">{a.title}</span>
+                {a.description && <span className="text-xs text-gray-500">— {a.description}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {adding && (
+          <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="emergency-medical-form">
+            <input
+              data-testid="emergency-medical-title"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Penicillin allergy, latex allergy, asthma"
+              className="flex-1 min-w-[200px] text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-300"
+            />
+            <select
+              data-testid="emergency-medical-severity"
+              value={severity}
+              onChange={e => setSeverity(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+            >
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <button
+              data-testid="emergency-medical-save"
+              onClick={save}
+              disabled={saving || !title.trim()}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg font-medium disabled:opacity-50"
+            >{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TreatmentNoteItem({ note, onNoteUpdated }: { note: TreatmentNote; onNoteUpdated: (n: TreatmentNote) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(note.note_text)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const color = note.author_color || '#94a3b8'
+  const initials = note.author_initials || '—'
+  const edited = !!note.updated_at
+
+  async function save() {
+    setSaving(true); setError(null)
+    try {
+      const res = await api.updateNote(note.id, { note_text: draft })
+      if (res.ok) {
+        onNoteUpdated(await res.json())
+        setEditing(false)
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.detail || 'Could not save')
+      }
+    } catch { setError('Could not save') }
+    setSaving(false)
+  }
+
+  return (
+    <div className="px-5 py-3" data-testid={`note-item-${note.id}`}>
+      <div className="flex items-start gap-2.5">
+        {/* Per-author color dot + initials */}
+        <span
+          data-testid={`note-author-badge-${note.id}`}
+          className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+          style={{ backgroundColor: color }}
+          title={note.author_name || 'Author'}
+        >{initials}</span>
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <div>
+              <textarea
+                data-testid={`note-edit-input-${note.id}`}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={3}
+                className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:ring-1 focus:ring-teal-300 focus:outline-none"
+              />
+              {error && <p className="text-[10px] text-red-600 mt-1">{error}</p>}
+              <div className="flex gap-2 mt-1.5">
+                <button data-testid={`note-edit-save-${note.id}`} onClick={save} disabled={saving} className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 hover:text-teal-800 disabled:opacity-50">
+                  <Save size={12} /> {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button data-testid={`note-edit-cancel-${note.id}`} onClick={() => { setEditing(false); setDraft(note.note_text); setError(null) }} className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-gray-700">
+                  <X size={12} /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {renderNoteText(note.note_text)}
+              {note.ai_summary && (
+                <p className="text-[10px] text-violet-500 mt-1 italic">Summary: {note.ai_summary}</p>
+              )}
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-[10px] text-gray-400">
+                  {note.author_name ? `${note.author_name} · ` : ''}
+                  {note.created_at ? new Date(note.created_at).toLocaleDateString() : ''}
+                  {note.note_type !== 'clinical' ? ` • ${note.note_type}` : ''}
+                  {edited ? ' • edited' : ''}
+                </p>
+                {note.editable && (
+                  <button
+                    data-testid={`note-edit-${note.id}`}
+                    onClick={() => setEditing(true)}
+                    className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-400 hover:text-teal-600 ml-auto"
+                    title="Editable for 24h after creation"
+                  ><Edit2 size={10} /> Edit</button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>()
@@ -106,7 +319,7 @@ export default function PatientDetail() {
   const [patientImages, setPatientImages] = useState<Array<{ id: string; image_type?: string; file_name?: string; created_at?: string; notes?: string }>>([])
   const [imagesLoading, setImagesLoading] = useState(false)
   const [showImagesPanel, setShowImagesPanel] = useState(false)
-  const [patientTab, setPatientTab] = useState<'clinical' | 'administrative'>('clinical')
+  const [patientTab, setPatientTab] = useState<'clinical' | 'administrative' | 'documents'>('clinical')
   const [financeModal, setFinanceModal] = useState<FinanceSection | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -308,10 +521,23 @@ export default function PatientDetail() {
           >
             Administrative
           </button>
+          <button
+            data-testid="patient-tab-documents"
+            onClick={() => setPatientTab('documents')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              patientTab === 'documents'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            Documents
+          </button>
         </div>
 
         {/* ── CLINICAL CHART TAB ── */}
         <div style={{ display: patientTab === 'clinical' ? 'block' : 'none' }} data-testid="patient-clinical-panel">
+        {/* Emergency Medical — critical allergy/medical info surfaced at the top of the chart */}
+        {id && <EmergencyMedicalBanner patientId={id} />}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column — Demographics + Tooth Chart */}
           <div className="lg:col-span-2 space-y-6">
@@ -451,12 +677,26 @@ export default function PatientDetail() {
             {/* Ortho ops: comments (info/clinical) + chart charges */}
             {id && <PatientOrthoPanel patientId={id} />}
 
-            {/* Treatment Notes + Assistant */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+            {/* Documents — visible inside the clinical chart (also available on the Documents tab) */}
+            <div data-testid="clinical-documents" className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
                 <FileText size={14} className="text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-800">Treatment Notes</h3>
-                <span className="text-xs text-gray-400 ml-auto">{notes.length}</span>
+                <h3 className="text-sm font-semibold text-gray-800">Documents</h3>
+                <button
+                  onClick={() => setPatientTab('documents')}
+                  data-testid="clinical-documents-viewall"
+                  className="text-[11px] font-medium text-teal-600 hover:text-teal-700 ml-auto"
+                >View all →</button>
+              </div>
+              {id && <PatientDocuments patientId={id} testId="clinical-documents-list" />}
+            </div>
+
+            {/* Treatment Notes + Assistant — DA's primary daily surface (elevated prominence) */}
+            <div data-testid="treatment-notes-card" className="bg-white rounded-2xl border-2 border-teal-300/70 shadow-md overflow-hidden ring-1 ring-teal-100">
+              <div className="px-5 py-3.5 border-b border-teal-100 bg-teal-50/60 flex items-center gap-2">
+                <FileText size={18} className="text-teal-600" />
+                <h3 className="text-base font-bold text-gray-900">Treatment Notes</h3>
+                <span data-testid="treatment-notes-count" className="text-xs font-semibold text-teal-700 bg-teal-100 rounded-full px-2 py-0.5 ml-auto">{notes.length}</span>
               </div>
 
               {/* Add Note with Assist */}
@@ -470,16 +710,11 @@ export default function PatientDetail() {
                   <p className="px-5 py-6 text-xs text-gray-400 text-center">No notes yet</p>
                 ) : (
                   notes.map(note => (
-                    <div key={note.id} className="px-5 py-3">
-                      {renderNoteText(note.note_text)}
-                      {note.ai_summary && (
-                        <p className="text-[10px] text-violet-500 mt-1 italic">Summary: {note.ai_summary}</p>
-                      )}
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        {note.created_at ? new Date(note.created_at).toLocaleDateString() : ''}
-                        {note.note_type !== 'clinical' && ` • ${note.note_type}`}
-                      </p>
-                    </div>
+                    <TreatmentNoteItem
+                      key={note.id}
+                      note={note}
+                      onNoteUpdated={updated => setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))}
+                    />
                   ))
                 )}
               </div>
@@ -531,6 +766,18 @@ export default function PatientDetail() {
           )}
         </div>
         {/* ── /ADMINISTRATIVE TAB ── */}
+
+        {/* ── DOCUMENTS TAB ── */}
+        <div style={{ display: patientTab === 'documents' ? 'block' : 'none' }} data-testid="patient-documents-panel">
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <FileText size={16} className="text-teal-600" />
+              <h3 className="text-sm font-semibold text-gray-800">Patient Documents</h3>
+            </div>
+            {id && <PatientDocuments patientId={id} testId="documents-tab-list" />}
+          </div>
+        </div>
+        {/* ── /DOCUMENTS TAB ── */}
           </>
   )
 }
@@ -670,6 +917,9 @@ function WireTrackingSection({ patientId, chart, onChartUpdated }: {
 }
 
 function NextVisitSection({ patientId, patientName }: { patientId: string; patientName: string }) {
+  const [nvTab, setNvTab] = useState<'visit' | 'charges'>('visit')
+  const [chargeMsg, setChargeMsg] = useState<string | null>(null)
+  const [chargingKey, setChargingKey] = useState<string | null>(null)
   const [appointmentType, setAppointmentType] = useState('')
   const [weeks, setWeeks] = useState(4)
   const [notes, setNotes] = useState('')
@@ -694,12 +944,79 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
     setSaving(false)
   }
 
+  // Common ortho next-visit charges (broken/loose appliance, records, etc.).
+  const CHARGE_PRESETS: { key: string; label: string; cdt: string; fee: number }[] = [
+    { key: 'broken_bracket', label: 'Broken bracket (repair)', cdt: 'D8999', fee: 75 },
+    { key: 'loose_bracket', label: 'Loose bracket (re-bond)', cdt: 'D8999', fee: 65 },
+    { key: 'loose_retainer', label: 'Loose retainer adjustment', cdt: 'D8999', fee: 50 },
+    { key: 'lost_retainer', label: 'Lost retainer (replacement)', cdt: 'D8703', fee: 250 },
+    { key: 'lost_retainer_lower', label: 'Lost retainer — lower', cdt: 'D8704', fee: 250 },
+    { key: 'impressions', label: 'Impressions / scan', cdt: 'D0470', fee: 90 },
+    { key: 'lost_aligner', label: 'Lost aligner (replacement)', cdt: 'D8999', fee: 120 },
+    { key: 'emergency_visit', label: 'Emergency visit', cdt: 'D9110', fee: 85 },
+  ]
+
+  async function postCharge(p: { key: string; label: string; cdt: string; fee: number }) {
+    setChargingKey(p.key)
+    setChargeMsg(null)
+    try {
+      const res = await api.postLedgerEntry({
+        patient_id: patientId,
+        entry_type: 'charge',
+        description: p.label,
+        amount: p.fee,
+        cdt_code: p.cdt,
+      })
+      if (res.ok) {
+        setChargeMsg(`Charged $${p.fee.toFixed(2)} — ${p.label} posted to ledger.`)
+      } else {
+        setChargeMsg('Could not post charge.')
+      }
+    } catch { setChargeMsg('Could not post charge.') }
+    setChargingKey(null)
+  }
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden" data-testid="next-visit-section">
       <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
         <CalendarDays size={14} className="text-gray-400" />
         <h3 className="text-sm font-semibold text-gray-800">Next Visit</h3>
+        <div className="ml-auto flex items-center gap-1 text-[11px]">
+          <button
+            data-testid="nv-tab-visit"
+            onClick={() => setNvTab('visit')}
+            className={`px-2 py-1 rounded-md font-medium transition-colors ${nvTab === 'visit' ? 'bg-teal-100 text-teal-700' : 'text-gray-500 hover:text-gray-800'}`}
+          >Visit</button>
+          <button
+            data-testid="nv-tab-charges"
+            onClick={() => setNvTab('charges')}
+            className={`px-2 py-1 rounded-md font-medium transition-colors ${nvTab === 'charges' ? 'bg-teal-100 text-teal-700' : 'text-gray-500 hover:text-gray-800'}`}
+          >Charges</button>
+        </div>
       </div>
+
+      {nvTab === 'charges' ? (
+        <div className="px-5 py-4" data-testid="next-visit-charges">
+          <p className="text-[11px] text-gray-500 mb-2">Quick charges for this visit — posts to the patient ledger.</p>
+          <div className="grid grid-cols-1 gap-1.5">
+            {CHARGE_PRESETS.map(p => (
+              <button
+                key={p.key}
+                data-testid={`charge-preset-${p.key}`}
+                onClick={() => postCharge(p)}
+                disabled={chargingKey === p.key}
+                className="flex items-center justify-between px-3 py-2 text-xs border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50/50 transition-colors disabled:opacity-50"
+              >
+                <span className="text-gray-700">{p.label}</span>
+                <span className="font-semibold text-gray-900">${p.fee.toFixed(2)}</span>
+              </button>
+            ))}
+          </div>
+          {chargeMsg && (
+            <p data-testid="charge-result" className="text-[11px] text-teal-700 mt-2 font-medium">{chargeMsg}</p>
+          )}
+        </div>
+      ) : (
       <div className="px-5 py-4 space-y-3">
         {saved ? (
           <div className="text-center py-4">
@@ -777,6 +1094,7 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
           </>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -864,6 +1182,7 @@ function NoteInput({ patientId, onNoteAdded }: { patientId: string; onNoteAdded:
               <button
                 onClick={handleSave}
                 disabled={saving}
+                data-testid="note-save-raw"
                 className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save Raw'}

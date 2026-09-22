@@ -11,7 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -105,6 +105,47 @@ async def list_letter_types(user: dict = Depends(get_current_user)):
     return {"types": [{"key": k, "description": v} for k, v in LETTER_TYPES.items()]}
 
 
+@router.get("/suggestions")
+async def letter_suggestions(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Usage-based customization suggestions for this doctor.
+
+    Surfaces the letter types the provider generates most (by summed use_count) so the UI can
+    offer one-click access to their frequent letters and flag types worth saving a style for.
+    Prompt-time personalization signal — no model fine-tuning.
+    """
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    user_id = UUID(user["user_id"]) if isinstance(user["user_id"], str) else user["user_id"]
+
+    rows = (await db.execute(
+        select(
+            DoctorLetterStyle.letter_type,
+            func.coalesce(func.sum(DoctorLetterStyle.use_count), 0).label("uses"),
+            func.count(DoctorLetterStyle.id).label("saved_styles"),
+        )
+        .where(DoctorLetterStyle.practice_id == practice_id, DoctorLetterStyle.user_id == user_id)
+        .group_by(DoctorLetterStyle.letter_type)
+        .order_by(func.sum(DoctorLetterStyle.use_count).desc())
+    )).all()
+
+    suggestions = [
+        {
+            "letter_type": r.letter_type,
+            "description": LETTER_TYPES.get(r.letter_type, LETTER_TYPES["general"]),
+            "use_count": int(r.uses or 0),
+            "has_saved_style": r.saved_styles > 0,
+        }
+        for r in rows
+    ]
+    top = [s["letter_type"] for s in suggestions[:3]]
+    return {
+        "suggestions": suggestions,
+        "top_types": top,
+        "has_history": len(suggestions) > 0,
+    }
+
+
 @router.post("/generate")
 async def generate_letter(
     body: GenerateRequest, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
@@ -128,6 +169,18 @@ async def generate_letter(
         f"{style}"
     )
     text = await _call_claude(prompt)
+    # Usage learning: bump use_count on this doctor's saved styles for this letter type so
+    # frequently-used types float to the top of suggestions (prompt-time personalization seed).
+    await db.execute(
+        update(DoctorLetterStyle)
+        .where(
+            DoctorLetterStyle.practice_id == practice_id,
+            DoctorLetterStyle.user_id == (UUID(user["user_id"]) if isinstance(user["user_id"], str) else user["user_id"]),
+            DoctorLetterStyle.letter_type == body.letter_type,
+        )
+        .values(use_count=DoctorLetterStyle.use_count + 1)
+    )
+    await db.commit()
     await audit_log(db, practice_id, user["user_id"], "ai_letter.generate", "letter", body.letter_type)
     return {"letter_type": body.letter_type, "tone": body.tone, "letter_text": text, "personalized": bool(style)}
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FileText, Search, ChevronRight, ChevronDown, Loader2, Send,
-  Shield, Receipt, CreditCard, UserCircle,
+  Shield, Receipt, CreditCard, UserCircle, Edit2, Save, X,
 } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -52,6 +52,7 @@ export default function Claims() {
   const [claimsByPatient, setClaimsByPatient] = useState<Record<string, Claim[]>>({})
   const [loadingClaims, setLoadingClaims] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [editingClaimId, setEditingClaimId] = useState<string | null>(null)
 
   const loadRoster = useCallback(async () => {
     setLoading(true)
@@ -201,16 +202,32 @@ export default function Claims() {
                                 {claim.denial_reason && <p className="text-xs text-red-600 mt-0.5">Denial: {claim.denial_reason}</p>}
                               </div>
                               {claim.status === 'draft' && (
-                                <button
-                                  data-testid={`submit-claim-${claim.id}`}
-                                  onClick={() => submitClaim(r.patient_id, claim.id)}
-                                  disabled={submitting === claim.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50 shrink-0"
-                                >
-                                  {submitting === claim.id ? <><Loader2 size={12} className="animate-spin" /> Submitting…</> : <><Send size={12} /> Submit</>}
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    data-testid={`edit-claim-${claim.id}`}
+                                    onClick={() => setEditingClaimId(editingClaimId === claim.id ? null : claim.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                  ><Edit2 size={12} /> {editingClaimId === claim.id ? 'Close' : 'Edit'}</button>
+                                  <button
+                                    data-testid={`submit-claim-${claim.id}`}
+                                    onClick={() => submitClaim(r.patient_id, claim.id)}
+                                    disabled={submitting === claim.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {submitting === claim.id ? <><Loader2 size={12} className="animate-spin" /> Submitting…</> : <><Send size={12} /> Submit</>}
+                                  </button>
+                                </div>
                               )}
                             </div>
+                            {claim.status === 'draft' && editingClaimId === claim.id && (
+                              <ClaimLineEditor
+                                claimId={claim.id}
+                                onSaved={async () => {
+                                  const r2 = await api.getClaimsByPatient(r.patient_id)
+                                  if (r2.ok) { const d = await r2.json(); setClaimsByPatient(prev => ({ ...prev, [r.patient_id]: d.claims || [] })) }
+                                }}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -220,6 +237,110 @@ export default function Claims() {
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClaimLineEditor({ claimId, onSaved }: { claimId: string; onSaved: () => void }) {
+  interface LineItem { id: string; line_number: number; cdt_code: string; description: string | null; tooth_numbers: string | null; quantity: number; billed_amount: number }
+  const [lines, setLines] = useState<LineItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [totalBilled, setTotalBilled] = useState<number | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, { cdt_code: string; description: string; billed_amount: string }>>({})
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.getClaim(claimId)
+      if (res.ok) {
+        const d = await res.json()
+        const li: LineItem[] = d.line_items || []
+        setLines(li)
+        setTotalBilled(d.total_billed ?? null)
+        setDrafts(Object.fromEntries(li.map(l => [l.id, { cdt_code: l.cdt_code, description: l.description || '', billed_amount: String(l.billed_amount) }])))
+      }
+    } catch { /* handled */ }
+    setLoading(false)
+  }, [claimId])
+
+  useEffect(() => { load() }, [load])
+
+  async function saveLine(id: string) {
+    const d = drafts[id]
+    if (!d) return
+    setSavingId(id)
+    try {
+      const res = await api.updateClaimLineItem(claimId, id, {
+        cdt_code: d.cdt_code,
+        description: d.description,
+        billed_amount: Number(d.billed_amount),
+      })
+      if (res.ok) {
+        const body = await res.json()
+        setTotalBilled(body.total_billed ?? null)
+        await load()
+        onSaved()
+      }
+    } catch { /* handled */ }
+    setSavingId(null)
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3" data-testid={`claim-editor-${claimId}`}>
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-gray-400 py-2"><Loader2 size={12} className="animate-spin" /> Loading line items…</div>
+      ) : lines.length === 0 ? (
+        <p className="text-xs text-gray-400 py-2">No line items on this claim.</p>
+      ) : (
+        <div className="space-y-2">
+          {lines.map(l => {
+            const d = drafts[l.id] || { cdt_code: l.cdt_code, description: l.description || '', billed_amount: String(l.billed_amount) }
+            return (
+              <div key={l.id} data-testid={`claim-line-${l.id}`} className="flex flex-wrap items-end gap-2 bg-gray-50 rounded-lg p-2">
+                <div>
+                  <label className="text-[9px] uppercase text-gray-400 block">CDT</label>
+                  <input
+                    data-testid={`claim-line-cdt-${l.id}`}
+                    value={d.cdt_code}
+                    onChange={e => setDrafts(prev => ({ ...prev, [l.id]: { ...d, cdt_code: e.target.value } }))}
+                    className="w-20 text-xs border border-gray-200 rounded px-2 py-1"
+                  />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="text-[9px] uppercase text-gray-400 block">Description</label>
+                  <input
+                    data-testid={`claim-line-desc-${l.id}`}
+                    value={d.description}
+                    onChange={e => setDrafts(prev => ({ ...prev, [l.id]: { ...d, description: e.target.value } }))}
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase text-gray-400 block">Billed $</label>
+                  <input
+                    data-testid={`claim-line-billed-${l.id}`}
+                    type="number"
+                    step="0.01"
+                    value={d.billed_amount}
+                    onChange={e => setDrafts(prev => ({ ...prev, [l.id]: { ...d, billed_amount: e.target.value } }))}
+                    className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
+                  />
+                </div>
+                <button
+                  data-testid={`claim-line-save-${l.id}`}
+                  onClick={() => saveLine(l.id)}
+                  disabled={savingId === l.id}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                >{savingId === l.id ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Save</button>
+              </div>
+            )
+          })}
+          {totalBilled != null && (
+            <p data-testid={`claim-editor-total-${claimId}`} className="text-xs text-gray-600 font-medium">Total billed: {money(totalBilled)}</p>
+          )}
         </div>
       )}
     </div>

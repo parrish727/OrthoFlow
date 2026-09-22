@@ -23,7 +23,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 // Lists documents associated with a patient. Lives in the patient's Administrative tab
 // (Frontdesk/Finance view). TC proposals and contracts save into here in later phases.
-export default function PatientDocuments({ patientId }: { patientId: string }) {
+export default function PatientDocuments({ patientId, testId = 'patient-documents' }: { patientId: string; testId?: string }) {
   const [docs, setDocs] = useState<PatientDocument[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -41,7 +41,7 @@ export default function PatientDocuments({ patientId }: { patientId: string }) {
   useEffect(() => { load() }, [load])
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden" data-testid="patient-documents">
+    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden" data-testid={testId}>
       <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
         <FileText size={14} className="text-gray-400" />
         <h3 className="text-sm font-semibold text-gray-800">Documents</h3>

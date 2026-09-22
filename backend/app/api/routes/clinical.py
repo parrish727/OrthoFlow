@@ -17,6 +17,7 @@ from app.models.clinical import (
     Patient, Chair, DentalAssistant, Appointment, TreatmentNote, ToothChart,
     PatientStatus, TreatmentPhase, AppointmentStatus,
 )
+from app.models.models import User
 
 router = APIRouter(prefix="/api/v1", tags=["clinical"])
 
@@ -98,6 +99,10 @@ class NoteCreate(BaseModel):
     appointment_id: UUID | None = None
     note_text: str = Field(..., min_length=1)
     note_type: str = "clinical"
+
+
+class NoteUpdate(BaseModel):
+    note_text: str = Field(..., min_length=1)
 
 
 class ToothChartUpdate(BaseModel):
@@ -514,18 +519,61 @@ async def create_note(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Create a treatment note."""
+    """Create a treatment note. Stamps the author's display name, initials, and color
+    (per-DA color when the author is linked to a DentalAssistant, else a deterministic
+    fallback) so notes are attributable at a glance on the chart."""
     await _get_patient(db, body.patient_id, user["practice_id"])  # verify ownership
+
+    author_name, author_initials, author_color = await _resolve_author(db, user["user_id"])
 
     note = TreatmentNote(
         practice_id=user["practice_id"],
         author_id=user["user_id"],
+        author_name=author_name,
+        author_initials=author_initials,
+        author_color=author_color,
         **body.model_dump(),
     )
     db.add(note)
     await db.commit()
     await db.refresh(note)
     await audit_log(db, user["practice_id"], user["user_id"], "note.create", "treatment_note", str(note.id))
+    return _note_dict(note)
+
+
+@router.patch("/notes/{note_id}")
+async def update_note(
+    note_id: UUID,
+    body: NoteUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Edit a treatment note within the edit window (NOTE_EDIT_WINDOW_HOURS after creation).
+
+    Only the original author may edit, and only while the note is still inside the window.
+    After the window closes the note is locked for integrity (an addendum would be a new note).
+    """
+    note = (await db.execute(
+        select(TreatmentNote).where(
+            TreatmentNote.id == note_id,
+            TreatmentNote.practice_id == user["practice_id"],
+        )
+    )).scalar_one_or_none()
+    if not note:
+        raise HTTPException(404, "Note not found")
+    if str(note.author_id) != str(user["user_id"]):
+        raise HTTPException(403, "Only the original author can edit this note.")
+    if not _note_is_editable(note):
+        raise HTTPException(
+            409,
+            f"This note is locked — notes are editable for {NOTE_EDIT_WINDOW_HOURS}h after creation. "
+            "Add a new note as an addendum.",
+        )
+
+    note.note_text = body.note_text
+    await db.commit()
+    await db.refresh(note)
+    await audit_log(db, user["practice_id"], user["user_id"], "note.update", "treatment_note", str(note.id))
     return _note_dict(note)
 
 
@@ -685,6 +733,51 @@ async def _appointment_dict(db: AsyncSession, a: Appointment) -> dict:
     }
 
 
+NOTE_EDIT_WINDOW_HOURS = 24
+
+# Deterministic fallback palette for authors not linked to a DentalAssistant (stable per user).
+_AUTHOR_FALLBACK_COLORS = [
+    "#0ea5e9", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981",
+    "#ef4444", "#6366f1", "#14b8a6", "#f97316", "#84cc16",
+]
+
+
+def _initials_from_name(name: str | None) -> str | None:
+    if not name:
+        return None
+    parts = [p for p in name.replace(".", " ").split() if p]
+    if not parts:
+        return None
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+async def _resolve_author(db: AsyncSession, user_id) -> tuple[str | None, str | None, str | None]:
+    """Resolve (name, initials, color) for a note author from the User record and, when the
+    author is a linked DentalAssistant, that DA's chosen color. Falls back to a stable color."""
+    u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    name = u.full_name if u else None
+    initials = _initials_from_name(name)
+    da = (await db.execute(
+        select(DentalAssistant).where(DentalAssistant.user_id == user_id).limit(1)
+    )).scalar_one_or_none()
+    color = (da.color if (da and da.color) else None)
+    if not color:
+        color = _AUTHOR_FALLBACK_COLORS[hash(str(user_id)) % len(_AUTHOR_FALLBACK_COLORS)]
+    return name, initials, color
+
+
+def _note_is_editable(n: TreatmentNote) -> bool:
+    if not n.created_at:
+        return False
+    created = n.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    age_hours = (datetime.now(timezone.utc) - created).total_seconds() / 3600.0
+    return age_hours <= NOTE_EDIT_WINDOW_HOURS
+
+
 def _note_dict(n: TreatmentNote) -> dict:
     return {
         "id": str(n.id),
@@ -693,7 +786,13 @@ def _note_dict(n: TreatmentNote) -> dict:
         "note_text": n.note_text,
         "ai_summary": n.ai_summary,
         "note_type": n.note_type,
+        "author_id": str(n.author_id) if n.author_id else None,
+        "author_name": n.author_name,
+        "author_initials": n.author_initials,
+        "author_color": n.author_color,
         "created_at": n.created_at.isoformat() if n.created_at else None,
+        "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+        "editable": _note_is_editable(n),
     }
 
 
