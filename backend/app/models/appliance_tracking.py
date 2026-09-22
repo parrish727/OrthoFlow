@@ -77,6 +77,8 @@ class Lab(Base):
     website: Mapped[str | None] = mapped_column(String(512))
     account_number: Mapped[str | None] = mapped_column(String(100))  # Practice's account # with the lab
     avg_turnaround_days: Mapped[int] = mapped_column(Integer, default=10)  # Average business days
+    is_aligner_company: Mapped[bool] = mapped_column(Boolean, default=False)  # per-office aligner vendor
+    aligner_brand: Mapped[str | None] = mapped_column(String(100))  # e.g. Invisalign, SureSmile, Spark
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -117,6 +119,7 @@ class AppliancePrescription(Base):
     # Status tracking
     status: Mapped[str] = mapped_column(String(30), default="draft")
     priority: Mapped[str] = mapped_column(String(10), default="normal")  # normal, rush, emergency
+    vendor_token: Mapped[str | None] = mapped_column(String(64))  # token the lab uses to update status via the vendor portal
 
     # Date tracking
     date_prescribed: Mapped[date] = mapped_column(Date, nullable=False)
@@ -165,7 +168,7 @@ class ApplianceStatusHistory(Base):
     prescription_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("appliance_prescriptions.id"), nullable=False)
     previous_status: Mapped[str | None] = mapped_column(String(30))
     new_status: Mapped[str] = mapped_column(String(30), nullable=False)
-    changed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)  # null = vendor portal update
     notes: Mapped[str | None] = mapped_column(Text)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
