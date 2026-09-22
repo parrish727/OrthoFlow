@@ -147,11 +147,6 @@ export default function MonthlyCalendar() {
                     <span className="text-[9px] font-semibold text-teal-700 bg-teal-100 rounded-full px-1.5">{summary.total}</span>
                   )}
                 </div>
-                {expanded && summary && summary.completed > 0 && (
-                  <div className="mt-1 flex items-center gap-0.5 text-[9px] text-emerald-600" title="OrthoFlow handled automatically">
-                    <Check size={9} /> {summary.completed} done
-                  </div>
-                )}
               </button>
             )
           })}
