@@ -48,10 +48,15 @@ export async function loginAsFrontDesk(page: Page): Promise<void> {
 
 export async function loginAsPatient(page: Page): Promise<void> {
   await page.goto('/portal')
-  await page.getByPlaceholder('Email').fill(ACCOUNTS.patient)
-  await page.getByPlaceholder('Password').fill(PATIENT_PASSWORD)
-  await page.getByRole('button', { name: /sign in|log in/i }).click()
-  await page.waitForTimeout(2000)
+  await page.locator('input[type="email"]').fill(ACCOUNTS.patient)
+  await page.locator('input[type="password"]').fill(PATIENT_PASSWORD)
+  const [resp] = await Promise.all([
+    page.waitForResponse(r => r.url().includes('/portal/login') && r.request().method() === 'POST', { timeout: 30000 }),
+    page.getByRole('button', { name: /sign in|log in/i }).click(),
+  ])
+  if (!resp.ok()) throw new Error(`Portal login failed: ${resp.status()}`)
+  await page.waitForFunction(() => !!localStorage.getItem('portal_token'), { timeout: 15000 })
+  await page.waitForTimeout(500)
 }
 
 export { ACCOUNTS, STAFF_PASSWORD, PATIENT_PASSWORD }

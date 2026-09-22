@@ -779,10 +779,27 @@ async def get_patient_billing(
                 "amount": float(abs(p.amount)),
                 "date": p.posted_date.isoformat() if p.posted_date else p.created_at.isoformat() if p.created_at else "",
                 "method": p.payment_method,
+                "is_auto_pay": _portal_is_auto_pay(p),
+                "auto_pay_status": _portal_auto_pay_status(p),
             }
             for p in recent_payments
         ],
     }
+
+
+def _portal_is_auto_pay(e) -> bool:
+    _ref = (e.reference_number or "").upper()
+    _desc = (e.description or "").lower()
+    return _ref.startswith("AUTOPAY") or "auto-pay" in _desc or "autopay" in _desc
+
+
+def _portal_auto_pay_status(e) -> str | None:
+    if not _portal_is_auto_pay(e):
+        return None
+    _desc = (e.description or "").lower()
+    _notes = (getattr(e, "notes", None) or "").lower()
+    failed = any(k in _desc or k in _notes for k in ("failed", "declined", "returned", "nsf"))
+    return "failed" if failed else "resolved"
 
 
 @router.get("/billing/methods")
@@ -795,6 +812,40 @@ async def get_billing_methods(
             {"id": "pm_1", "type": "credit_card", "last4": "4242", "brand": "Visa", "exp": "12/27", "is_default": True},
         ],
         "auto_pay_enabled": True,
+    }
+
+
+@router.get("/documents")
+async def get_patient_documents(
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient-facing documents — letters, contracts, consents, and uploads on their chart.
+
+    Mirrors the OrthoFlow clinical/admin Documents view so patients can see the same records
+    (read-only) in MyOrthoChart.
+    """
+    from app.models.workflow import PatientDocument
+
+    rows = (await db.execute(
+        select(PatientDocument).where(
+            PatientDocument.patient_id == patient["patient_id"],
+            PatientDocument.practice_id == patient["practice_id"],
+        ).order_by(PatientDocument.created_at.desc())
+    )).scalars().all()
+
+    return {
+        "documents": [
+            {
+                "id": str(d.id),
+                "document_type": d.document_type,
+                "title": d.title,
+                "file_url": d.file_url,
+                "mime_type": d.mime_type,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in rows
+        ]
     }
 
 
