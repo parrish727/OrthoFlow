@@ -53,6 +53,15 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       setParticipantConnected(true)
       setParticipantName(participant.identity || '')
+      // Subscribe to whatever they've already published (and anything they publish later).
+      participant.trackPublications.forEach(pub => {
+        if (!pub.isSubscribed) { try { pub.setSubscribed(true) } catch { /* auto-subscribe */ } }
+      })
+    })
+
+    // A remote track was published — ensure we subscribe so it renders (prevents both-waiting).
+    room.on(RoomEvent.TrackPublished, (publication: RemoteTrackPublication) => {
+      if (!publication.isSubscribed) { try { publication.setSubscribed(true) } catch { /* auto-subscribe */ } }
     })
 
     // Handle remote participant leaving
@@ -158,8 +167,14 @@ export default function VideoRoom({ roomName, token, onEnd, role = 'staff', pati
         room.remoteParticipants.forEach((participant: RemoteParticipant) => {
           setParticipantConnected(true)
           setParticipantName(participant.identity || '')
-          // Subscribe to existing tracks
+          // Subscribe to existing tracks. A participant already in the room has published tracks
+          // that are NOT auto-subscribed for the joiner — we must explicitly request subscription
+          // or neither side ever renders the other (both appear stuck "waiting").
           participant.trackPublications.forEach(publication => {
+            // Ensure we're subscribed; TrackSubscribed will fire and attach the media.
+            if (!publication.isSubscribed) {
+              try { publication.setSubscribed(true) } catch { /* older clients auto-subscribe */ }
+            }
             if (publication.track && publication.isSubscribed) {
               const track = publication.track as RemoteTrack
               if (track.kind === Track.Kind.Video) {
