@@ -68,6 +68,27 @@ app.add_middleware(CorrelationIDMiddleware)
 
 # ── Global Exception Handler ─────────────────────────────────────────────────
 
+def _cors_headers_for(request: Request) -> dict[str, str]:
+    """Return CORS headers reflecting the request Origin when it is allow-listed.
+
+    Starlette runs exception handlers OUTSIDE the user CORSMiddleware, so error
+    responses (500s) would otherwise ship WITHOUT Access-Control-Allow-Origin and
+    surface in the browser as a misleading CORS error instead of the real status.
+    We mirror the CORSMiddleware behavior here so error responses stay CORS-correct.
+    """
+    origin = request.headers.get("origin")
+    if not origin:
+        return {}
+    allowed = origin in settings.CORS_ORIGINS or "*" in settings.CORS_ORIGINS
+    if not allowed:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch all unhandled exceptions, log with full context, return safe 500."""
@@ -86,6 +107,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
             "correlation_id": cid,
             "error_type": type(exc).__name__,
         },
+        headers=_cors_headers_for(request),
     )
 
 

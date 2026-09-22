@@ -58,7 +58,7 @@ interface TreatmentProgress {
   milestones: { name: string; completed: boolean }[]
 }
 
-type PortalSection = 'home' | 'schedule' | 'messages' | 'visits' | 'billing' | 'forms' | 'settings'
+type PortalSection = 'home' | 'schedule' | 'messages' | 'visits' | 'billing' | 'documents' | 'forms' | 'settings'
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -92,6 +92,12 @@ export default function PatientPortal() {
   const [messages, setMessages] = useState<Message[]>([])
   const [forms, setForms] = useState<FormItem[]>([])
   const [progress, setProgress] = useState<TreatmentProgress | null>(null)
+  const [billing, setBilling] = useState<{
+    balance: number; total_charges: number; total_payments: number; responsible_party: string;
+    insurance: { payer_name: string; plan_name: string; subscriber_id: string; group_number: string }[];
+    recent_payments: { description: string; amount: number; date: string; method: string | null; is_auto_pay?: boolean; auto_pay_status?: 'resolved' | 'failed' | null }[];
+  } | null>(null)
+  const [documents, setDocuments] = useState<{ id: string; document_type: string; title: string; file_url: string; mime_type: string | null; created_at: string | null }[]>([])
   const [loading, setLoading] = useState(false)
 
   // Video state
@@ -180,18 +186,22 @@ export default function PatientPortal() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [dashRes, apptRes, msgRes, formRes, progRes] = await Promise.all([
+      const [dashRes, apptRes, msgRes, formRes, progRes, billRes, docRes] = await Promise.all([
         portalRequest('/api/v1/portal/dashboard'),
         portalRequest('/api/v1/portal/appointments'),
         portalRequest('/api/v1/portal/messages'),
         portalRequest('/api/v1/portal/forms'),
         portalRequest('/api/v1/portal/treatment-progress'),
+        portalRequest('/api/v1/portal/billing'),
+        portalRequest('/api/v1/portal/documents'),
       ])
       if (dashRes.ok) setDashboard(await dashRes.json())
       if (apptRes.ok) { const d = await apptRes.json(); setAppointments(d.appointments || []) }
       if (msgRes.ok) { const d = await msgRes.json(); setMessages(d.messages || []) }
       if (formRes.ok) { const d = await formRes.json(); setForms(d.forms || []) }
       if (progRes.ok) setProgress(await progRes.json())
+      if (billRes.ok) setBilling(await billRes.json())
+      if (docRes.ok) { const d = await docRes.json(); setDocuments(d.documents || []) }
     } catch {}
     setLoading(false)
   }, [portalRequest])
@@ -392,6 +402,7 @@ export default function PatientPortal() {
                   { id: 'messages' as const, icon: MessageSquare, label: 'Messages', badge: dashboard?.unread_messages },
                   { id: 'visits' as const, icon: CalendarCheck, label: 'Visits' },
                   { id: 'billing' as const, icon: CreditCard, label: 'Billing' },
+                  { id: 'documents' as const, icon: FileText, label: 'Documents' },
                   { id: 'forms' as const, icon: FileText, label: 'My Records / Forms', badge: dashboard?.pending_forms },
                 ] as const).map(item => (
                   <button key={item.id} onClick={() => navigateTo(item.id)} className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ${activeSection === item.id ? 'bg-teal-50 text-teal-700 border-r-2 border-teal-500' : 'text-gray-700 hover:bg-gray-50'}`}>
@@ -662,18 +673,59 @@ export default function PatientPortal() {
 
         {/* ═══ BILLING ═══ */}
         {activeSection === 'billing' && (
-          <div className="space-y-5">
+          <div className="space-y-5" data-testid="portal-billing">
             <h2 className="text-xl font-semibold text-gray-900">Billing</h2>
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className="text-center mb-5">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">Balance Due</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">$2,935.00</p>
-                <p className="text-xs text-gray-500 mt-1">Responsible Party: Priscilla Knowles</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1" data-testid="portal-balance">
+                  {billing ? `$${billing.balance.toFixed(2)}` : '—'}
+                </p>
+                {billing?.responsible_party && (
+                  <p className="text-xs text-gray-500 mt-1">Responsible Party: {billing.responsible_party}</p>
+                )}
               </div>
-              <div className="space-y-2">
-                <button className="w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-xl text-sm hover:bg-gray-50">
-                  <span className="text-gray-700">View Balance Details</span><ChevronRight size={16} className="text-gray-400" />
-                </button>
+
+              {/* Recent payments with auto-pay status (mirrors OrthoFlow ledger color coding) */}
+              {billing && billing.recent_payments.length > 0 && (
+                <div className="space-y-2" data-testid="portal-recent-payments">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Recent Payments</p>
+                  {billing.recent_payments.map((p, i) => (
+                    <div
+                      key={i}
+                      data-testid={p.is_auto_pay ? `portal-autopay-${p.auto_pay_status}` : undefined}
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl border text-sm ${
+                        p.is_auto_pay && p.auto_pay_status === 'failed'
+                          ? 'bg-red-50 border-red-200'
+                          : p.is_auto_pay && p.auto_pay_status === 'resolved'
+                            ? 'bg-emerald-50/60 border-emerald-200'
+                            : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-gray-800 truncate">{p.description}</p>
+                        <p className="text-[11px] text-gray-400">{p.date}{p.method ? ` · ${p.method}` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {p.is_auto_pay && (
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                            p.auto_pay_status === 'failed' ? 'bg-red-100 text-red-700 border-red-300' : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${p.auto_pay_status === 'failed' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                            {p.auto_pay_status === 'failed' ? 'AUTO-PAY FAILED' : 'AUTO-PAY'}
+                          </span>
+                        )}
+                        <span className="font-medium text-gray-900">${p.amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {billing.recent_payments.some(p => p.is_auto_pay && p.auto_pay_status === 'failed') && (
+                    <p className="text-[11px] text-red-600 mt-1">An auto-payment failed — please update your payment method or contact the office.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2 mt-4">
                 <button className="w-full flex items-center justify-between px-4 py-3 border border-gray-200 rounded-xl text-sm hover:bg-gray-50">
                   <span className="text-gray-700">Contact Customer Service</span><ChevronRight size={16} className="text-gray-400" />
                 </button>
@@ -682,18 +734,56 @@ export default function PatientPortal() {
                 </button>
               </div>
             </div>
-            {/* Insurance Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Shield size={16} className="text-blue-500" />
-                <p className="text-sm font-semibold text-gray-900">Insurance</p>
+            {/* Insurance Card (live) */}
+            {billing && billing.insurance.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield size={16} className="text-blue-500" />
+                  <p className="text-sm font-semibold text-gray-900">Insurance</p>
+                </div>
+                {billing.insurance.map((ins, i) => (
+                  <div key={i} className="space-y-2 text-sm mb-3 last:mb-0">
+                    <div className="flex justify-between"><span className="text-gray-500">Plan</span><span className="text-gray-900">{ins.plan_name || ins.payer_name}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Subscriber ID</span><span className="text-gray-900 font-mono">{ins.subscriber_id}</span></div>
+                    {ins.group_number && <div className="flex justify-between"><span className="text-gray-500">Group</span><span className="text-gray-900">{ins.group_number}</span></div>}
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Plan</span><span className="text-gray-900">Delta Dental PPO Plus</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Subscriber ID</span><span className="text-gray-900 font-mono">DDW-9204150001</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Group</span><span className="text-gray-900">GRP-MELANIN-2026</span></div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ DOCUMENTS ═══ */}
+        {activeSection === 'documents' && (
+          <div className="space-y-4" data-testid="portal-documents">
+            <h2 className="text-xl font-semibold text-gray-900">Documents</h2>
+            <p className="text-sm text-gray-500">Letters, contracts, and records shared by your orthodontic office.</p>
+            {documents.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
+                <FileText size={28} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-400">No documents shared yet.</p>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
+                {documents.map(d => (
+                  <a
+                    key={d.id}
+                    href={d.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid={`portal-document-${d.id}`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <FileText size={16} className="text-teal-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{d.title}</p>
+                      <p className="text-[11px] text-gray-400 capitalize">{d.document_type.replace(/_/g, ' ')}{d.created_at ? ` · ${new Date(d.created_at).toLocaleDateString()}` : ''}</p>
+                    </div>
+                    <ChevronRight size={16} className="text-gray-400 shrink-0" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
