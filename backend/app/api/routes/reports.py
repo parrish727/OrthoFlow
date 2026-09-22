@@ -43,6 +43,8 @@ class ReportFilters(BaseModel):
     # Appointment / procedure
     appointment_type: str | None = None       # appointments.appointment_type (contains)
     procedure_cdt: str | None = None          # ledger cdt_code
+    missing_appointments: bool | None = None  # True = no upcoming appt (needs follow-up)
+    scheduled: bool | None = None             # True = has upcoming appt; False = none scheduled
     # Time window (created / activity)
     start_date: date | None = None
     end_date: date | None = None
@@ -122,11 +124,34 @@ async def _run_patient_report(db: AsyncSession, practice_id, f: ReportFilters) -
         )).all()
         appt_pids = {str(r[0]) for r in rows}
 
+    # Patients with an upcoming (scheduled/confirmed) appointment — for scheduled vs non-scheduled
+    # splits and "missing appointments / needs follow-up" reports.
+    today = date.today()
+    upcoming_rows = (await db.execute(
+        select(Appointment.patient_id).where(
+            Appointment.practice_id == practice_id,
+            Appointment.patient_id.in_(pids),
+            Appointment.appointment_date >= today,
+            Appointment.status.in_(["scheduled", "confirmed"]),
+        ).distinct()
+    )).all()
+    upcoming_pids = {str(r[0]) for r in upcoming_rows}
+
     result = []
     for p in patients:
         pid = str(p.id)
         bal = bal_by.get(pid, 0.0)
         payer = payer_by.get(pid)
+        has_upcoming = pid in upcoming_pids
+        # Scheduled / missing-appointment filters.
+        if f.scheduled is True and not has_upcoming:
+            continue
+        if f.scheduled is False and has_upcoming:
+            continue
+        if f.missing_appointments is True and has_upcoming:
+            continue
+        if f.missing_appointments is False and not has_upcoming:
+            continue
         # Financial filters.
         if f.payment_status == "owes" and bal <= 0:
             continue
@@ -153,6 +178,7 @@ async def _run_patient_report(db: AsyncSession, practice_id, f: ReportFilters) -
             "status": p.status, "treatment_phase": p.treatment_phase,
             "referring_doctor": p.referring_doctor,
             "payer_name": payer, "balance": round(bal, 2),
+            "has_upcoming": has_upcoming,
             "email": p.email, "phone": p.phone,
         })
     return result
@@ -168,6 +194,85 @@ async def report_builder_patient(
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
     rows = await _run_patient_report(db, practice_id, filters)
     return {"tab": "patient", "count": len(rows), "rows": rows}
+
+
+# ── TC / front-office report suite ────────────────────────────────────────────
+# Category presets built on _run_patient_report. Each returns rows + a scheduled/non-scheduled
+# split so the TC can work follow-ups. AI-assisted summary + printable on the frontend.
+
+def _split_scheduled(rows: list[dict]) -> dict:
+    scheduled = [r for r in rows if r.get("has_upcoming")]
+    non_scheduled = [r for r in rows if not r.get("has_upcoming")]
+    return {"scheduled_count": len(scheduled), "non_scheduled_count": len(non_scheduled)}
+
+
+@router.get("/categories/pending")
+async def report_pending(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Pending: patients with NO upcoming appointment who need follow-up (TC recovery list)."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = await _run_patient_report(db, practice_id, ReportFilters(missing_appointments=True))
+    return {"category": "pending", "count": len(rows), "rows": rows, **_split_scheduled(rows)}
+
+
+@router.get("/categories/observation")
+async def report_observation(
+    level: int | None = Query(None, ge=1, le=4),
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Observation 1–4: observation patients (recall pipeline), scheduled + non-scheduled."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    if level:
+        rows = await _run_patient_report(db, practice_id, ReportFilters(treatment_status=f"observation_{level}"))
+        return {"category": f"observation_{level}", "count": len(rows), "rows": rows, **_split_scheduled(rows)}
+    # All observation levels combined, per-level breakdown.
+    out = {}
+    all_rows: list[dict] = []
+    for lvl in (1, 2, 3, 4):
+        r = await _run_patient_report(db, practice_id, ReportFilters(treatment_status=f"observation_{lvl}"))
+        out[f"observation_{lvl}"] = {"count": len(r), **_split_scheduled(r)}
+        all_rows.extend(r)
+    return {"category": "observation", "count": len(all_rows), "rows": all_rows, "by_level": out}
+
+
+@router.get("/categories/new-patient-added")
+async def report_new_patient_added(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """New Patient Added: patients created in the window, scheduled + non-scheduled."""
+    from datetime import timedelta
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    start = date.today() - timedelta(days=days)
+    rows = await _run_patient_report(db, practice_id, ReportFilters(start_date=start))
+    return {"category": "new_patient_added", "count": len(rows), "rows": rows, **_split_scheduled(rows)}
+
+
+@router.get("/categories/start-scheduled")
+async def report_start_scheduled(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Start Scheduled: patients pending a treatment start — how many scheduled vs not."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = await _run_patient_report(db, practice_id, ReportFilters(treatment_status="pending"))
+    return {"category": "start_scheduled", "count": len(rows), "rows": rows, **_split_scheduled(rows)}
+
+
+@router.get("/categories/doctor-referral")
+async def report_doctor_referral(
+    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    """Doctor Referral: referring doctors ranked most → least by patients referred."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    rows = (await db.execute(
+        select(Patient.referring_doctor, func.count(Patient.id))
+        .where(Patient.practice_id == practice_id, Patient.referring_doctor.isnot(None))
+        .group_by(Patient.referring_doctor)
+        .order_by(func.count(Patient.id).desc())
+    )).all()
+    referrers = [{"referring_doctor": name, "patient_count": int(ct)} for name, ct in rows if name]
+    return {"category": "doctor_referral", "count": len(referrers), "referrers": referrers}
 
 
 @router.post("/builder/insurance")

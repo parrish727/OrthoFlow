@@ -3,6 +3,7 @@ import { Download, DollarSign, TrendingUp, Percent, Clock, PieChart } from 'luci
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { api } from '../lib/api'
 import ReportBuilder from '../components/ReportBuilder'
+import TCReportSuite from '../components/TCReportSuite'
 
 interface ProductionData {
   period: string
@@ -184,6 +185,12 @@ export default function Reports() {
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Report Categories</h2>
             <p className="text-xs text-gray-500 mt-0.5">Frontdesk / Doctor / TC — click a category to run it</p>
+          </div>
+
+          {/* Front-office / TC report suite (Pending, Observation, New Patient, Start Scheduled, Doctor Referral) */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Front Office / TC Reports</h3>
+            <TCReportSuite />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {categories.map(cat => (
