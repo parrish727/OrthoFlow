@@ -202,3 +202,33 @@ class AppointmentNotification(Base):
         Index("idx_appt_notif_patient", "practice_id", "patient_id", "audience"),
         Index("idx_appt_notif_appt", "appointment_id"),
     )
+
+
+# ── Virtual Visits (persistent — replaces in-memory store) ────────────────────
+
+class VirtualVisit(Base):
+    """A doctor-initiated video visit tied to an appointment. Persisted so it survives backend
+    restarts and gives the patient (MyOrthoChart) a reliable, live status.
+
+    status: waiting (doctor opened, patient not yet joined) → live (patient joined) → ended.
+    One-way initiation: only staff creates a visit; the patient can only join.
+    """
+    __tablename__ = "virtual_visits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)
+    room_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    staff_token: Mapped[str] = mapped_column(Text, nullable=False)
+    patient_token: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(12), default="waiting")  # waiting | live | ended
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    patient_joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("idx_virtual_visits_practice_status", "practice_id", "status"),
+        Index("idx_virtual_visits_patient", "patient_id", "status"),
+    )
