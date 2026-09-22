@@ -1040,24 +1040,23 @@ function NextVisitSection({ patientId, patientName }: { patientId: string; patie
                 <option value="Bonding">Bonding</option>
                 <option value="Deband">Deband / Braces Removal</option>
                 <option value="Records">Records</option>
-                <option value="Final Records">Final Records</option>
                 <option value="Consultation">Consultation</option>
                 <option value="Observation">Observation</option>
                 <option value="Progress Photos">Progress Photos</option>
                 <option value="IPR">IPR (Interproximal Reduction)</option>
                 <option value="Retainer Check">Retainer Check</option>
                 <option value="Retainer Delivery">Retainer Delivery</option>
-                <option value="Retention Check">Retention Check</option>
                 <option value="Aligner Delivery">Aligner Delivery</option>
                 <option value="Aligner Check">Aligner Check</option>
                 <option value="Aligner Refinement">Aligner Refinement Scan</option>
+                <option value="Aligner Refinement Deliver">Aligner Refinement Deliver</option>
                 <option value="Expansion Activation">Expansion Activation</option>
+                <option value="Appliance Check">Appliance Check (note appliance)</option>
                 <option value="Herbst Adjustment">Herbst Adjustment</option>
                 <option value="MARA Adjustment">MARA Adjustment</option>
+                <option value="Habit Appliance Check">Habit Appliance Check</option>
                 <option value="TAD Placement">TAD Placement</option>
                 <option value="Surgical Exposure">Surgical Exposure</option>
-                <option value="Space Maintainer">Space Maintainer</option>
-                <option value="Habit Appliance Check">Habit Appliance Check</option>
                 <option value="Emergency">Emergency / Broken Bracket</option>
                 <option value="Virtual Visit">Virtual Visit</option>
               </select>

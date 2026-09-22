@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Clock, AlertCircle, HelpCircle, DollarSign, Inbox, Loader2, ChevronLeft, ChevronRight, Calendar, Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { localDateStr, localToday } from '../lib/dates'
 import Tooltip from '../components/Tooltip'
 import MonthlyCalendar from '../components/MonthlyCalendar'
 import AutomationActivity from '../components/AutomationActivity'
+import AIAssist from '../components/AIAssist'
 
 interface Invoice {
   id: string
@@ -33,6 +34,30 @@ export default function Dashboard() {
   const [dragOver, setDragOver] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => localToday())
   const navigate = useNavigate()
+
+  // Patient search / jump bar
+  interface PatientHit { id: string; first_name: string; last_name: string; status?: string }
+  const [patientQuery, setPatientQuery] = useState('')
+  const [patientHits, setPatientHits] = useState<PatientHit[]>([])
+  const [searchingPatients, setSearchingPatients] = useState(false)
+
+  useEffect(() => {
+    const q = patientQuery.trim()
+    if (q.length < 2) { setPatientHits([]); return }
+    let active = true
+    setSearchingPatients(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await api.getPatients({ search: q, size: 8 })
+        if (res.ok && active) {
+          const data = await res.json()
+          setPatientHits(data.patients || data.items || [])
+        }
+      } catch { /* silently handle */ }
+      if (active) setSearchingPatients(false)
+    }, 250)
+    return () => { active = false; clearTimeout(t) }
+  }, [patientQuery])
 
   function shiftDate(days: number) {
     const d = new Date(selectedDate + 'T00:00:00')
@@ -167,6 +192,39 @@ export default function Dashboard() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Patient search / jump bar */}
+      <div className="mb-6 relative" data-testid="dashboard-patient-search">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={patientQuery}
+          onChange={e => setPatientQuery(e.target.value)}
+          placeholder="Search patients by name..."
+          className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300"
+        />
+        {searchingPatients && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}
+        {patientHits.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden" data-testid="dashboard-patient-results">
+            {patientHits.map(p => (
+              <button
+                key={p.id}
+                data-testid={`dashboard-patient-hit-${p.id}`}
+                onClick={() => { setPatientQuery(''); setPatientHits([]); navigate(`/patients/${p.id}`) }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-teal-50 flex items-center justify-between"
+              >
+                <span>{p.first_name} {p.last_name}</span>
+                {p.status && <span className="text-[10px] text-gray-400 capitalize">{p.status.replace('_', ' ')}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Patients that need attention — surfaced at the top of the Dashboard */}
+      <div className="mb-8">
+        <AIAssist />
       </div>
 
       {/* OrthoFlow AI — what it automated */}
