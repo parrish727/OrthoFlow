@@ -69,6 +69,7 @@ export default function TimeTracking() {
   const [payrollSummary, setPayrollSummary] = useState<PayrollSummaryEntry[]>([])
   const [payRates, setPayRates] = useState<PayRateEntry[]>([])
   const [team, setTeam] = useState<TeamMember[]>([])
+  const [adpStatus, setAdpStatus] = useState<{ provider: string; connected: boolean; mode: string; message: string } | null>(null)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 13)
@@ -119,6 +120,10 @@ export default function TimeTracking() {
         const teamData = await teamRes.json()
         setTeam(Array.isArray(teamData) ? teamData : teamData.members || [])
       }
+      try {
+        const adpRes = await api.request('/api/v1/time/adp/status')
+        if (adpRes.ok) setAdpStatus(await adpRes.json())
+      } catch { /* silent */ }
     } catch (e) { /* silent */ }
   }, [isAdmin, startDate, endDate])
 
@@ -454,6 +459,21 @@ export default function TimeTracking() {
               Pay rates and payroll calculations are managed by your payroll provider (ADP), not here.
             </p>
           </div>
+
+          {/* ADP Time Clock connection (hours only) */}
+          {adpStatus && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm" data-testid="adp-status">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${adpStatus.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                <h3 className="text-sm font-semibold text-gray-900">ADP Time Clock</h3>
+                <span className="text-[10px] uppercase tracking-wide text-gray-400">{adpStatus.mode}</span>
+                <span className={`ml-auto text-xs font-medium ${adpStatus.connected ? 'text-green-600' : 'text-gray-500'}`}>
+                  {adpStatus.connected ? 'Connected' : 'Not configured'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">{adpStatus.message}</p>
+            </div>
+          )}
         </>
       )}
 

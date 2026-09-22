@@ -638,3 +638,32 @@ async def missed_punch_check(
         "missed_entries": len(missed),
         "notifications_sent": notifications_sent,
     }
+
+
+# ── ADP Time Clock connector (hours/timecards only — NO payroll) ──────────────
+
+@router.get("/adp/status")
+async def adp_status(user: dict = Depends(get_current_user)):
+    """Connection status for the ADP Time Clock integration (hours only)."""
+    from app.services.adp import get_adp_provider
+    provider = get_adp_provider()
+    return await provider.health()
+
+
+@router.get("/adp/timecards")
+async def adp_timecards(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    user: dict = Depends(get_current_user),
+):
+    """Team time cards (hours) from the active ADP provider for the range. Strictly hours —
+    this endpoint never returns pay rates or payroll amounts."""
+    from app.services.adp import get_adp_provider
+    provider = get_adp_provider()
+    try:
+        cards = await provider.get_timecards(start_date, end_date)
+    except (RuntimeError, NotImplementedError) as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    total = round(sum(c.hours for c in cards), 2)
+    return {"provider": provider.name, "count": len(cards), "total_hours": total,
+            "timecards": [c.to_dict() for c in cards]}
