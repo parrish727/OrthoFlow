@@ -51,6 +51,8 @@ export default function ReportBuilder() {
     if (filters.appointment_type) p.appointment_type = filters.appointment_type
     if (filters.procedure_cdt) p.procedure_cdt = filters.procedure_cdt
     if (filters.referral) p.referral = filters.referral
+    if (filters.missing_appointments === 'yes') p.missing_appointments = true
+    if (filters.missing_appointments === 'no') p.missing_appointments = false
     return p
   }
 
@@ -79,7 +81,20 @@ export default function ReportBuilder() {
           <Sel label="Treatment status" value={filters.treatment_status || ''} onChange={v => setF('treatment_status', v)} opts={TREAT_STATUS.map(s => [s, s ? s.replace('_', ' ') : 'Any'])} />
           <Sel label="Payment" testid="filter-payment" value={filters.payment_status || ''} onChange={v => setF('payment_status', v)} opts={PAY_STATUS} />
           <Sel label="Insurance" value={filters.insurance || ''} onChange={v => setF('insurance', v)} opts={INSURANCE} />
-          <Inp label="Appt type" value={filters.appointment_type || ''} onChange={v => setF('appointment_type', v)} />
+          <Sel label="Missing appts" testid="filter-missing-appts" value={filters.missing_appointments || ''} onChange={v => setF('missing_appointments', v)} opts={[['', 'Any'], ['yes', 'Yes — no upcoming'], ['no', 'No — has upcoming']]} />
+          <label className="block"><span className="text-[11px] text-gray-500">Appt type</span>
+            <input
+              data-testid="filter-appt-type"
+              list="appt-type-options"
+              value={filters.appointment_type || ''}
+              onChange={e => setF('appointment_type', e.target.value)}
+              placeholder="Search or type…"
+              className="mt-1 w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm"
+            />
+            <datalist id="appt-type-options">
+              {['Adjustment','Bonding','Consultation','Deband','Elastic Check','Emergency','IPR','Observation','Progress Photos','Records','Retainer Check','Wire Change','Aligner Check','Aligner Delivery','Appliance Check','Virtual Visit'].map(t => <option key={t} value={t} />)}
+            </datalist>
+          </label>
           <Inp label="Procedure CDT" value={filters.procedure_cdt || ''} onChange={v => setF('procedure_cdt', v)} />
           <Inp label="Referral" value={filters.referral || ''} onChange={v => setF('referral', v)} />
         </div>

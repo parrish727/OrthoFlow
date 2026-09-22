@@ -76,6 +76,25 @@ export default function TCProposal() {
   const [recommendation, setRecommendation] = useState<TreatmentRecommendation | null>(null)
   const [recLoading, setRecLoading] = useState(false)
 
+  // Per-practice default monthly down payment (e.g. $500). Sourced from practice config when
+  // available; falls back to $500. Used as the automatic Monthly down payment.
+  const [monthlyDownDefault, setMonthlyDownDefault] = useState(500)
+
+  useEffect(() => {
+    api.getPractice().then(async r => {
+      if (r.ok) {
+        const p = await r.json()
+        const d = p?.settings?.tc_monthly_down_default ?? p?.tc_monthly_down_default
+        if (typeof d === 'number' && d >= 0) setMonthlyDownDefault(d)
+      }
+    }).catch(() => {})
+  }, [])
+
+  // Keep the monthly down payment in sync with the practice default.
+  useEffect(() => {
+    setForm(prev => prev.payment_option === 'monthly' ? { ...prev, down_payment: monthlyDownDefault } : prev)
+  }, [monthlyDownDefault])
+
   // Proposal form
   const [form, setForm] = useState<ProposalForm>({
     treatment_type: TREATMENT_TYPES[0],
@@ -91,6 +110,9 @@ export default function TCProposal() {
 
   // UI state
   const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [patientStatus, setPatientStatus] = useState('active')
+  const [statusMsg, setStatusMsg] = useState<string | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
 
   // --- Computed values ---
@@ -180,6 +202,17 @@ export default function TCProposal() {
     setSelectedPatient(patient)
     setSearchQuery(`${patient.first_name} ${patient.last_name}`)
     setShowDropdown(false)
+    setPatientStatus((patient as { status?: string }).status || 'active')
+  }
+
+  async function changePatientStatus(status: string) {
+    if (!selectedPatient) return
+    setPatientStatus(status)
+    setStatusMsg(null)
+    try {
+      const r = await api.updatePatient(selectedPatient.id, { status })
+      setStatusMsg(r.ok ? 'Status updated ✓' : 'Update failed')
+    } catch { setStatusMsg('Update failed') }
   }
 
   function updateForm(updates: Partial<ProposalForm>) {
@@ -215,6 +248,24 @@ export default function TCProposal() {
     updateForm({ status: 'accepted' })
     await saveProposal()
     setShowScheduleModal(true)
+  }
+
+  // Save the proposal AND auto-archive a copy into the patient's documents (folder tree).
+  async function saveAndArchive() {
+    if (!selectedPatient) return
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      await saveProposal()
+      const summary = `${form.treatment_type} · ${form.duration_months}mo · Total ${fmt(form.total_fee)} · Patient ${fmt(patientResponsibility)} · ${form.payment_option === 'custom' ? 'Custom' : form.payment_option === 'monthly' ? `Monthly ${fmt(monthlyAmount)}` : 'Pay in full'}`
+      await api.createPatientDocument(selectedPatient.id, {
+        document_type: 'tc_proposal',
+        title: `TC Proposal — ${form.treatment_type} (${new Date().toLocaleDateString()})`,
+        notes: summary,
+      })
+      setSaveMsg('Saved to patient documents ✓')
+    } catch { setSaveMsg('Saved (document archive unavailable)') }
+    setSaving(false)
   }
 
   // --- Render ---
@@ -301,6 +352,20 @@ export default function TCProposal() {
               <div className="mt-3 p-3 bg-teal-50/50 rounded-xl border border-teal-100">
                 <p className="text-sm font-medium text-teal-800">{selectedPatient.first_name} {selectedPatient.last_name}</p>
                 <p className="text-xs text-teal-600 mt-0.5">DOB: {selectedPatient.date_of_birth || 'N/A'} {selectedPatient.phone ? `• ${selectedPatient.phone}` : ''}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-[11px] font-medium text-teal-700">Patient status</label>
+                  <select
+                    data-testid="tc-patient-status"
+                    value={patientStatus}
+                    onChange={e => changePatientStatus(e.target.value)}
+                    className="text-xs px-2 py-1 rounded-lg border border-teal-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  >
+                    {['active','pending','observation_1','observation_2','observation_3','observation_4','retention','inactive','archived'].map(s => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                  {statusMsg && <span className="text-[10px] text-teal-600">{statusMsg}</span>}
+                </div>
               </div>
             )}
           </div>
@@ -410,7 +475,11 @@ export default function TCProposal() {
                     {(['pay_in_full', 'monthly', 'custom'] as PaymentOption[]).map(opt => (
                       <button
                         key={opt}
-                        onClick={() => updateForm({ payment_option: opt })}
+                        onClick={() => {
+                          if (opt === 'monthly') updateForm({ payment_option: opt, down_payment: monthlyDownDefault })
+                          else if (opt === 'custom') updateForm({ payment_option: opt, down_payment: 0 })
+                          else updateForm({ payment_option: opt })
+                        }}
                         className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${
                           form.payment_option === opt
                             ? 'bg-teal-50 border-teal-300 text-teal-700'
@@ -441,17 +510,21 @@ export default function TCProposal() {
                   </div>
                 )}
 
-                {/* Down payment (for custom) */}
-                {form.payment_option === 'custom' && (
+                {/* Down payment (monthly = practice default; custom = blank, TC enters amount) */}
+                {(form.payment_option === 'custom' || form.payment_option === 'monthly') && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Down Payment</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Down Payment {form.payment_option === 'monthly' ? '(default)' : '(enter amount)'}
+                    </label>
                     <div className="relative">
                       <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input
                         type="number"
                         min={0}
                         step={50}
-                        value={form.down_payment}
+                        data-testid="tc-down-payment"
+                        placeholder={form.payment_option === 'custom' ? 'Enter down payment' : ''}
+                        value={form.payment_option === 'custom' && !form.down_payment ? '' : form.down_payment}
                         onChange={e => updateForm({ down_payment: parseFloat(e.target.value) || 0 })}
                         className="w-full pl-8 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
                       />
@@ -550,19 +623,21 @@ export default function TCProposal() {
               {form.status === 'draft' && (
                 <>
                   <button
-                    onClick={() => { updateForm({ status: 'presented' }); saveProposal() }}
+                    onClick={saveAndArchive}
                     disabled={!selectedPatient || saving}
+                    data-testid="tc-save"
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
-                    Mark as Presented
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    Save
                   </button>
+                  {saveMsg && <p data-testid="tc-save-msg" className="text-[11px] text-teal-700 text-center">{saveMsg}</p>}
                   <button
-                    onClick={saveProposal}
+                    onClick={() => { updateForm({ status: 'presented' }); saveProposal() }}
                     disabled={!selectedPatient || saving}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Save Draft
+                    <MessageSquare size={14} /> Mark as Presented
                   </button>
                 </>
               )}

@@ -146,6 +146,10 @@ export const api = {
     request('/api/v1/reports/builder/patient', { method: 'POST', body: JSON.stringify(filters) }),
   reportBuilderInsurance: (filters: Record<string, unknown>) =>
     request('/api/v1/reports/builder/insurance', { method: 'POST', body: JSON.stringify(filters) }),
+  reportCategory: (category: string, params: Record<string, string> = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return request(`/api/v1/reports/categories/${category}${q ? `?${q}` : ''}`)
+  },
   reportBundleMessage: (data: { filters: Record<string, unknown>; channel: string; subject?: string; body: string }) =>
     request('/api/v1/reports/builder/bundle-message', { method: 'POST', body: JSON.stringify(data) }),
 
