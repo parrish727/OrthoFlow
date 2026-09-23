@@ -55,12 +55,8 @@ export default function ClinicalEnhancements({ patientId }: Props) {
       authFetch(`/api/v1/patients/${patientId}/aligners`).then(r => r.ok ? r.json() : []),
       authFetch(`/api/v1/patients/${patientId}/family`).then(r => r.ok ? r.json() : { family: null, members: [] }),
     ]).then(([a, e, al, f]) => {
-      // Exclude allergy/medical alerts here — those are surfaced in the top Emergency Medical
-      // banner. Showing them again clutters the demo. Keep only other active alert types.
-      const others = (Array.isArray(a) ? a : []).filter(
-        (x: Alert) => x.is_active && x.alert_type !== 'allergy' && x.alert_type !== 'medical'
-      )
-      setAlerts(others)
+      // Emergency medical + all other alerts live here in the Clinical Overview.
+      setAlerts(Array.isArray(a) ? a.filter((x: Alert) => x.is_active) : [])
       setElastics(e)
       setAligners(al)
       setFamily(f)
@@ -88,14 +84,35 @@ export default function ClinicalEnhancements({ patientId }: Props) {
 
       {expanded && (
         <div className="mt-4 space-y-5">
-          {/* Alerts */}
-          {alerts.length > 0 && (
+          {/* Emergency Medical — allergies + medical conditions (must-see-first), inside Clinical Overview */}
+          {alerts.filter(a => a.alert_type === 'allergy' || a.alert_type === 'medical').length > 0 && (
+            <div data-testid="emergency-medical">
+              <p className="text-[10px] uppercase text-red-500 font-bold tracking-wider mb-2 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Emergency Medical
+              </p>
+              <div className="space-y-2">
+                {alerts.filter(a => a.alert_type === 'allergy' || a.alert_type === 'medical').map(alert => (
+                  <div key={alert.id} data-testid={`emergency-medical-item-${alert.id}`} className={`flex items-start gap-2 px-3 py-2 rounded-lg border-2 text-xs ${SEVERITY_COLORS[alert.severity] || 'bg-red-50 border-red-200'}`}>
+                    <span className="font-bold uppercase text-[9px] mt-0.5">{alert.severity}</span>
+                    <div className="flex-1">
+                      <span className="font-semibold">{alert.title}</span>
+                      {alert.description && <p className="text-[11px] opacity-80 mt-0.5">{alert.description}</p>}
+                    </div>
+                    <span className="text-[9px] opacity-60 capitalize">{alert.alert_type}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Alerts */}
+          {alerts.filter(a => a.alert_type !== 'allergy' && a.alert_type !== 'medical').length > 0 && (
             <div>
               <p className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-2 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" /> Alerts
               </p>
               <div className="space-y-2">
-                {alerts.slice(0, 3).map(alert => (
+                {alerts.filter(a => a.alert_type !== 'allergy' && a.alert_type !== 'medical').slice(0, 3).map(alert => (
                   <div key={alert.id} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-xs ${SEVERITY_COLORS[alert.severity] || 'bg-gray-100'}`}>
                     <span className="font-bold uppercase text-[9px] mt-0.5">{alert.severity}</span>
                     <div className="flex-1">
