@@ -144,6 +144,38 @@ async def enrich_priscilla(db) -> None:
         ))
     print(f"  ✅ Priscilla: ledger rebuilt — {len(events)} entries, ending balance ${running:,.2f}")
 
+    # ── Medical alerts — a small, legitimate, VARIED set relevant to orthodontic treatment.
+    # Idempotent by title; never stacks duplicates or per-tooth/timestamped junk.
+    from app.models.clinical import PatientAlert
+    from app.models.models import User
+    staff_uid = (await db.execute(
+        select(User.id).where(User.practice_id == DEMO_PRACTICE_ID).order_by(User.created_at).limit(1)
+    )).scalar_one_or_none()
+    CURATED_ALERTS = [
+        ("allergy", "critical", "Latex Allergy", "Use latex-free gloves, elastics, and materials."),
+        ("allergy", "high", "Nickel Allergy", "Avoid nickel-containing brackets/wires; use titanium or ceramic."),
+        ("allergy", "high", "Penicillin Allergy", "No penicillin-class antibiotics for premedication."),
+        ("medical", "critical", "Antibiotic Premedication Required", "Congenital heart condition — premedicate before invasive procedures per cardiologist."),
+        ("medical", "medium", "Asthma", "Inhaler on file; monitor during longer appointments."),
+    ]
+    existing_titles = {
+        t.lower() for t in (await db.execute(
+            select(PatientAlert.title).where(PatientAlert.patient_id == patient.id)
+        )).scalars().all()
+    }
+    added = 0
+    for atype, sev, title, desc in CURATED_ALERTS:
+        if title.lower() in existing_titles:
+            continue
+        db.add(PatientAlert(
+            id=uuid.uuid4(), practice_id=DEMO_PRACTICE_ID, patient_id=patient.id,
+            alert_type=atype, severity=sev, title=title, description=desc,
+            is_active=True, created_by=staff_uid,
+        ))
+        added += 1
+    if added:
+        print(f"  ✅ Priscilla: seeded {added} curated medical alert(s)")
+
     await db.flush()
 
 
