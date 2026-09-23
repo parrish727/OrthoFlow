@@ -537,8 +537,6 @@ export default function PatientDetail() {
 
         {/* ── CLINICAL CHART TAB ── */}
         <div style={{ display: patientTab === 'clinical' ? 'block' : 'none' }} data-testid="patient-clinical-panel">
-        {/* Emergency Medical — critical allergy/medical info surfaced at the top of the chart */}
-        {id && <EmergencyMedicalBanner patientId={id} />}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column — Demographics + Tooth Chart */}
           <div className="lg:col-span-2 space-y-6">
