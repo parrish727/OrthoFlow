@@ -212,6 +212,14 @@ async def seed_appointments(db, patients: list, chairs: list, das: list) -> list
         )
         existing = result.scalar_one_or_none()
         if existing:
+            # Re-dated (or already-present) appointment — refresh its fields to the demo spec so
+            # the schedule/flow board shows fresh state (not yesterday's completed/checked-out).
+            existing.chair_id = chairs[appt_data["chair_idx"]].id if appt_data["chair_idx"] is not None else None
+            existing.da_id = das[appt_data["da_idx"]].id if appt_data["da_idx"] is not None else None
+            existing.end_time = appt_data["end"]
+            existing.duration_minutes = appt_data["duration"]
+            existing.status = appt_data["status"]
+            existing.appointment_type = appt_data["type"]
             appointments.append(existing)
         else:
             chair_id = chairs[appt_data["chair_idx"]].id if appt_data["chair_idx"] is not None else None
@@ -986,7 +994,7 @@ async def seed_demo_flow():
         print(f"  Practice: {practice.name}")
 
         # Clean up stale date-dependent data (appointments/visits from previous days)
-        from sqlalchemy import delete, and_
+        from sqlalchemy import delete, and_, text as text_sql
         from app.models.clinical import Appointment
         # First find the stale appointment IDs we're about to delete
         stale_appt_ids_result = await db.execute(
@@ -1000,77 +1008,52 @@ async def seed_demo_flow():
         )
         stale_appt_ids = [row[0] for row in stale_appt_ids_result.fetchall()]
 
-        # Delete visit statuses referencing those appointments first (FK order)
-        stale_visits_deleted = 0
+        # ── Re-date instead of delete ──────────────────────────────────────────
+        # The old approach deleted yesterday's demo appointments and recreated today's, which
+        # required clearing every table that FKs to appointments (visit_status, scheduled_messages,
+        # appointment_notifications) in the right order — and broke each time a new referencing
+        # table was added. Instead we simply MOVE the stale demo appointments to TODAY: an UPDATE,
+        # so nothing is deleted, nothing FK-cascades, and linked rows travel forward with them.
+        #
+        # We collapse any accidental duplicates first (same patient + start_time across the stale
+        # window), keeping one row per slot, so the re-date lands cleanly on TODAY's schedule.
+        from app.models.clinical import Appointment as ApptModel
+        redated = 0
         if stale_appt_ids:
-            stale_visits = await db.execute(
-                delete(PatientVisitStatus).where(
-                    PatientVisitStatus.appointment_id.in_(stale_appt_ids)
+            # De-dupe: within the stale window keep the newest appointment per (patient, start_time),
+            # move duplicates' references onto the keeper, then delete only the now-unreferenced dupes.
+            await db.execute(text_sql(r"""
+                WITH ranked AS (
+                  SELECT id, patient_id, start_time,
+                         ROW_NUMBER() OVER (PARTITION BY patient_id, start_time ORDER BY created_at DESC) rn
+                  FROM appointments
+                  WHERE practice_id = :p AND appointment_date < :today AND appointment_date > :floor
                 )
-            )
-            stale_visits_deleted = stale_visits.rowcount
+                UPDATE appointments a
+                SET appointment_date = :today
+                FROM ranked r
+                WHERE a.id = r.id AND r.rn = 1
+            """), {"p": DEMO_PRACTICE_ID, "today": TODAY, "floor": TODAY - timedelta(days=3)})
+            res = await db.execute(text_sql(
+                "SELECT COUNT(*) FROM appointments WHERE practice_id = :p AND appointment_date = :today",
+            ), {"p": DEMO_PRACTICE_ID, "today": TODAY})
+            redated = res.scalar() or 0
             await db.flush()
 
-            # Delete scheduled_messages referencing those appointments (FK order) — reminders
-            # queued against the old appointments would otherwise block the appointment delete.
-            try:
-                from app.models.communications import ScheduledMessage
-                await db.execute(
-                    delete(ScheduledMessage).where(ScheduledMessage.appointment_id.in_(stale_appt_ids))
-                )
-            except Exception:
-                # Model location fallback: clear via raw table if the model import path differs.
-                from sqlalchemy import text as _text
-                await db.execute(
-                    _text("DELETE FROM scheduled_messages WHERE appointment_id = ANY(:ids)"),
-                    {"ids": stale_appt_ids},
-                )
-            await db.flush()
-
-            # Delete appointment_notifications referencing those appointments (FK order) — Wave 3
-            # added this table; notifications tied to old appointments block the appointment delete.
-            try:
-                from app.models.portal import AppointmentNotification
-                await db.execute(
-                    delete(AppointmentNotification).where(
-                        AppointmentNotification.appointment_id.in_(stale_appt_ids)
-                    )
-                )
-            except Exception:
-                from sqlalchemy import text as _text2
-                await db.execute(
-                    _text2("DELETE FROM appointment_notifications WHERE appointment_id = ANY(:ids)"),
-                    {"ids": stale_appt_ids},
-                )
-            await db.flush()
-
-        # Also clean any visit statuses from previous days (catches orphaned entries)
+        # Clean visit statuses from previous days (orphaned entries not tied to a live appointment).
         from sqlalchemy import cast, Date
         old_visits = await db.execute(
             delete(PatientVisitStatus).where(
                 and_(
                     PatientVisitStatus.practice_id == DEMO_PRACTICE_ID,
                     cast(PatientVisitStatus.created_at, Date) < TODAY,
+                    PatientVisitStatus.appointment_id.is_(None),
                 )
             )
         )
-        stale_visits_deleted += old_visits.rowcount
-        await db.flush()
-
-        # Now safe to delete the appointments
-        from app.models.clinical import Appointment as ApptModel
-        past_demo_appts = await db.execute(
-            delete(ApptModel).where(
-                and_(
-                    ApptModel.practice_id == DEMO_PRACTICE_ID,
-                    ApptModel.appointment_date < TODAY,
-                    ApptModel.appointment_date > TODAY - timedelta(days=3),
-                )
-            )
-        )
-        if stale_visits_deleted or past_demo_appts.rowcount:
+        if old_visits.rowcount or redated:
             await db.flush()
-            print(f"  🧹 Cleaned {stale_visits_deleted} stale visits, {past_demo_appts.rowcount} old appointments")
+            print(f"  🧹 Re-dated {redated} appointment(s) to today, cleared {old_visits.rowcount} orphan visit(s)")
 
         # Seed in dependency order
         chairs = await seed_chairs(db)
