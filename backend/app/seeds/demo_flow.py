@@ -1027,6 +1027,23 @@ async def seed_demo_flow():
                 )
             await db.flush()
 
+            # Delete appointment_notifications referencing those appointments (FK order) — Wave 3
+            # added this table; notifications tied to old appointments block the appointment delete.
+            try:
+                from app.models.portal import AppointmentNotification
+                await db.execute(
+                    delete(AppointmentNotification).where(
+                        AppointmentNotification.appointment_id.in_(stale_appt_ids)
+                    )
+                )
+            except Exception:
+                from sqlalchemy import text as _text2
+                await db.execute(
+                    _text2("DELETE FROM appointment_notifications WHERE appointment_id = ANY(:ids)"),
+                    {"ids": stale_appt_ids},
+                )
+            await db.flush()
+
         # Also clean any visit statuses from previous days (catches orphaned entries)
         from sqlalchemy import cast, Date
         old_visits = await db.execute(
