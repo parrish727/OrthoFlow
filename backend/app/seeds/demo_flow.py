@@ -247,6 +247,110 @@ async def seed_appointments(db, patients: list, chairs: list, das: list) -> list
     return appointments
 
 
+# Appointment templates used to fill out the rest of the month (variety across the calendar so
+# the monthly view looks like a real practice, not a single busy day). start/end are intraday
+# slots; type/status give the calendar realistic completed-vs-upcoming coloring.
+MONTH_APPT_SLOTS = [
+    {"start": time(8, 0), "end": time(8, 20), "duration": 20, "type": "Adjustment"},
+    {"start": time(8, 30), "end": time(8, 50), "duration": 20, "type": "Adjustment"},
+    {"start": time(9, 0), "end": time(9, 45), "duration": 45, "type": "Ortho Consultation"},
+    {"start": time(9, 30), "end": time(10, 30), "duration": 60, "type": "Bonding"},
+    {"start": time(10, 0), "end": time(10, 20), "duration": 20, "type": "Retainer Check"},
+    {"start": time(10, 30), "end": time(10, 50), "duration": 20, "type": "Observation"},
+    {"start": time(11, 0), "end": time(11, 20), "duration": 20, "type": "Adjustment"},
+    {"start": time(13, 0), "end": time(14, 0), "duration": 60, "type": "Records Appointment"},
+    {"start": time(13, 30), "end": time(13, 50), "duration": 20, "type": "Adjustment"},
+    {"start": time(14, 0), "end": time(14, 20), "duration": 20, "type": "Adjustment"},
+    {"start": time(14, 30), "end": time(15, 15), "duration": 45, "type": "Debond"},
+    {"start": time(15, 0), "end": time(15, 20), "duration": 20, "type": "Retainer Check"},
+    {"start": time(15, 30), "end": time(15, 50), "duration": 20, "type": "Adjustment"},
+]
+
+
+async def seed_month_appointments(db, patients: list, chairs: list, das: list) -> int:
+    """Fill the current ET month with appointments so the doctor sees a full monthly calendar.
+
+    Deterministic + idempotent: for every business day (Mon–Fri) of TODAY's month we generate a
+    stable set of appointments keyed by (patient, date, start_time). Re-running never duplicates
+    (existing rows are updated in place). TODAY itself is skipped here — the detailed intraday
+    schedule + flow board for today is owned by seed_appointments()/DEMO_APPOINTMENTS.
+
+    Past days are marked 'completed'; today-forward days are 'scheduled' so the calendar shows a
+    realistic completed-vs-upcoming mix. Counts per day vary deterministically by day-of-month so
+    the month doesn't look uniform.
+    """
+    import calendar as _calendar
+
+    result = await db.execute(
+        select(User).where(User.practice_id == DEMO_PRACTICE_ID, User.role == "front_desk")
+    )
+    front_desk_user = result.scalar_one_or_none()
+    created_by = front_desk_user.id if front_desk_user else None
+
+    if not patients:
+        return 0
+
+    year, month = TODAY.year, TODAY.month
+    days_in_month = _calendar.monthrange(year, month)[1]
+
+    created_or_updated = 0
+    for day in range(1, days_in_month + 1):
+        appt_date = date(year, month, day)
+        # Weekdays only (ortho practices are typically closed weekends).
+        if appt_date.weekday() >= 5:
+            continue
+        # Leave today to the detailed single-day seed (flow board depends on it).
+        if appt_date == TODAY:
+            continue
+
+        # Deterministic per-day appointment count (3–8) so the month varies but is stable.
+        count = 3 + (day * 7 + month) % 6
+        status = "completed" if appt_date < TODAY else "scheduled"
+
+        for i in range(count):
+            slot = MONTH_APPT_SLOTS[i % len(MONTH_APPT_SLOTS)]
+            patient = patients[(day + i) % len(patients)]
+            chair = chairs[(day + i) % len(chairs)] if chairs else None
+            da = das[(day + i) % len(das)] if das else None
+
+            existing_q = await db.execute(
+                select(Appointment).where(
+                    Appointment.practice_id == DEMO_PRACTICE_ID,
+                    Appointment.patient_id == patient.id,
+                    Appointment.appointment_date == appt_date,
+                    Appointment.start_time == slot["start"],
+                )
+            )
+            existing = existing_q.scalar_one_or_none()
+            if existing:
+                existing.end_time = slot["end"]
+                existing.duration_minutes = slot["duration"]
+                existing.appointment_type = slot["type"]
+                existing.status = status
+                existing.chair_id = chair.id if chair else None
+                existing.da_id = da.id if da else None
+            else:
+                db.add(Appointment(
+                    id=uuid.uuid4(),
+                    practice_id=DEMO_PRACTICE_ID,
+                    patient_id=patient.id,
+                    chair_id=chair.id if chair else None,
+                    da_id=da.id if da else None,
+                    appointment_date=appt_date,
+                    start_time=slot["start"],
+                    end_time=slot["end"],
+                    duration_minutes=slot["duration"],
+                    status=status,
+                    appointment_type=slot["type"],
+                    created_by=created_by,
+                ))
+            created_or_updated += 1
+
+    await db.flush()
+    print(f"  ✅ Month appointments: {created_or_updated} across {TODAY.strftime('%B %Y')}")
+    return created_or_updated
+
+
 async def seed_visit_statuses(db, patients: list, appointments: list, chairs: list) -> None:
     """Populate the patient flow board with visit statuses."""
     now = datetime.now(timezone.utc)
@@ -971,11 +1075,12 @@ async def seed_schedule_notes(db, das: list) -> None:
 async def seed_demo_flow():
     """Run all demo flow seeds in order."""
     global TODAY
-    # Use Eastern time since the demo practice is in US Eastern timezone
-    # This prevents the date mismatch when UTC flips to next day after 8 PM ET
-    from datetime import timezone as tz
-    eastern_offset = timedelta(hours=-4)  # EDT
-    TODAY = datetime.now(tz(eastern_offset)).date()
+    # Use Eastern time since the demo practice is in US Eastern timezone.
+    # Use a real IANA zone (America/New_York) rather than a hardcoded -4 offset: a fixed -4
+    # is only correct during EDT and silently breaks by an hour in EST (winter). Getting the
+    # ET *date* right is what keeps today's schedule on the correct calendar day.
+    from app.core.timeutil import EASTERN
+    TODAY = datetime.now(EASTERN).date()
     print(f"\n🌱 Seeding OrthoFlow demo data... (date: {TODAY})\n")
 
     # Seed CDT codes and appointment types (independent of practice)
@@ -993,73 +1098,36 @@ async def seed_demo_flow():
 
         print(f"  Practice: {practice.name}")
 
-        # Clean up stale date-dependent data (appointments/visits from previous days)
-        from sqlalchemy import delete, and_, text as text_sql
-        from app.models.clinical import Appointment
-        # First find the stale appointment IDs we're about to delete
-        stale_appt_ids_result = await db.execute(
-            select(Appointment.id).where(
-                and_(
-                    Appointment.practice_id == DEMO_PRACTICE_ID,
-                    Appointment.appointment_date < TODAY,
-                    Appointment.appointment_date > TODAY - timedelta(days=3),
-                )
-            )
-        )
-        stale_appt_ids = [row[0] for row in stale_appt_ids_result.fetchall()]
-
-        # ── Re-date instead of delete ──────────────────────────────────────────
-        # The old approach deleted yesterday's demo appointments and recreated today's, which
-        # required clearing every table that FKs to appointments (visit_status, scheduled_messages,
-        # appointment_notifications) in the right order — and broke each time a new referencing
-        # table was added. Instead we simply MOVE the stale demo appointments to TODAY: an UPDATE,
-        # so nothing is deleted, nothing FK-cascades, and linked rows travel forward with them.
+        # ── Keep today's single-day schedule fresh (idempotent, no fragile re-dating) ──────────
+        # Previously this block "re-dated" every stale appointment within a trailing window onto
+        # TODAY. That conflicts with a full-month calendar (past days must STAY in the past so they
+        # read as completed history) and was brittle. Instead we rely on idempotent creators:
+        #   • seed_appointments()        guarantees TODAY's detailed intraday schedule exists
+        #   • seed_month_appointments()  fills the rest of the month (past=completed, future=scheduled)
+        # Both are keyed by (patient, date, start_time), so re-running never duplicates.
         #
-        # We collapse any accidental duplicates first (same patient + start_time across the stale
-        # window), keeping one row per slot, so the re-date lands cleanly on TODAY's schedule.
-        from app.models.clinical import Appointment as ApptModel
-        redated = 0
-        if stale_appt_ids:
-            # De-dupe: within the stale window keep the newest appointment per (patient, start_time),
-            # move duplicates' references onto the keeper, then delete only the now-unreferenced dupes.
-            await db.execute(text_sql(r"""
-                WITH ranked AS (
-                  SELECT id, patient_id, start_time,
-                         ROW_NUMBER() OVER (PARTITION BY patient_id, start_time ORDER BY created_at DESC) rn
-                  FROM appointments
-                  WHERE practice_id = :p AND appointment_date < :today AND appointment_date > :floor
-                )
-                UPDATE appointments a
-                SET appointment_date = :today
-                FROM ranked r
-                WHERE a.id = r.id AND r.rn = 1
-            """), {"p": DEMO_PRACTICE_ID, "today": TODAY, "floor": TODAY - timedelta(days=3)})
-            res = await db.execute(text_sql(
-                "SELECT COUNT(*) FROM appointments WHERE practice_id = :p AND appointment_date = :today",
-            ), {"p": DEMO_PRACTICE_ID, "today": TODAY})
-            redated = res.scalar() or 0
-            await db.flush()
-
-        # Clean visit statuses from previous days (orphaned entries not tied to a live appointment).
-        from sqlalchemy import cast, Date
+        # The only stale state we must clear is yesterday's live flow-board entries (visit statuses),
+        # so today's board doesn't show patients still "seated"/"in treatment" from a prior day.
+        from sqlalchemy import delete, and_, cast, Date
+        from app.models.clinical import Appointment
         old_visits = await db.execute(
             delete(PatientVisitStatus).where(
                 and_(
                     PatientVisitStatus.practice_id == DEMO_PRACTICE_ID,
                     cast(PatientVisitStatus.created_at, Date) < TODAY,
-                    PatientVisitStatus.appointment_id.is_(None),
                 )
             )
         )
-        if old_visits.rowcount or redated:
+        if old_visits.rowcount:
             await db.flush()
-            print(f"  🧹 Re-dated {redated} appointment(s) to today, cleared {old_visits.rowcount} orphan visit(s)")
+            print(f"  🧹 Cleared {old_visits.rowcount} stale flow-board visit(s) from prior days")
 
         # Seed in dependency order
         chairs = await seed_chairs(db)
         das = await seed_dental_assistants(db)
         patients = await seed_patients(db)
         appointments = await seed_appointments(db, patients, chairs, das)
+        await seed_month_appointments(db, patients, chairs, das)
         await seed_visit_statuses(db, patients, appointments, chairs)
         await seed_staff_messaging(db)
         await seed_patient_messages(db, patients)

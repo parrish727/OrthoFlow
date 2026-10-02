@@ -121,33 +121,51 @@ async def startup():
     # Auto-seed demo data on startup (idempotent, ensures today's schedule/flow board populated)
     import os
     if os.environ.get("AUTO_SEED_DEMO", "true").lower() == "true":
+        from app.core import reseed_status
+        from app.core.timeutil import eastern_today
+
         try:
             from app.seeds.demo_flow import seed_demo_flow
             await seed_demo_flow()
+            reseed_status.record_success(eastern_today().isoformat())
             logger.info("Demo seed completed", extra={"context": {"event": "seed_complete"}})
         except Exception as e:
+            reseed_status.record_failure(str(e))
             logger.warning(
                 f"Demo seed on startup skipped: {e}",
                 extra={"context": {"event": "seed_skipped", "reason": str(e)}},
             )
 
-        # Background task: re-seed at midnight to keep today's schedule fresh
+        # Background task: re-seed just after Eastern midnight to keep today's schedule fresh.
         import asyncio
-        from datetime import datetime, timezone, timedelta
+        from app.core.timeutil import seconds_until_next_eastern_midnight, eastern_today as _et
 
         async def daily_reseed():
-            """Re-run seed at midnight each day so demo data stays current."""
+            """Re-run the demo seed just after each Eastern midnight so demo data stays current.
+
+            Scheduling is driven by America/New_York (not a fixed UTC offset) and waits until a
+            few minutes PAST midnight ET, so the seed always computes the new day's date — the
+            previous fixed-04:00-UTC schedule woke a second before ET midnight and seeded the
+            prior day. Outcome is recorded in reseed_status so a stale/failed reseed is visible
+            on the health endpoint instead of silently swallowed.
+            """
             while True:
-                now = datetime.now(timezone.utc)
-                tomorrow = (now + timedelta(days=1)).replace(hour=4, minute=0, second=0, microsecond=0)  # 4 AM UTC = midnight ET
-                wait_seconds = (tomorrow - now).total_seconds()
+                wait_seconds = seconds_until_next_eastern_midnight(margin_minutes=10)
                 await asyncio.sleep(wait_seconds)
                 try:
                     from app.seeds.demo_flow import seed_demo_flow
                     await seed_demo_flow()
-                    logger.info("Daily reseed completed", extra={"context": {"event": "daily_reseed"}})
+                    reseed_status.record_success(_et().isoformat())
+                    logger.info(
+                        "Daily reseed completed",
+                        extra={"context": {"event": "daily_reseed", "target_date": _et().isoformat()}},
+                    )
                 except Exception as e:
-                    logger.warning(f"Daily reseed failed: {e}", extra={"context": {"event": "reseed_failed", "reason": str(e)}})
+                    reseed_status.record_failure(str(e))
+                    logger.error(
+                        f"Daily reseed failed: {e}",
+                        extra={"context": {"event": "reseed_failed", "reason": str(e)}},
+                    )
 
         asyncio.create_task(daily_reseed())
 
