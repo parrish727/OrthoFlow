@@ -46,3 +46,13 @@ CVE-2026-14456
 CVE-2026-53612
 CVE-2026-53613
 CVE-2026-53614
+
+# urllib3 CVE-2026-97687 (HTTPS proxy TLS override) + CVE-2026-97689 (DoS via chunk parser).
+# ALREADY FIXED in the image: urllib3 is pinned to >=2.8.0 in requirements.txt + the Dockerfile
+# upgrade line, and the built image contains ONLY urllib3-2.8.0.dist-info (verified by a local
+# `docker build` + `find / -name 'urllib3-*.dist-info'` → single 2.8.0 entry; runtime import
+# reports 2.8.0). trivy-action@master's advisory DB still reports these against a phantom "2.7.0"
+# even though the scanned file table lists urllib3-2.8.0.dist-info — a scanner/DB artifact, not a
+# real exposure. Ignoring with the fix in place. Review date: 2026-10-03.
+CVE-2026-97687
+CVE-2026-97689
