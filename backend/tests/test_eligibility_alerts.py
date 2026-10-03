@@ -78,4 +78,6 @@ async def test_mcp_is_dormant_by_default():
 def test_mcp_status_reports_dormant():
     status = StediMCPClient(api_key="test_dummy").status()
     assert status["enabled"] is False
-    assert "2025-07-11" in status["url"]
+    # The status should report the configured Stedi MCP endpoint. Assert the host rather than a
+    # hardcoded dated path (the endpoint moved from /2025-07-11/mcp to /healthcare).
+    assert "stedi.com" in status["url"]
