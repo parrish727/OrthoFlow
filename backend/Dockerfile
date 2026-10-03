@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir --upgrade pip
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir --upgrade "msgpack>=1.2.1" "setuptools>=78.1.1" "pyasn1>=0.6.4"
+    pip install --no-cache-dir --upgrade "msgpack>=1.2.1" "setuptools>=78.1.1" "pyasn1>=0.6.4" "urllib3>=2.8.0"
 
 COPY . .
 

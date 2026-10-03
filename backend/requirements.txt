@@ -22,3 +22,6 @@ livekit-api>=0.7.0
 # Security: pinned to fix Trivy HIGH CVEs (2026-07-29)
 msgpack>=1.2.1
 setuptools>=78.1.1
+# Security: urllib3 CVE-2026-97687 (HTTPS proxy TLS override) + CVE-2026-97689 (DoS via
+# unbounded memory in chunk parser), both fixed in 2.8.0. Transitive via boto3/httpx. (2026-10-03)
+urllib3>=2.8.0
