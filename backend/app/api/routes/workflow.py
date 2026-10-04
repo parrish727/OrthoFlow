@@ -7,7 +7,7 @@ All endpoints are practice-scoped via JWT.
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from sqlalchemy import select, and_, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,9 @@ from app.core.auth import get_current_user
 from app.core.audit import audit_log
 from app.core.database import get_db
 from app.models.clinical import Patient, Appointment, AppointmentStatus
-from app.models.workflow import PatientVisitStatus, RecentPatientSearch, PatientDocument
+from app.models.workflow import PatientVisitStatus, RecentPatientSearch, PatientDocument, DocumentNotification
+from app.services import documents as doc_storage
+from app.services.document_exchange import scan_store_and_record
 
 router = APIRouter(prefix="/api/v1", tags=["workflow"])
 
@@ -63,18 +65,39 @@ class DocumentResponse(BaseModel):
     patient_id: str
     document_type: str
     title: str
-    file_url: str
+    file_url: str | None = None
+    original_filename: str | None = None
     file_size_bytes: int | None = None
     mime_type: str | None = None
-    uploaded_by: str
+    uploaded_by: str | None = None
+    uploaded_by_type: str = "staff"
+    direction: str = "office_to_patient"
     notes: str | None = None
     created_at: str
+
+
+def _document_response(doc: PatientDocument) -> "DocumentResponse":
+    return DocumentResponse(
+        id=str(doc.id),
+        patient_id=str(doc.patient_id),
+        document_type=doc.document_type,
+        title=doc.title,
+        file_url=doc.file_url,
+        original_filename=doc.original_filename,
+        file_size_bytes=doc.file_size_bytes,
+        mime_type=doc.mime_type,
+        uploaded_by=str(doc.uploaded_by) if doc.uploaded_by else None,
+        uploaded_by_type=doc.uploaded_by_type,
+        direction=doc.direction,
+        notes=doc.notes,
+        created_at=_ts(doc.created_at),
+    )
 
 
 class DocumentCreate(BaseModel):
     document_type: str = Field(..., min_length=1, max_length=50)
     title: str = Field(..., min_length=1, max_length=255)
-    file_url: str = Field(..., min_length=1, max_length=512)
+    file_url: str | None = Field(None, max_length=512)
     file_size_bytes: int | None = None
     mime_type: str | None = Field(None, max_length=100)
     notes: str | None = None
@@ -332,7 +355,7 @@ async def list_patient_documents(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all documents for a patient."""
+    """List all documents for a patient (both office-uploaded and patient-uploaded)."""
     query = (
         select(PatientDocument)
         .where(
@@ -345,86 +368,202 @@ async def list_patient_documents(
     )
     result = await db.execute(query)
     docs = result.scalars().all()
-
-    return [
-        DocumentResponse(
-            id=str(doc.id),
-            patient_id=str(doc.patient_id),
-            document_type=doc.document_type,
-            title=doc.title,
-            file_url=doc.file_url,
-            file_size_bytes=doc.file_size_bytes,
-            mime_type=doc.mime_type,
-            uploaded_by=str(doc.uploaded_by),
-            notes=doc.notes,
-            created_at=_ts(doc.created_at),
-        )
-        for doc in docs
-    ]
+    return [_document_response(doc) for doc in docs]
 
 
 @router.post("/patients/{patient_id}/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def create_patient_document(
     patient_id: str,
+    file: UploadFile = File(...),
+    document_type: str = Form(...),
+    title: str = Form(...),
+    notes: str | None = Form(None),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Office uploads a real file for a patient (office → patient).
+
+    Flow: ClamAV scan (fail-closed) → store in the private MinIO documents bucket → create the
+    single PatientDocument row → notify the patient (MyOrthoChart feed) → email the patient.
+    """
+    practice_uuid = uuid.UUID(user["practice_id"])
+    patient_uuid = uuid.UUID(patient_id)
+
+    # Patient must belong to this practice.
+    patient = (await db.execute(
+        select(Patient).where(Patient.id == patient_uuid, Patient.practice_id == practice_uuid)
+    )).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found")
+
+    # Idempotency guard: block an accidental double-submit (same patient + type + title in 60s).
+    from datetime import timedelta as _td
+    recent = (await db.execute(
+        select(PatientDocument).where(
+            PatientDocument.practice_id == practice_uuid,
+            PatientDocument.patient_id == patient_uuid,
+            PatientDocument.document_type == document_type,
+            PatientDocument.title == title,
+            PatientDocument.created_at >= datetime.now(timezone.utc) - _td(seconds=60),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if recent is not None:
+        return _document_response(recent)
+
+    content = await file.read()
+    doc = await scan_store_and_record(
+        db=db,
+        practice_id=practice_uuid,
+        patient_id=patient_uuid,
+        content=content,
+        filename=file.filename or "upload",
+        content_type=file.content_type,
+        document_type=document_type,
+        title=title,
+        direction="office_to_patient",
+        uploaded_by_type="staff",
+        uploaded_by=uuid.UUID(user["user_id"]),
+        notes=notes,
+    )
+
+    await audit_log(db, user["practice_id"], user["user_id"], "document_upload", "patient_documents", str(doc.id))
+    return _document_response(doc)
+
+
+@router.get("/patients/{patient_id}/documents/{document_id}/download")
+async def download_patient_document(
+    patient_id: str,
+    document_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a short-lived presigned URL for a document (staff, scoped to their practice)."""
+    doc = (await db.execute(
+        select(PatientDocument).where(
+            PatientDocument.id == uuid.UUID(document_id),
+            PatientDocument.patient_id == uuid.UUID(patient_id),
+            PatientDocument.practice_id == uuid.UUID(user["practice_id"]),
+        )
+    )).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    if not doc.storage_key:
+        # Legacy row with only an external file_url.
+        return {"url": doc.file_url}
+
+    url = await doc_storage.issue_download_url(doc.storage_key, download_name=doc.original_filename or doc.title)
+    await audit_log(db, user["practice_id"], user["user_id"], "document_download", "patient_documents", str(doc.id))
+    return {"url": url, "expires_in": doc_storage.PRESIGN_EXPIRY_SECONDS}
+
+
+@router.post("/patients/{patient_id}/documents/reference", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+async def create_document_reference(
+    patient_id: str,
     payload: DocumentCreate,
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a document reference (file already in MinIO, pass the URL)."""
-    # Idempotency guard: block an accidental double-submit (same patient + type + title created
-    # within the last 60s). Legitimate later revisions (different title/timestamp) still create a
-    # new versioned document — TC proposals are intentionally kept as a version history.
-    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    """Create a metadata-only / reference document record (NO file upload).
+
+    For INTERNAL, server-originated records such as archived TC proposals, where the "document" is
+    a reference/summary rather than a user-uploaded file. Real file uploads use the multipart
+    POST .../documents endpoint (scan + MinIO). Keeps the 60s idempotency guard; shared with the
+    patient by default so it appears in MyOrthoChart like other chart documents.
+    """
+    practice_uuid = uuid.UUID(user["practice_id"])
+    patient_uuid = uuid.UUID(patient_id)
+    from datetime import timedelta as _td
     recent = (await db.execute(
-        select(PatientDocument.id).where(
-            PatientDocument.practice_id == uuid.UUID(user["practice_id"]),
-            PatientDocument.patient_id == uuid.UUID(patient_id),
+        select(PatientDocument).where(
+            PatientDocument.practice_id == practice_uuid,
+            PatientDocument.patient_id == patient_uuid,
             PatientDocument.document_type == payload.document_type,
             PatientDocument.title == payload.title,
-            PatientDocument.created_at >= _dt.now(_tz.utc) - _td(seconds=60),
+            PatientDocument.created_at >= datetime.now(timezone.utc) - _td(seconds=60),
         ).limit(1)
-    )).first()
+    )).scalar_one_or_none()
     if recent is not None:
-        existing = (await db.execute(
-            select(PatientDocument).where(PatientDocument.id == recent[0])
-        )).scalar_one()
-        return DocumentResponse(
-            id=str(existing.id), patient_id=str(existing.patient_id),
-            document_type=existing.document_type, title=existing.title,
-            file_url=existing.file_url, file_size_bytes=existing.file_size_bytes,
-            mime_type=existing.mime_type, uploaded_by=str(existing.uploaded_by),
-            notes=existing.notes, created_at=_ts(existing.created_at),
-        )
+        return _document_response(recent)
+
     doc = PatientDocument(
         id=uuid.uuid4(),
-        practice_id=uuid.UUID(user["practice_id"]),
-        patient_id=uuid.UUID(patient_id),
+        practice_id=practice_uuid,
+        patient_id=patient_uuid,
         document_type=payload.document_type,
         title=payload.title,
         file_url=payload.file_url,
         file_size_bytes=payload.file_size_bytes,
         mime_type=payload.mime_type,
         uploaded_by=uuid.UUID(user["user_id"]),
+        uploaded_by_type="staff",
+        direction="office_to_patient",
+        shared_with_patient=True,
+        scan_status="clean",
         notes=payload.notes,
     )
     db.add(doc)
     await db.commit()
     await db.refresh(doc)
+    await audit_log(db, user["practice_id"], user["user_id"], "document_reference", "patient_documents", str(doc.id))
+    return _document_response(doc)
 
-    await audit_log(db, user["practice_id"], user["user_id"], "document_upload", "patient_documents", str(doc.id))
 
-    return DocumentResponse(
-        id=str(doc.id),
-        patient_id=str(doc.patient_id),
-        document_type=doc.document_type,
-        title=doc.title,
-        file_url=doc.file_url,
-        file_size_bytes=doc.file_size_bytes,
-        mime_type=doc.mime_type,
-        uploaded_by=str(doc.uploaded_by),
-        notes=doc.notes,
-        created_at=_ts(doc.created_at),
-    )
+@router.get("/document-notifications")
+async def list_office_document_notifications(
+    patient_id: str | None = Query(None),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Office-audience document notifications (patient → office uploads) + unread count.
+
+    Optionally filter to a single patient (used on the patient detail page).
+    """
+    conditions = [
+        DocumentNotification.practice_id == uuid.UUID(user["practice_id"]),
+        DocumentNotification.audience == "office",
+    ]
+    if patient_id:
+        conditions.append(DocumentNotification.patient_id == uuid.UUID(patient_id))
+    rows = (await db.execute(
+        select(DocumentNotification).where(and_(*conditions))
+        .order_by(DocumentNotification.created_at.desc()).limit(50)
+    )).scalars().all()
+    return {
+        "unread": sum(1 for n in rows if not n.is_read),
+        "notifications": [
+            {
+                "id": str(n.id),
+                "patient_id": str(n.patient_id),
+                "document_id": str(n.document_id),
+                "title": n.title,
+                "body": n.body,
+                "action_url": n.action_url,
+                "is_read": n.is_read,
+                "created_at": _ts(n.created_at),
+            }
+            for n in rows
+        ],
+    }
+
+
+@router.patch("/document-notifications/{notification_id}/read")
+async def mark_office_document_notification_read(
+    notification_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    n = (await db.execute(
+        select(DocumentNotification).where(
+            DocumentNotification.id == uuid.UUID(notification_id),
+            DocumentNotification.practice_id == uuid.UUID(user["practice_id"]),
+            DocumentNotification.audience == "office",
+        )
+    )).scalar_one_or_none()
+    if not n:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found")
+    n.is_read = True
+    await db.commit()
+    return {"status": "ok"}
 
 
 # ── Schedule Patient Popup ────────────────────────────────────────────────────

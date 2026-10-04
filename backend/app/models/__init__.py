@@ -90,6 +90,7 @@ from app.models.workflow import (  # noqa: F401
     PatientVisitStatus,
     RecentPatientSearch,
     PatientDocument,
+    DocumentNotification,
 )
 
 from app.models.messaging import (  # noqa: F401

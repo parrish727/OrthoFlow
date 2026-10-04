@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from pydantic import BaseModel, Field
@@ -20,6 +20,9 @@ from app.core.audit import audit_log
 from app.core.auth import hash_password, verify_password
 from app.models.portal import PortalAccount, PortalForm, PortalFormSubmission, PortalMessage, AppointmentNotification
 from app.models.clinical import Patient, Appointment, TreatmentNote
+from app.models.workflow import PatientDocument, DocumentNotification
+from app.services import documents as doc_storage
+from app.services.document_exchange import scan_store_and_record
 
 logger = logging.getLogger(__name__)
 
@@ -845,17 +848,17 @@ async def get_patient_documents(
     patient: dict = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Patient-facing documents — letters, contracts, consents, and uploads on their chart.
+    """Patient-facing documents — the SAME PatientDocument rows the office sees (not copies).
 
-    Mirrors the OrthoFlow clinical/admin Documents view so patients can see the same records
-    (read-only) in MyOrthoChart.
+    Shows office→patient documents shared with the patient, plus the patient's own uploads. Never
+    returns raw object URLs — the client fetches a short-lived presigned link via the download
+    endpoint when the patient opens a file.
     """
-    from app.models.workflow import PatientDocument
-
     rows = (await db.execute(
         select(PatientDocument).where(
-            PatientDocument.patient_id == patient["patient_id"],
-            PatientDocument.practice_id == patient["practice_id"],
+            PatientDocument.patient_id == uuid.UUID(patient["patient_id"]),
+            PatientDocument.practice_id == uuid.UUID(patient["practice_id"]),
+            PatientDocument.shared_with_patient == True,  # noqa: E712
         ).order_by(PatientDocument.created_at.desc())
     )).scalars().all()
 
@@ -865,13 +868,131 @@ async def get_patient_documents(
                 "id": str(d.id),
                 "document_type": d.document_type,
                 "title": d.title,
-                "file_url": d.file_url,
+                "original_filename": d.original_filename,
                 "mime_type": d.mime_type,
+                "direction": d.direction,
+                "uploaded_by_type": d.uploaded_by_type,
+                "has_file": bool(d.storage_key),
                 "created_at": d.created_at.isoformat() if d.created_at else None,
             }
             for d in rows
         ]
     }
+
+
+@router.post("/documents", status_code=status.HTTP_201_CREATED)
+async def upload_patient_document(
+    file: UploadFile = File(...),
+    document_type: str = Form("patient_upload"),
+    title: str | None = Form(None),
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient uploads a file (patient → office).
+
+    Flow: ClamAV scan (fail-closed) → store in the private MinIO documents bucket → create the
+    single PatientDocument row → notify the office (OrthoFlow feed) → email the patient a
+    confirmation. Auto-visible on the chart (no staff-review gate).
+    """
+    content = await file.read()
+    doc = await scan_store_and_record(
+        db=db,
+        practice_id=uuid.UUID(patient["practice_id"]),
+        patient_id=uuid.UUID(patient["patient_id"]),
+        content=content,
+        filename=file.filename or "upload",
+        content_type=file.content_type,
+        document_type=document_type or "patient_upload",
+        title=title or (file.filename or "Patient upload"),
+        direction="patient_to_office",
+        uploaded_by_type="patient",
+        uploaded_by=None,
+        notes=None,
+    )
+    await audit_log(db, patient["practice_id"], patient["account_id"], "portal_document_upload", "patient_documents", str(doc.id))
+    return {
+        "id": str(doc.id),
+        "title": doc.title,
+        "document_type": doc.document_type,
+        "original_filename": doc.original_filename,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+    }
+
+
+@router.get("/documents/{document_id}/download")
+async def download_patient_portal_document(
+    document_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return a short-lived presigned URL for a document on the patient's OWN chart only."""
+    doc = (await db.execute(
+        select(PatientDocument).where(
+            PatientDocument.id == uuid.UUID(document_id),
+            PatientDocument.patient_id == uuid.UUID(patient["patient_id"]),
+            PatientDocument.practice_id == uuid.UUID(patient["practice_id"]),
+            PatientDocument.shared_with_patient == True,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    if not doc.storage_key:
+        if doc.file_url:
+            return {"url": doc.file_url}
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No file attached to this record")
+    url = await doc_storage.issue_download_url(doc.storage_key, download_name=doc.original_filename or doc.title)
+    await audit_log(db, patient["practice_id"], patient["account_id"], "portal_document_download", "patient_documents", str(doc.id))
+    return {"url": url, "expires_in": doc_storage.PRESIGN_EXPIRY_SECONDS}
+
+
+@router.get("/document-notifications")
+async def list_document_notifications(
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Patient-audience document notifications (office → patient uploads) + unread count."""
+    rows = (await db.execute(
+        select(DocumentNotification).where(
+            DocumentNotification.patient_id == uuid.UUID(patient["patient_id"]),
+            DocumentNotification.practice_id == uuid.UUID(patient["practice_id"]),
+            DocumentNotification.audience == "patient",
+        ).order_by(DocumentNotification.created_at.desc()).limit(50)
+    )).scalars().all()
+    return {
+        "unread": sum(1 for n in rows if not n.is_read),
+        "notifications": [
+            {
+                "id": str(n.id),
+                "document_id": str(n.document_id),
+                "title": n.title,
+                "body": n.body,
+                "action_url": n.action_url,
+                "is_read": n.is_read,
+                "created_at": n.created_at.isoformat() if n.created_at else None,
+            }
+            for n in rows
+        ],
+    }
+
+
+@router.patch("/document-notifications/{notification_id}/read")
+async def mark_document_notification_read(
+    notification_id: str,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    n = (await db.execute(
+        select(DocumentNotification).where(
+            DocumentNotification.id == uuid.UUID(notification_id),
+            DocumentNotification.patient_id == uuid.UUID(patient["patient_id"]),
+            DocumentNotification.audience == "patient",
+        )
+    )).scalar_one_or_none()
+    if not n:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found")
+    n.is_read = True
+    await db.commit()
+    return {"status": "ok"}
 
 
 # ── Reschedule (Patient-facing) ──────────────────────────────────────────────
