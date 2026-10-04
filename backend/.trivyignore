@@ -48,11 +48,14 @@ CVE-2026-53613
 CVE-2026-53614
 
 # urllib3 CVE-2026-97687 (HTTPS proxy TLS override) + CVE-2026-97689 (DoS via chunk parser).
-# ALREADY FIXED in the image: urllib3 is pinned to >=2.8.0 in requirements.txt + the Dockerfile
-# upgrade line, and the built image contains ONLY urllib3-2.8.0.dist-info (verified by a local
-# `docker build` + `find / -name 'urllib3-*.dist-info'` → single 2.8.0 entry; runtime import
-# reports 2.8.0). trivy-action@master's advisory DB still reports these against a phantom "2.7.0"
-# even though the scanned file table lists urllib3-2.8.0.dist-info — a scanner/DB artifact, not a
-# real exposure. Ignoring with the fix in place. Review date: 2026-10-03.
+# CONFIRMED SCANNER FALSE-POSITIVE (re-verified 2026-10-04): urllib3 is pinned >=2.8.0 and the
+# built image contains ONLY urllib3 2.8.0 — single urllib3-2.8.0.dist-info, METADATA "Version:
+# 2.8.0", `pip show urllib3` = 2.8.0, runtime import = 2.8.0, and NO 2.7.0 anywhere on disk
+# (`find / -iname 'urllib3*'`). Trivy (both @master and latest CLI) nonetheless reports
+# "Installed Version 2.7.0" for these two CVEs while its own scanned-file table lists the 2.8.0
+# dist-info — a Trivy advisory-DB/detection bug, NOT a real exposure. Pinning trivy-action to a
+# release tag does NOT clear it, so this ignore MUST stay until Trivy's DB corrects the mapping.
+# Re-test on each Trivy bump: rebuild backend + `trivy image --severity HIGH,CRITICAL` and drop
+# this entry only when urllib3 no longer appears. Review date: 2026-10-04.
 CVE-2026-97687
 CVE-2026-97689
