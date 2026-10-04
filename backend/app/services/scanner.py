@@ -15,7 +15,7 @@ CLAMAV_PORT = int(_clamav_url.split(":")[1]) if ":" in _clamav_url else 3310
 
 # File validation
 ALLOWED_MIME_PREFIXES = [b"%PDF", b"\xff\xd8\xff", b"\x89PNG"]  # PDF, JPEG, PNG
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB — accommodates modern iPhone/Android high-res photos (HEIC, 48MP JPEG)
 
 
 async def scan_file(content: bytes, filename: str) -> dict:
@@ -83,9 +83,13 @@ async def _clamav_instream(content: bytes) -> dict:
 
 
 def _validate_file_type(content: bytes, filename: str) -> bool:
-    """Validate file type by magic bytes and extension."""
+    """Validate file type by magic bytes and extension.
+
+    Supports the formats patients/offices exchange: PDF, JPEG, PNG, TIFF, and the HEIC/HEIF +
+    WebP formats modern phones produce (iPhone defaults to HEIC; some Android cameras use WebP).
+    """
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    allowed_extensions = {"pdf", "png", "jpg", "jpeg", "tiff", "tif"}
+    allowed_extensions = {"pdf", "png", "jpg", "jpeg", "tiff", "tif", "heic", "heif", "webp"}
 
     if ext not in allowed_extensions:
         return False
@@ -96,6 +100,18 @@ def _validate_file_type(content: bytes, filename: str) -> bool:
     if ext in ("jpg", "jpeg") and not content[:3] == b"\xff\xd8\xff":
         return False
     if ext == "png" and not content[:4] == b"\x89PNG":
+        return False
+    if ext in ("tiff", "tif") and content[:4] not in (b"II*\x00", b"MM\x00*"):
+        return False
+    # HEIC/HEIF are ISO-BMFF: bytes 4-8 are 'ftyp', then a brand like heic/heix/hevc/heif/mif1/msf1.
+    if ext in ("heic", "heif"):
+        if content[4:8] != b"ftyp":
+            return False
+        brand = content[8:12]
+        if brand not in (b"heic", b"heix", b"hevc", b"hevx", b"heif", b"mif1", b"msf1"):
+            return False
+    # WebP: 'RIFF' .... 'WEBP'
+    if ext == "webp" and not (content[:4] == b"RIFF" and content[8:12] == b"WEBP"):
         return False
 
     return True

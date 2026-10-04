@@ -9,7 +9,7 @@ import {
   ChevronRight, LogOut, User, AlertCircle, Loader2, Home, Video,
   Menu, X, CreditCard, Shield, Settings, HelpCircle, Archive,
   BookmarkCheck, Bell, Phone, Monitor, ChevronLeft, Search,
-  MapPin, UserCircle, Inbox, CalendarCheck,
+  MapPin, UserCircle, Inbox, CalendarCheck, Upload,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -109,7 +109,12 @@ export default function PatientPortal() {
     insurance: { payer_name: string; plan_name: string; subscriber_id: string; group_number: string }[];
     recent_payments: { description: string; amount: number; date: string; method: string | null; is_auto_pay?: boolean; auto_pay_status?: 'resolved' | 'failed' | null }[];
   } | null>(null)
-  const [documents, setDocuments] = useState<{ id: string; document_type: string; title: string; file_url: string; mime_type: string | null; created_at: string | null }[]>([])
+  const [documents, setDocuments] = useState<{ id: string; document_type: string; title: string; original_filename: string | null; mime_type: string | null; direction: string; uploaded_by_type: string; has_file: boolean; created_at: string | null }[]>([])
+  const [docNotifs, setDocNotifs] = useState<{ id: string; document_id: string; title: string; body: string | null; is_read: boolean; created_at: string | null }[]>([])
+  const [docUploading, setDocUploading] = useState(false)
+  const [docUploadMsg, setDocUploadMsg] = useState('')
+  const [docDownloadingId, setDocDownloadingId] = useState<string | null>(null)
+  const docFileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
 
   // Video state
@@ -198,7 +203,7 @@ export default function PatientPortal() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [dashRes, apptRes, msgRes, formRes, progRes, billRes, docRes, notifRes] = await Promise.all([
+      const [dashRes, apptRes, msgRes, formRes, progRes, billRes, docRes, notifRes, docNotifRes] = await Promise.all([
         portalRequest('/api/v1/portal/dashboard'),
         portalRequest('/api/v1/portal/appointments'),
         portalRequest('/api/v1/portal/messages'),
@@ -207,6 +212,7 @@ export default function PatientPortal() {
         portalRequest('/api/v1/portal/billing'),
         portalRequest('/api/v1/portal/documents'),
         portalRequest('/api/v1/portal/notifications'),
+        portalRequest('/api/v1/portal/document-notifications'),
       ])
       if (dashRes.ok) setDashboard(await dashRes.json())
       if (apptRes.ok) { const d = await apptRes.json(); setAppointments(d.appointments || []) }
@@ -216,6 +222,7 @@ export default function PatientPortal() {
       if (billRes.ok) setBilling(await billRes.json())
       if (docRes.ok) { const d = await docRes.json(); setDocuments(d.documents || []) }
       if (notifRes.ok) { const d = await notifRes.json(); setNotifications(d.notifications || []) }
+      if (docNotifRes.ok) { const d = await docNotifRes.json(); setDocNotifs(d.notifications || []) }
     } catch {}
     setLoading(false)
   }, [portalRequest])
@@ -233,6 +240,55 @@ export default function PatientPortal() {
     const r = await portalRequest(`/api/v1/portal/appointments/${id}/cancel`, { method: 'POST', body: '{}' })
     if (r.ok) loadAll()
   }, [portalRequest, loadAll])
+
+  // Upload a document to the office (patient → office). Multipart, so use a direct fetch rather
+  // than portalRequest (which forces a JSON content-type when a body is present).
+  const uploadDocument = useCallback(async (file: File) => {
+    setDocUploading(true)
+    setDocUploadMsg('')
+    try {
+      const token = localStorage.getItem('portal_token')
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('document_type', 'patient_upload')
+      fd.append('title', file.name)
+      const res = await fetch(`${baseUrl}/api/v1/portal/documents`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      })
+      if (res.ok) {
+        setDocUploadMsg('Uploaded ✓ — your office has been notified')
+        await loadAll()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setDocUploadMsg(err.detail || 'Upload failed')
+      }
+    } catch {
+      setDocUploadMsg('Upload failed')
+    }
+    setDocUploading(false)
+    if (docFileRef.current) docFileRef.current.value = ''
+  }, [loadAll])
+
+  // Open a document via a short-lived presigned URL (never a raw object URL).
+  const openDocument = useCallback(async (docId: string) => {
+    setDocDownloadingId(docId)
+    try {
+      const res = await portalRequest(`/api/v1/portal/documents/${docId}/download`)
+      if (res.ok) {
+        const { url } = await res.json()
+        if (url) window.open(url, '_blank', 'noopener')
+      }
+    } catch {}
+    setDocDownloadingId(null)
+  }, [portalRequest])
+
+  const markDocNotifRead = useCallback(async (id: string) => {
+    await portalRequest(`/api/v1/portal/document-notifications/${id}/read`, { method: 'PATCH' })
+    setDocNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+  }, [portalRequest])
 
   const markNotifRead = useCallback(async (id: string) => {
     const r = await portalRequest(`/api/v1/portal/notifications/${id}/read`, { method: 'PATCH', body: '{}' })
@@ -806,32 +862,81 @@ export default function PatientPortal() {
         {/* ═══ DOCUMENTS ═══ */}
         {activeSection === 'documents' && (
           <div className="space-y-4" data-testid="portal-documents">
-            <h2 className="text-xl font-semibold text-gray-900">Documents</h2>
-            <p className="text-sm text-gray-500">Letters, contracts, and records shared by your orthodontic office.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Documents</h2>
+                <p className="text-sm text-gray-500">Letters, contracts, and records shared with your orthodontic office — and files you upload.</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {docUploadMsg && <span className="text-[11px] text-gray-500" data-testid="portal-doc-upload-msg">{docUploadMsg}</span>}
+                <input
+                  ref={docFileRef}
+                  type="file"
+                  accept="image/*,.pdf,.heic,.heif"
+                  className="hidden"
+                  data-testid="portal-doc-upload-input"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadDocument(f) }}
+                />
+                <button
+                  onClick={() => docFileRef.current?.click()}
+                  disabled={docUploading}
+                  data-testid="portal-doc-upload-btn"
+                  className="flex items-center gap-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 px-3 py-2 rounded-lg transition-colors"
+                >
+                  {docUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {docUploading ? 'Uploading…' : 'Upload'}
+                </button>
+              </div>
+            </div>
+
+            {docNotifs.filter(n => !n.is_read).length > 0 && (
+              <div className="bg-teal-50 border border-teal-100 rounded-xl divide-y divide-teal-100" data-testid="portal-doc-notifs">
+                {docNotifs.filter(n => !n.is_read).map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => markDocNotifRead(n.id)}
+                    className="w-full text-left flex items-start gap-2 px-4 py-2.5"
+                    data-testid={`portal-doc-notif-${n.id}`}
+                  >
+                    <Bell size={14} className="text-teal-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{n.title}</p>
+                      {n.body && <p className="text-xs text-gray-500">{n.body}</p>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {documents.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
                 <FileText size={28} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-400">No documents shared yet.</p>
+                <p className="text-sm text-gray-400">No documents yet. Upload a file to share it with your office.</p>
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
-                {documents.map(d => (
-                  <a
-                    key={d.id}
-                    href={d.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    data-testid={`portal-document-${d.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
-                  >
-                    <FileText size={16} className="text-teal-600 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-800 truncate">{d.title}</p>
-                      <p className="text-[11px] text-gray-400 capitalize">{d.document_type.replace(/_/g, ' ')}{d.created_at ? ` · ${new Date(d.created_at).toLocaleDateString()}` : ''}</p>
-                    </div>
-                    <ChevronRight size={16} className="text-gray-400 shrink-0" />
-                  </a>
-                ))}
+                {documents.map(d => {
+                  const mine = d.direction === 'patient_to_office' || d.uploaded_by_type === 'patient'
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => d.has_file && openDocument(d.id)}
+                      disabled={docDownloadingId === d.id || !d.has_file}
+                      data-testid={`portal-document-${d.id}`}
+                      className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      <FileText size={16} className="text-teal-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 truncate flex items-center gap-1.5">
+                          {d.title}
+                          {mine && <span className="text-[9px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">You uploaded</span>}
+                        </p>
+                        <p className="text-[11px] text-gray-400 capitalize">{d.document_type.replace(/_/g, ' ')}{d.created_at ? ` · ${new Date(d.created_at).toLocaleDateString()}` : ''}</p>
+                      </div>
+                      {docDownloadingId === d.id ? <Loader2 size={16} className="animate-spin text-gray-400 shrink-0" /> : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>

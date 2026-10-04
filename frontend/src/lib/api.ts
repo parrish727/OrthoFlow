@@ -39,10 +39,28 @@ export const api = {
 
   // Patient Documents (Administrative tab)
   getPatientDocuments: (patientId: string) => request(`/api/v1/patients/${patientId}/documents`),
+  // Metadata-only / reference record (e.g. archived TC proposals) — no file upload.
   createPatientDocument: (
     patientId: string,
     data: { document_type: string; title: string; file_url?: string; mime_type?: string; file_size_bytes?: number; notes?: string },
-  ) => request(`/api/v1/patients/${patientId}/documents`, { method: 'POST', body: JSON.stringify(data) }),
+  ) => request(`/api/v1/patients/${patientId}/documents/reference`, { method: 'POST', body: JSON.stringify(data) }),
+  // Real file upload (office → patient): multipart, server-side ClamAV scan + MinIO storage.
+  uploadPatientDocument: (patientId: string, file: File, documentType: string, title: string, notes?: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('document_type', documentType)
+    fd.append('title', title)
+    if (notes) fd.append('notes', notes)
+    return request(`/api/v1/patients/${patientId}/documents`, { method: 'POST', body: fd })
+  },
+  // Returns a short-lived presigned URL for a document (staff).
+  getDocumentDownloadUrl: (patientId: string, documentId: string) =>
+    request(`/api/v1/patients/${patientId}/documents/${documentId}/download`),
+  // Office-side document notifications (patient → office uploads).
+  getDocumentNotifications: (patientId?: string) =>
+    request(`/api/v1/document-notifications${patientId ? `?patient_id=${patientId}` : ''}`),
+  markDocumentNotificationRead: (notificationId: string) =>
+    request(`/api/v1/document-notifications/${notificationId}/read`, { method: 'PATCH' }),
 
   // Clinical — Phase 1
   getPatients: (params: { search?: string; status?: string; page?: number; size?: number }) => {
