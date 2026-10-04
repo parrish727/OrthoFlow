@@ -115,7 +115,7 @@ jobs:
 
       # Container vulnerability scanning — blocks on critical/high CVEs
       - name: Trivy Scan (Backend)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
           format: 'table'
@@ -125,7 +125,7 @@ jobs:
           trivyignores: backend/.trivyignore
 
       - name: Trivy Scan (Frontend)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
           format: 'table'
