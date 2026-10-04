@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # LLM — Anthropic Claude only for production inference
     LLM_PROVIDER: str = "anthropic"  # anthropic | ollama (ollama for local dev/embeddings only)
     ANTHROPIC_API_KEY: str = ""
+    # Model used for all Anthropic text-generation calls. Centralized here (and overridable via
+    # the ANTHROPIC_MODEL env var) so the model can be swapped WITHOUT a code change or redeploy —
+    # set ANTHROPIC_MODEL in the environment and restart. Default: Claude Haiku 4.5.
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
     OLLAMA_URL: str = "http://localhost:11435"
     OLLAMA_MODEL: str = "nomic-embed-text"  # embeddings only
 
