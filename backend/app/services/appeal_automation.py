@@ -97,7 +97,7 @@ CORRECTIVE_ACTIONS: [Comma-separated list of corrections needed]"""
                     "content-type": "application/json",
                 },
                 json={
-                    "model": "claude-haiku-4-5-20251001",
+                    "model": settings.ANTHROPIC_MODEL,
                     "max_tokens": 2048,
                     "messages": [{"role": "user", "content": prompt}],
                 },
