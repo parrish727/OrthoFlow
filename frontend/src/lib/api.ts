@@ -262,6 +262,17 @@ export const api = {
   },
   deleteImage: (imageId: string) =>
     request(`/api/v1/imaging/${imageId}`, { method: 'DELETE' }),
+
+  // Cephalometric tracing (Ceph Suite Phase A)
+  getCephAnalyses: () => request('/api/v1/ceph/analyses'),
+  getPatientTracings: (patientId: string) => request(`/api/v1/ceph/patients/${patientId}/tracings`),
+  getCephTracing: (tracingId: string) => request(`/api/v1/ceph/tracings/${tracingId}`),
+  createCephTracing: (data: { image_id: string; analysis_type: string; landmarks?: Record<string, { x: number; y: number }>; calibration?: { px_per_mm: number; method?: string; ref_mm?: number; ref_px?: number }; is_ai_assisted?: boolean }) =>
+    request('/api/v1/ceph/tracings', { method: 'POST', body: JSON.stringify(data) }),
+  updateCephTracing: (tracingId: string, data: { landmarks?: Record<string, { x: number; y: number }>; analysis_type?: string; calibration?: { px_per_mm: number; method?: string; ref_mm?: number; ref_px?: number }; notes?: string }) =>
+    request(`/api/v1/ceph/tracings/${tracingId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  finalizeCephTracing: (tracingId: string) =>
+    request(`/api/v1/ceph/tracings/${tracingId}/finalize`, { method: 'POST' }),
   getImagingAlerts: (params?: { status?: string }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

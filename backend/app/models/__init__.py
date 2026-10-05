@@ -114,3 +114,8 @@ from app.models.ortho_ops import (  # noqa: F401
     AutomationRun,
     DoctorLetterStyle,
 )
+
+from app.models.ceph import (  # noqa: F401
+    CephTracing,
+    CephAnalysisDefinition,
+)
