@@ -258,3 +258,82 @@ def polygons_for(landmarks: dict) -> dict[str, list[dict]]:
         if len(pts) >= 2:
             out[name] = pts
     return out
+
+
+# ── Superimposition (Phase D) ────────────────────────────────────────────────────
+# Register a later tracing onto an earlier one on STABLE reference points (anterior cranial base
+# S–N by default), then measure how each landmark moved between timepoints. A 2-point similarity
+# transform (translate + rotate, scale normalized out via calibration or the reference distance)
+# maps the later tracing into the baseline frame so deltas reflect real change, not head position.
+
+# Reference-point pairs per registration method.
+SUPERIMPOSITION_REFS = {
+    "sn": ["S", "N"],                 # anterior cranial base (Steiner/standard)
+    "structural": ["S", "N"],         # (Björk structural uses stable internal structures; S-N proxy here)
+}
+
+
+def _similarity_transform(src_a, src_b, dst_a, dst_b):
+    """Return a function mapping a point from src frame to dst frame, aligning src_a→dst_a and the
+    direction/scale src_a→src_b onto dst_a→dst_b (translation + rotation + uniform scale)."""
+    sdx, sdy = src_b[0] - src_a[0], src_b[1] - src_a[1]
+    ddx, ddy = dst_b[0] - dst_a[0], dst_b[1] - dst_a[1]
+    s_len = math.hypot(sdx, sdy) or 1e-9
+    d_len = math.hypot(ddx, ddy) or 1e-9
+    scale = d_len / s_len
+    s_ang = math.atan2(sdy, sdx)
+    d_ang = math.atan2(ddy, ddx)
+    rot = d_ang - s_ang
+    cos_r, sin_r = math.cos(rot), math.sin(rot)
+
+    def xf(p):
+        # translate to src_a origin, scale+rotate, translate to dst_a
+        x, y = p[0] - src_a[0], p[1] - src_a[1]
+        xr = (x * cos_r - y * sin_r) * scale
+        yr = (x * sin_r + y * cos_r) * scale
+        return (dst_a[0] + xr, dst_a[1] + yr)
+
+    return xf
+
+
+def superimpose(baseline: dict, follow: dict, method: str = "sn",
+                baseline_ppm: float | None = None) -> dict:
+    """Register `follow` onto `baseline` on the method's reference points and return per-landmark
+    deltas. Deltas are in mm when baseline calibration (px/mm) is available, else in pixels.
+
+    Returns {"method", "unit", "registered_on":[refs], "deltas": {k: {dx,dy,total}}, "summary"}.
+    dx = horizontal change (+ = anterior/forward in image x), dy = vertical (+ = downward).
+    """
+    refs = SUPERIMPOSITION_REFS.get(method, SUPERIMPOSITION_REFS["sn"])
+    ra, rb = refs[0], refs[1]
+    ba, bb = _pt(baseline, ra), _pt(baseline, rb)
+    fa, fb = _pt(follow, ra), _pt(follow, rb)
+    if not (ba and bb and fa and fb):
+        return {"method": method, "unit": "mm" if baseline_ppm else "px",
+                "registered_on": refs, "deltas": {}, "summary": {},
+                "error": f"Reference points {refs} missing in one or both tracings"}
+
+    xf = _similarity_transform(fa, fb, ba, bb)
+    ppm = baseline_ppm or 1.0
+    unit = "mm" if baseline_ppm else "px"
+
+    deltas: dict[str, dict] = {}
+    for k, p in follow.items():
+        bp = _pt(baseline, k)
+        fp = _pt(follow, k)
+        if not (bp and fp):
+            continue
+        fx, fy = xf(fp)  # follow point in baseline frame
+        dx = (fx - bp[0]) / ppm
+        dy = (fy - bp[1]) / ppm
+        deltas[k] = {"dx": round(dx, 2), "dy": round(dy, 2), "total": round(math.hypot(dx, dy), 2)}
+
+    moved = {k: v for k, v in deltas.items() if v["total"] >= (0.5 if unit == "mm" else 5)}
+    summary = {
+        "unit": unit,
+        "landmarks_compared": len(deltas),
+        "landmarks_moved": len(moved),
+        "max_change": max((v["total"] for v in deltas.values()), default=0.0),
+        "notable": sorted(moved, key=lambda k: -deltas[k]["total"])[:6],
+    }
+    return {"method": method, "unit": unit, "registered_on": refs, "deltas": deltas, "summary": summary}
