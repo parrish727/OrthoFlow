@@ -154,6 +154,8 @@ Strong product-market fit for OrthoFlow AR/automation/reporting.
   (Courtney Dunn, intimate), Orthopreneurs Summit. Adele mapping 2027 schedule.
 - Follow OrthoFi + co-founder on LinkedIn; Orthopreneurs podcast for industry context.
 
-## IMMEDIATE BUILD ORDER (proposed)
-B1 ledger notes → B2 90+ bucket in ledger → B3 ledger search → B6 onboarding/training docs →
-B4 OrthoFi integration (bigger, needs API discovery) → then Ceph Suite Phase A…F. B5 TOPS = investigation.
+## IMMEDIATE BUILD ORDER (status)
+B1 ledger notes ✅ → B2 90+ bucket ✅ → B3 ledger search ✅ (PR #33, alembic 029, SHIPPED) →
+B6 onboarding/training docs ✅ → B4 OrthoFi bridge scaffolding ✅ → B5 TOPS investigation ✅
+(PR #34, SHIPPED). WORKSTREAM B COMPLETE: main==production==28541aa.
+NEXT: Ceph Suite Phase A…F (Workstream A above).
