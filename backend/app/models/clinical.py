@@ -95,6 +95,13 @@ class Patient(Base):
     family_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patient_families.id"))
     family_relationship: Mapped[str | None] = mapped_column(String(50))  # parent, child, sibling, spouse
 
+    # AR / collections note — a single place for financial-coordinator contact notes surfaced
+    # directly in the Ledger roster (e.g. "mom will pay Friday") so staff don't re-contact the
+    # same patient the next day. Distinct from PatientLedgerEntry.notes (per-transaction).
+    ar_note: Mapped[str | None] = mapped_column(Text)
+    ar_note_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ar_note_updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="patient")
     treatment_notes: Mapped[list["TreatmentNote"]] = relationship(back_populates="patient")
     tooth_chart: Mapped["ToothChart | None"] = relationship(back_populates="patient", uselist=False)

@@ -119,6 +119,8 @@ export const api = {
   getLedgerSummary: (patientId: string) => request(`/api/v1/finance/ledger/${patientId}/summary`),
   postLedgerEntry: (data: Record<string, unknown>) =>
     request('/api/v1/finance/ledger', { method: 'POST', body: JSON.stringify(data) }),
+  updateArNote: (patientId: string, arNote: string) =>
+    request(`/api/v1/finance/ledger-roster/${patientId}/ar-note`, { method: 'PATCH', body: JSON.stringify({ ar_note: arNote }) }),
   getInsurancePlans: (patientId: string) => request(`/api/v1/finance/insurance/${patientId}`),
   getInsuranceRoster: () => request('/api/v1/finance/insurance-roster'),
 
