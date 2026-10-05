@@ -1148,6 +1148,13 @@ async def seed_demo_flow():
 
         await db.commit()
 
+    # ── Cephalometric Suite demo data (own session; showcases ceph capability to the doctor) ──
+    try:
+        from app.seeds.demo_ceph import seed_ceph_demo
+        await seed_ceph_demo()
+    except Exception as e:
+        print(f"  ⚠️  Ceph demo seed skipped: {e}")
+
     print("\n✅ Demo data seeding complete!\n")
     print("  Patient Flow Board:")
     print("    • 1 patient checked out (Marcus)")
