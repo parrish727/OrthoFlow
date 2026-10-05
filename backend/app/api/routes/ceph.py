@@ -249,6 +249,66 @@ async def auto_landmark_tracing(body: "AutoLandmarkRequest", user: dict = Depend
     out["ai_overall_confidence"] = result["overall"]
     return out
 
+@router.get("/tracings/{tracing_id}/polygons")
+async def tracing_polygons(tracing_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Visual polygon vertex sequences (skeletal/Jarabak/Ricketts/plane lines) derived from the
+    tracing's landmarks — the editor + report draw polylines through these."""
+    t = await _get_owned(db, user, tracing_id)
+    return {"polygons": ceph_engine.polygons_for(t.landmarks or {})}
+
+
+class ReportRequest(BaseModel):
+    format: str = Field("pdf", pattern="^(pdf|png|json|medicaid)$")
+    share_with_patient: bool = False
+
+
+@router.post("/tracings/{tracing_id}/report", status_code=status.HTTP_201_CREATED)
+async def generate_report(tracing_id: str, body: ReportRequest, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Generate a multi-format diagnostic report (PDF/PNG/JSON/Medicaid), store it in the private
+    documents bucket, and record it as a PatientDocument so it appears on the chart (and in
+    MyOrthoChart if shared). Server-generated + trusted → stored directly (no virus scan)."""
+    from app.services import ceph_report
+    from app.services import documents as doc_storage
+    from app.services.storage import download_file
+    from app.models.workflow import PatientDocument
+    from app.models.clinical import Patient
+
+    practice_id = uuid.UUID(user["practice_id"])
+    t = await _get_owned(db, user, tracing_id)
+    patient = (await db.execute(select(Patient).where(Patient.id == t.patient_id))).scalar_one_or_none()
+    patient_name = f"{patient.first_name} {patient.last_name}" if patient else "Patient"
+    analysis = await _resolve_analysis(db, practice_id, t.analysis_type)
+    analysis_name = analysis.name if analysis else t.analysis_type
+
+    image = (await db.execute(select(PatientImage).where(PatientImage.id == t.image_id))).scalar_one_or_none()
+    image_bytes = None
+    if image and image.storage_path:
+        try:
+            image_bytes = await download_file(image.storage_path)
+        except Exception:
+            image_bytes = None
+
+    content, mime, ext = ceph_report.generate(body.format, _tracing_dict(t), patient_name, analysis_name, image_bytes)
+
+    key = doc_storage.build_key(practice_id, t.patient_id, f"ceph-report.{ext}", mime)
+    await doc_storage.store_document(key, content, mime)
+
+    doc = PatientDocument(
+        id=uuid.uuid4(), practice_id=practice_id, patient_id=t.patient_id,
+        document_type="ceph_report", title=f"Cephalometric Report — {analysis_name} ({body.format.upper()})",
+        storage_key=key, original_filename=f"ceph-report.{ext}", mime_type=mime,
+        file_size_bytes=len(content), uploaded_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
+        uploaded_by_type="staff", direction="office_to_patient",
+        shared_with_patient=body.share_with_patient, scan_status="clean",
+        notes=f"Generated from ceph tracing {t.id}",
+    )
+    db.add(doc)
+    await db.commit()
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.report_generate", "ceph_tracings", str(t.id))
+    return {"document_id": str(doc.id), "format": body.format, "mime_type": mime,
+            "shared_with_patient": body.share_with_patient, "size_bytes": len(content)}
+
+
 
 async def _get_owned(db, user, tracing_id: str) -> CephTracing:
     t = (await db.execute(

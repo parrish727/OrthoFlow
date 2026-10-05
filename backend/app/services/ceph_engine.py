@@ -224,3 +224,37 @@ def analysis_landmarks(key: str) -> list[str]:
 def analysis_measurements(key: str) -> list[str]:
     a = ANALYSES.get(key)
     return list(a[3]) if a else []
+
+
+# ── Visual polygons: ordered landmark sequences drawn on the tracing canvas / report ─────────────
+# Each polygon is an ordered list of landmark keys forming a line/shape. The frontend/report draws
+# a polyline through whichever vertices are present (missing landmarks are skipped gracefully).
+POLYGONS: dict[str, list[str]] = {
+    # Skeletal profile polygon (cranial base → maxilla → mandible)
+    "skeletal": ["S", "N", "A", "B", "Me", "Go", "S"],
+    # Jarabak quadrilateral (S-N-Go-Me) — growth/face-height assessment
+    "jarabak": ["N", "S", "Go", "Me", "N"],
+    # Ricketts-style facial triangle-ish line (N-A-Pog/Me)
+    "ricketts": ["N", "A", "Me"],
+    # Mandibular plane + Frankfort reference lines
+    "mandibular_plane": ["Go", "Me"],
+    "frankfort": ["Po", "Or"],
+    # Dental axes
+    "u1_axis": ["U1A", "U1T"],
+    "l1_axis": ["L1A", "L1T"],
+    "occlusal_plane": ["OccP1", "OccP2"],
+}
+
+
+def polygons_for(landmarks: dict) -> dict[str, list[dict]]:
+    """Return {polygon_name: [ {x,y}, ... ]} using only landmarks that are present."""
+    out: dict[str, list[dict]] = {}
+    for name, keys in POLYGONS.items():
+        pts = []
+        for k in keys:
+            p = landmarks.get(k)
+            if p and "x" in p and "y" in p:
+                pts.append({"x": float(p["x"]), "y": float(p["y"])})
+        if len(pts) >= 2:
+            out[name] = pts
+    return out

@@ -23,6 +23,18 @@ const STATUS_COLOR: Record<string, string> = {
   normal: 'text-emerald-600', high: 'text-red-600', low: 'text-blue-600', missing: 'text-gray-300',
 }
 
+// Visual polygons (mirror of backend ceph_engine.POLYGONS) — polylines drawn through present landmarks.
+const POLYGONS: [string, string[]][] = [
+  ['skeletal', ['S', 'N', 'A', 'B', 'Me', 'Go', 'S']],
+  ['jarabak', ['N', 'S', 'Go', 'Me', 'N']],
+  ['ricketts', ['N', 'A', 'Me']],
+  ['mandibular_plane', ['Go', 'Me']],
+  ['frankfort', ['Po', 'Or']],
+  ['u1_axis', ['U1A', 'U1T']],
+  ['l1_axis', ['L1A', 'L1T']],
+  ['occlusal_plane', ['OccP1', 'OccP2']],
+]
+
 export default function CephTracingEditor({ imageId, patientId, imageUrl, testId = 'ceph-editor' }: { imageId: string; patientId: string; imageUrl: string; testId?: string }) {
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [analysisKey, setAnalysisKey] = useState('abo')
@@ -33,6 +45,8 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
   const [saving, setSaving] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiMsg, setAiMsg] = useState('')
+  const [reportBusy, setReportBusy] = useState(false)
+  const [reportMsg, setReportMsg] = useState('')
   const svgRef = useRef<SVGSVGElement>(null)
 
   const analysis = analyses.find(a => a.key === analysisKey)
@@ -125,6 +139,17 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
     setAiBusy(false)
   }
 
+  async function generateReport(format: 'pdf' | 'png' | 'json' | 'medicaid', share: boolean) {
+    if (!tracing) return
+    setReportBusy(true); setReportMsg('')
+    try {
+      const res = await api.generateCephReport(tracing.id, { format, share_with_patient: share })
+      if (res.ok) { await res.json(); setReportMsg(`${format.toUpperCase()} report saved to chart${share ? ' + shared with patient' : ''} ✓`) }
+      else setReportMsg('Report failed')
+    } catch { setReportMsg('Report failed') }
+    setReportBusy(false)
+  }
+
   const landmarks = tracing?.landmarks || {}
   const keys = analysis?.landmark_keys || []
   const placed = keys.filter(k => landmarks[k]).length
@@ -136,6 +161,12 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
       <div className="lg:col-span-2 bg-black rounded-2xl overflow-hidden relative">
         <svg ref={svgRef} viewBox="0 0 1000 1000" className="w-full h-auto cursor-crosshair" onClick={onSvgClick} data-testid="ceph-canvas">
           <image href={imageUrl} x="0" y="0" width="1000" height="1000" preserveAspectRatio="xMidYMid meet" />
+          {/* visual polygons — polylines through present landmarks (Phase C) */}
+          {POLYGONS.map(([name, keys]) => {
+            const pts = keys.map(k => landmarks[k]).filter(Boolean) as Pt[]
+            if (pts.length < 2) return null
+            return <polyline key={name} points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#00c2a8" strokeWidth={1.5} strokeOpacity={0.7} />
+          })}
           {/* calibration points */}
           {calibPts.map((p, i) => (<circle key={i} cx={p.x} cy={p.y} r={6} fill="#f59e0b" />))}
           {calibPts.length === 2 && <line x1={calibPts[0].x} y1={calibPts[0].y} x2={calibPts[1].x} y2={calibPts[1].y} stroke="#f59e0b" strokeWidth={2} />}
@@ -228,6 +259,20 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
           </div>
         )}
         <p className="text-[10px] text-gray-400">AI/manual tracings are clinical decision-support and require doctor review before use.</p>
+
+        {/* Diagnostic report (Phase C) */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-3" data-testid="ceph-report-panel">
+          <span className="text-xs font-semibold text-gray-500 uppercase">Diagnostic Report</span>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <button data-testid="ceph-report-pdf" disabled={reportBusy} onClick={() => generateReport('pdf', false)} className="text-xs px-2 py-1.5 rounded-lg border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">PDF</button>
+            <button data-testid="ceph-report-png" disabled={reportBusy} onClick={() => generateReport('png', false)} className="text-xs px-2 py-1.5 rounded-lg border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">PNG</button>
+            <button data-testid="ceph-report-json" disabled={reportBusy} onClick={() => generateReport('json', false)} className="text-xs px-2 py-1.5 rounded-lg border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">JSON</button>
+            <button data-testid="ceph-report-medicaid" disabled={reportBusy} onClick={() => generateReport('medicaid', false)} className="text-xs px-2 py-1.5 rounded-lg border bg-white text-gray-700 border-gray-200 hover:bg-gray-50">Medicaid</button>
+            <button data-testid="ceph-report-share" disabled={reportBusy} onClick={() => generateReport('pdf', true)} className="text-xs px-2 py-1.5 rounded-lg border bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100">PDF + share to patient</button>
+          </div>
+          {reportBusy && <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> generating…</p>}
+          {reportMsg && <p className="text-[11px] text-emerald-600 mt-1.5" data-testid="ceph-report-msg">{reportMsg}</p>}
+        </div>
       </div>
     </div>
   )

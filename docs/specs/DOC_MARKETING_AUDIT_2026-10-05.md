@@ -32,6 +32,11 @@ relevant to what makes a doctor WANT to use OrthoFlow — NOT technical jargon o
 implementation detail. Claims must be aligned with what we have/can do (accurate), but framed for
 marketing appeal, not an engineering spec. (Revisit site/brochure as a separate pass, not now.)
 
+AGENT ROUTING (pktech_dev directive 2026-10-05): the eventual site + brochure SEO/marketing pass is
+owned by the FRONTEND agent (implements the orthoflow-marketing + orthoflow-brochure copy/UI changes)
+with QA agent review (per Melanin Tech agent model). Route that work through Frontend + QA when it's
+picked up — not done inline here.
+
 ## PRIORITY 1 — Add MAJOR SHIPPED features missing from marketing (honest differentiators)
 Add across marketing + brochure (and docs): Secure Document Exchange (office⇄patient, ClamAV
 virus-scan, presigned, email confirm); AR aging 30/60/90/90-120/120+ + 90+ delinquency filter/card
