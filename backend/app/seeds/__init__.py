@@ -203,6 +203,32 @@ async def seed_appointment_types():
 async def main():
     await seed_cdt_codes()
     await seed_appointment_types()
+    await seed_ceph_analyses()
+
+
+async def seed_ceph_analyses():
+    """Seed global built-in cephalometric analysis definitions (idempotent). practice_id NULL =
+    available to all practices. Sourced from the measurement engine's ANALYSES registry."""
+    from app.services import ceph_engine
+    from app.models.ceph import CephAnalysisDefinition
+    import uuid as _uuid
+    from sqlalchemy import select
+    async with SessionLocal() as db:
+        for key, (name, desc, lmk, mk) in ceph_engine.ANALYSES.items():
+            existing = await db.execute(
+                select(CephAnalysisDefinition).where(
+                    CephAnalysisDefinition.key == key,
+                    CephAnalysisDefinition.practice_id.is_(None),
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue
+            db.add(CephAnalysisDefinition(
+                id=_uuid.uuid4(), practice_id=None, key=key, name=name, description=desc,
+                is_builtin=True, is_active=True, landmark_keys=list(lmk), measurement_keys=list(mk),
+            ))
+        await db.commit()
+        print(f"✅ Seeded {len(ceph_engine.ANALYSES)} built-in cephalometric analyses")
 
 
 if __name__ == "__main__":
