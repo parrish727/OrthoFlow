@@ -7,7 +7,7 @@ All practice-scoped via JWT. AI-assisted tracings (Phase B) are drafts; finalize
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -320,6 +320,123 @@ async def _get_owned(db, user, tracing_id: str) -> CephTracing:
     if not t:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tracing not found")
     return t
+
+
+# ── 3D CBCT (Phase F) — beta, supervised ─────────────────────────────────────────
+
+@router.get("/cbct/geometry-status")
+async def cbct_geometry_status(user: dict = Depends(get_current_user)):
+    """Report 3D geometry provider readiness (manual now; self-hosted auto-landmark scaffolded) +
+    which Anthropic model does interpretation."""
+    from app.services import ceph_cbct
+    return ceph_cbct.geometry_status()
+
+
+@router.post("/cbct/scans", status_code=status.HTTP_201_CREATED)
+async def ingest_cbct(
+    file: UploadFile = File(...),
+    patient_id: str = Form(...),
+    source_software: str | None = Form(None),
+    dicom_study_uid: str | None = Form(None),
+    dicom_series_uid: str | None = Form(None),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest a CBCT DICOM volume (greenfield; Romexis/Planmeca export → DICOM → here). Stores in
+    the imaging bucket and records a CephCBCTScan. Beta — supervised."""
+    from app.models.ceph import CephCBCTScan
+    from app.models.clinical import Patient
+    from app.services.storage import upload_file
+    practice_id = uuid.UUID(user["practice_id"])
+    patient = (await db.execute(select(Patient).where(Patient.id == uuid.UUID(patient_id), Patient.practice_id == practice_id))).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
+    key = f"{practice_id}/{patient_id}/cbct/{uuid.uuid4()}.dcm"
+    await upload_file(key, content, file.content_type or "application/dicom")
+    scan = CephCBCTScan(
+        id=uuid.uuid4(), practice_id=practice_id, patient_id=uuid.UUID(patient_id),
+        storage_key=key, source_software=source_software,
+        dicom_study_uid=dicom_study_uid, dicom_series_uid=dicom_series_uid, status="uploaded",
+        created_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
+    )
+    db.add(scan)
+    await db.commit()
+    await db.refresh(scan)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.cbct_ingest", "ceph_cbct_scans", str(scan.id))
+    return _cbct_dict(scan)
+
+
+class CBCTLandmarks(BaseModel):
+    landmarks_3d: dict  # {"<key>": {"x","y","z"}}
+
+
+@router.patch("/cbct/scans/{scan_id}/landmarks")
+async def set_cbct_landmarks(scan_id: str, body: CBCTLandmarks, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Set/update 3D landmarks (manual, or from the self-hosted model) and recompute 3D measurements."""
+    from app.models.ceph import CephCBCTScan
+    from app.services import ceph_cbct
+    scan = await _get_cbct(db, user, scan_id)
+    scan.landmarks_3d = body.landmarks_3d
+    scan.measurements_3d = ceph_cbct.compute_3d(body.landmarks_3d)
+    scan.status = "landmarked"
+    await db.commit()
+    await db.refresh(scan)
+    return _cbct_dict(scan)
+
+
+@router.post("/cbct/scans/{scan_id}/interpret")
+async def interpret_cbct(scan_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Generate a clinician-reviewed diagnostic interpretation (Opus-tier) over the 3D measurements."""
+    from app.models.ceph import CephCBCTScan
+    from app.models.clinical import Patient
+    from app.services import ceph_cbct
+    scan = await _get_cbct(db, user, scan_id)
+    if not scan.measurements_3d:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Set 3D landmarks before interpreting")
+    patient = (await db.execute(select(Patient).where(Patient.id == scan.patient_id))).scalar_one_or_none()
+    try:
+        text = await ceph_cbct.interpret(f"{patient.first_name} {patient.last_name}" if patient else "Patient", scan.measurements_3d)
+    except RuntimeError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"Interpretation unavailable: {e}")
+    scan.interpretation = text
+    scan.status = "interpreted"
+    await db.commit()
+    await db.refresh(scan)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.cbct_interpret", "ceph_cbct_scans", str(scan.id))
+    return _cbct_dict(scan)
+
+
+@router.get("/patients/{patient_id}/cbct-scans")
+async def list_cbct(patient_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.ceph import CephCBCTScan
+    rows = (await db.execute(
+        select(CephCBCTScan).where(CephCBCTScan.patient_id == uuid.UUID(patient_id), CephCBCTScan.practice_id == uuid.UUID(user["practice_id"]))
+        .order_by(CephCBCTScan.created_at.desc())
+    )).scalars().all()
+    return {"scans": [_cbct_dict(s) for s in rows]}
+
+
+def _cbct_dict(s) -> dict:
+    return {
+        "id": str(s.id), "patient_id": str(s.patient_id), "status": s.status,
+        "source_software": s.source_software, "dicom_study_uid": s.dicom_study_uid,
+        "landmarks_3d": s.landmarks_3d or {}, "measurements_3d": s.measurements_3d or {},
+        "interpretation": s.interpretation, "geometry_provider": s.geometry_provider,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+async def _get_cbct(db, user, scan_id: str):
+    from app.models.ceph import CephCBCTScan
+    s = (await db.execute(
+        select(CephCBCTScan).where(CephCBCTScan.id == uuid.UUID(scan_id), CephCBCTScan.practice_id == uuid.UUID(user["practice_id"]))
+    )).scalar_one_or_none()
+    if not s:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "CBCT scan not found")
+    return s
 
 
 # ── Superimposition / progress tracking (Phase D) ────────────────────────────────

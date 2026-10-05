@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # the ANTHROPIC_MODEL env var) so the model can be swapped WITHOUT a code change or redeploy —
     # set ANTHROPIC_MODEL in the environment and restart. Default: Claude Haiku 4.5.
     ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+    # Higher-tier model for the 3D CBCT diagnostic INTERPRETATION/report layer (reasoning over
+    # measurements produced by the self-hosted 3D geometry model — NOT the geometry itself).
+    # Default Opus for maximum capability on the hardest clinical reasoning. Env-swappable.
+    ANTHROPIC_CBCT_MODEL: str = "claude-opus-4-6"
+    # Self-hosted 3D CBCT landmark/geometry model (nnU-Net/nnLandmark family). DORMANT until a real
+    # endpoint is provisioned — the geometry provider stays scaffolded; manual 3D landmarks work now.
+    CBCT_GEOMETRY_URL: str = ""
+    CBCT_GEOMETRY_ENABLED: bool = False
     OLLAMA_URL: str = "http://localhost:11435"
     OLLAMA_MODEL: str = "nomic-embed-text"  # embeddings only
 
