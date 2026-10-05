@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
+import CephProgress from '../components/CephProgress'
 import PatientOrthoPanel from '../components/PatientOrthoPanel'
 import PatientDocuments from '../components/PatientDocuments'
 import PatientAdminSummary from '../components/PatientAdminSummary'
@@ -596,6 +597,9 @@ export default function PatientDetail() {
                 onNoteUpdated={updated => setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))}
               />
             )}
+
+            {/* Cephalometric progress (shows once ≥2 tracings are finalized; otherwise a hint). */}
+            {id && <CephProgress patientId={id} />}
           </div>
 
           {/* Right Column — Appointments + Notes + Next Visit */}

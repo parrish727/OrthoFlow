@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Image, Users, FileText, Upload, Search, Filter, X, Trash2, Download, Eye, ChevronRight } from 'lucide-react'
+import { Image, Users, FileText, Upload, Search, Filter, X, Trash2, Download, Eye, ChevronRight, Activity } from 'lucide-react'
 import { api } from '../lib/api'
+import CephTracingEditor from '../components/CephTracingEditor'
 
 interface PatientImage {
   id: string
@@ -55,6 +56,7 @@ export default function Imaging() {
   const [series, setSeries] = useState<ImageSeries[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
+  const [tracingImage, setTracingImage] = useState<{ id: string; patientId: string; url: string } | null>(null)
   const [patientSearch, setPatientSearch] = useState('')
   const [showPatientList, setShowPatientList] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -420,7 +422,16 @@ useEffect(() => {
                   <p className="text-sm text-gray-800">{viewingImage.tooth_numbers}</p>
                 </div>
               )}
-              <div className="pt-4 border-t border-gray-100 flex gap-2">
+              <div className="pt-4 border-t border-gray-100 flex gap-2 flex-wrap">
+                {viewingImage.image_type === 'ceph' && viewingUrl && (
+                  <button
+                    data-testid="ceph-trace-launch"
+                    onClick={() => { setTracingImage({ id: viewingImage.id, patientId: viewingImage.patient_id, url: viewingUrl }); closeViewer() }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                  >
+                    <Activity size={14} /> Trace &amp; Analyze
+                  </button>
+                )}
                 <a href={viewingUrl} download={viewingImage.file_name} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                   <Download size={14} /> Download
                 </a>
@@ -429,6 +440,25 @@ useEffect(() => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cephalometric Tracing & Analysis — opened in-context from a ceph image (efficient workflow:
+          doctor opens the ceph, traces/analyzes/reports without leaving the imaging flow). */}
+      {tracingImage && (
+        <div className="fixed inset-0 bg-gray-50 z-50 overflow-y-auto" data-testid="ceph-trace-overlay">
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between z-10">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-teal-600" />
+              <h3 className="text-sm font-semibold text-gray-900">Cephalometric Tracing &amp; Analysis</h3>
+            </div>
+            <button onClick={() => setTracingImage(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" data-testid="ceph-trace-close">
+              <X size={18} className="text-gray-500" />
+            </button>
+          </div>
+          <div className="p-5">
+            <CephTracingEditor imageId={tracingImage.id} patientId={tracingImage.patientId} imageUrl={tracingImage.url} />
           </div>
         </div>
       )}
