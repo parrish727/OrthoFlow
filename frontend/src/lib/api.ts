@@ -285,6 +285,14 @@ export const api = {
   createCephVto: (data: { source_tracing_id: string; growth_months?: number; u1_retraction_mm?: number; l1_retraction_mm?: number; mandibular_growth_mm?: number }) =>
     request('/api/v1/ceph/vto', { method: 'POST', body: JSON.stringify(data) }),
   finalizeCephVto: (vtoId: string) => request(`/api/v1/ceph/vto/${vtoId}/finalize`, { method: 'POST' }),
+  getCbctGeometryStatus: () => request('/api/v1/ceph/cbct/geometry-status'),
+  getPatientCbctScans: (patientId: string) => request(`/api/v1/ceph/patients/${patientId}/cbct-scans`),
+  ingestCbct: (patientId: string, file: File, sourceSoftware?: string) => {
+    const fd = new FormData(); fd.append('file', file); fd.append('patient_id', patientId)
+    if (sourceSoftware) fd.append('source_software', sourceSoftware)
+    return request('/api/v1/ceph/cbct/scans', { method: 'POST', body: fd })
+  },
+  interpretCbct: (scanId: string) => request(`/api/v1/ceph/cbct/scans/${scanId}/interpret`, { method: 'POST' }),
   getImagingAlerts: (params?: { status?: string }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

@@ -7,6 +7,7 @@ import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import CephProgress from '../components/CephProgress'
 import CephVTO from '../components/CephVTO'
+import CephCBCT from '../components/CephCBCT'
 import PatientOrthoPanel from '../components/PatientOrthoPanel'
 import PatientDocuments from '../components/PatientDocuments'
 import PatientAdminSummary from '../components/PatientAdminSummary'
@@ -604,6 +605,9 @@ export default function PatientDetail() {
 
             {/* Visual Treatment Objective (predicted target from a finalized tracing). */}
             {id && <CephVTO patientId={id} />}
+
+            {/* 3D CBCT analysis (beta — DICOM ingest + 3D measurements + Opus interpretation). */}
+            {id && <CephCBCT patientId={id} />}
           </div>
 
           {/* Right Column — Appointments + Notes + Next Visit */}
