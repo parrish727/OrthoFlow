@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Crosshair, Ruler, Check, Loader2, RotateCcw } from 'lucide-react'
+import { Crosshair, Ruler, Check, Loader2, RotateCcw, Sparkles } from 'lucide-react'
 import { api } from '../lib/api'
 
-// Cephalometric tracing editor (Ceph Suite Phase A).
+// Cephalometric tracing editor (Ceph Suite Phase A + B).
 // Place landmarks on the ceph image, drag to refine (measurements recompute live), calibrate
-// pixels→mm by marking a known distance, pick an analysis, and finalize (doctor sign-off).
+// pixels→mm by marking a known distance, pick an analysis, optionally AI auto-trace (draft for
+// doctor review, confidence-shaded), and finalize (doctor sign-off).
 
-interface Pt { x: number; y: number }
+interface Pt { x: number; y: number; conf?: number | null }
 interface Measure { label: string; value: number | null; unit: string; norm: number; sd: number; status: string }
 interface Analysis { key: string; name: string; landmark_keys: string[]; measurement_keys: string[] }
 interface Tracing {
@@ -30,6 +31,8 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
   const [calibrating, setCalibrating] = useState(false)
   const [calibPts, setCalibPts] = useState<Pt[]>([])
   const [saving, setSaving] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiMsg, setAiMsg] = useState('')
   const svgRef = useRef<SVGSVGElement>(null)
 
   const analysis = analyses.find(a => a.key === analysisKey)
@@ -107,6 +110,21 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
     await persist(landmarks)
   }
 
+  async function aiAutoTrace() {
+    setAiBusy(true); setAiMsg('')
+    try {
+      const res = await api.autoLandmarkCeph({ image_id: imageId, analysis_type: analysisKey })
+      if (res.ok) {
+        setTracing(await res.json())
+        setAiMsg('AI draft ready — review each point before finalizing')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setAiMsg(err.detail || 'AI unavailable — trace manually')
+      }
+    } catch { setAiMsg('AI unavailable — trace manually') }
+    setAiBusy(false)
+  }
+
   const landmarks = tracing?.landmarks || {}
   const keys = analysis?.landmark_keys || []
   const placed = keys.filter(k => landmarks[k]).length
@@ -122,12 +140,18 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
           {calibPts.map((p, i) => (<circle key={i} cx={p.x} cy={p.y} r={6} fill="#f59e0b" />))}
           {calibPts.length === 2 && <line x1={calibPts[0].x} y1={calibPts[0].y} x2={calibPts[1].x} y2={calibPts[1].y} stroke="#f59e0b" strokeWidth={2} />}
           {/* landmarks */}
-          {Object.entries(landmarks).map(([k, p]) => (
-            <g key={k} data-testid={`ceph-landmark-${k}`}>
-              <circle cx={p.x} cy={p.y} r={5} fill={activeLandmark === k ? '#14b8a6' : '#22d3ee'} stroke="#0f172a" strokeWidth={1} />
-              <text x={p.x + 8} y={p.y - 6} fill="#67e8f9" fontSize={16} fontWeight={700}>{k}</text>
-            </g>
-          ))}
+          {Object.entries(landmarks).map(([k, p]) => {
+            const lowConf = typeof p.conf === 'number' && p.conf < 0.6
+            return (
+              <g key={k} data-testid={`ceph-landmark-${k}`}>
+                <circle cx={p.x} cy={p.y} r={5} fill={activeLandmark === k ? '#14b8a6' : '#22d3ee'}
+                  stroke={lowConf ? '#f59e0b' : '#0f172a'} strokeWidth={lowConf ? 2.5 : 1} />
+                <text x={p.x + 8} y={p.y - 6} fill={lowConf ? '#fbbf24' : '#67e8f9'} fontSize={16} fontWeight={700}>
+                  {k}{lowConf ? '?' : ''}
+                </text>
+              </g>
+            )
+          })}
         </svg>
         {saving && <div className="absolute top-2 right-2 text-white/80"><Loader2 size={16} className="animate-spin" /></div>}
       </div>
@@ -145,7 +169,12 @@ export default function CephTracingEditor({ imageId, patientId, imageUrl, testId
               className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border ${calibrating ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-200'}`}>
               <Ruler size={12} /> {tracing?.calibration ? `${tracing.calibration.px_per_mm.toFixed(1)} px/mm` : 'Calibrate'}
             </button>
+            <button data-testid="ceph-ai-trace-btn" disabled={finalized || aiBusy} onClick={aiAutoTrace}
+              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border bg-violet-600 text-white border-violet-600 hover:bg-violet-700 disabled:opacity-50">
+              {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} AI Auto-Trace
+            </button>
           </div>
+          {aiMsg && <p className="text-[11px] text-violet-600 mt-1.5" data-testid="ceph-ai-msg">{aiMsg}</p>}
         </div>
 
         {/* Landmark palette */}

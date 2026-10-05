@@ -22,8 +22,15 @@ BROCHURE (orthoflow-brochure/frontend/src/components/AgenticBrochure.tsx + index
 - [ ] "Predicts Your Schedule" (no-show/overbooking prediction) — reword to overdue-patients/recoverable-revenue (shipped).
 - [ ] "Surfaces What Matters" treatment-timeline AI prediction — reword to imaging store + recall alerts.
 - [ ] Hero "predicts your schedule" — reword.
-- [ ] "SOC 2 Ready" trust badge — replace w/ true control (SSE-S3 / audit logging) or remove.
+- [x] "SOC 2 Ready" trust badge — KEEP. pktech_dev decision 2026-10-05: accurate posture claim
+  (prepared for SOC 2, program not yet undertaken — "Ready", not "certified/attested"). No change.
 - [ ] index.html meta/keywords/OG/Twitter + JSON-LD: remove multi-specialty (GP/perio/cosmetic), perio charting, hygiene recall; scope to orthodontic. Fix JSON-LD highPrice 799→999 (mismatch w/ 299/599/999). Remove JSON-LD unshipped featureList items (perio, hygiene recall, AI timeline, multi-specialty); add shipped ones.
+
+## SITE/BROCHURE PHILOSOPHY (pktech_dev directive 2026-10-05) — apply whenever revisiting these
+The website + brochure are SEO/MARKETING surfaces, doctor-facing. Keep copy benefit-oriented and
+relevant to what makes a doctor WANT to use OrthoFlow — NOT technical jargon or internal
+implementation detail. Claims must be aligned with what we have/can do (accurate), but framed for
+marketing appeal, not an engineering spec. (Revisit site/brochure as a separate pass, not now.)
 
 ## PRIORITY 1 — Add MAJOR SHIPPED features missing from marketing (honest differentiators)
 Add across marketing + brochure (and docs): Secure Document Exchange (office⇄patient, ClamAV

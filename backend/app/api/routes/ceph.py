@@ -46,6 +46,11 @@ class TracingUpdate(BaseModel):
     notes: str | None = None
 
 
+class AutoLandmarkRequest(BaseModel):
+    image_id: str
+    analysis_type: str = Field("abo", max_length=40)
+
+
 def _measurement_keys_for(db_analysis: CephAnalysisDefinition | None, analysis_type: str) -> list[str]:
     if db_analysis and db_analysis.measurement_keys:
         return list(db_analysis.measurement_keys)
@@ -193,6 +198,56 @@ async def finalize_tracing(tracing_id: str, user: dict = Depends(get_current_use
     await db.refresh(t)
     await audit_log(db, user["practice_id"], user["user_id"], "ceph.tracing_finalize", "ceph_tracings", str(t.id))
     return _tracing_dict(t)
+
+
+@router.post("/tracings/auto-landmark", status_code=status.HTTP_201_CREATED)
+async def auto_landmark_tracing(body: "AutoLandmarkRequest", user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """AI-assisted auto-landmarking (Phase B). Runs the vision model on the ceph image to propose
+    landmarks for the chosen analysis, then creates a DRAFT tracing (is_ai_assisted=True) with
+    per-point confidence for the doctor to review and correct. Never auto-finalized. Falls back
+    with 503 if AI is unavailable so the UI can offer manual tracing."""
+    from app.services import ceph_ai
+    practice_id = uuid.UUID(user["practice_id"])
+    image = (await db.execute(
+        select(PatientImage).where(PatientImage.id == uuid.UUID(body.image_id), PatientImage.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not image:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found")
+
+    analysis = await _resolve_analysis(db, practice_id, body.analysis_type)
+    landmark_keys = (analysis.landmark_keys if analysis and analysis.landmark_keys
+                     else ceph_engine.analysis_landmarks(body.analysis_type))
+    if not landmark_keys:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown analysis / no landmarks defined")
+
+    try:
+        result = await ceph_ai.auto_landmark_image(
+            image.storage_path, image.content_type, image.file_name, landmark_keys
+        )
+    except RuntimeError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            f"AI auto-landmarking unavailable — use manual tracing. ({e})")
+
+    # Fold per-point confidence into the landmark dict so the editor can shade low-confidence points.
+    landmarks = {}
+    for k, p in result["landmarks"].items():
+        landmarks[k] = {"x": p["x"], "y": p["y"], "conf": result["confidence"].get(k)}
+
+    t = CephTracing(
+        id=uuid.uuid4(), practice_id=practice_id, patient_id=image.patient_id, image_id=image.id,
+        analysis_type=body.analysis_type, landmarks=landmarks, status="draft",
+        is_ai_assisted=True, ai_confidence=result["overall"],
+        traced_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
+        notes="AI-proposed landmarks — doctor review required before finalizing.",
+    )
+    await _recompute(db, practice_id, t)
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.tracing_ai_landmark", "ceph_tracings", str(t.id))
+    out = _tracing_dict(t)
+    out["ai_overall_confidence"] = result["overall"]
+    return out
 
 
 async def _get_owned(db, user, tracing_id: str) -> CephTracing:
