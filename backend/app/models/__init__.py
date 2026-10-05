@@ -119,4 +119,5 @@ from app.models.ceph import (  # noqa: F401
     CephTracing,
     CephAnalysisDefinition,
     CephSuperimposition,
+    CephVTO,
 )

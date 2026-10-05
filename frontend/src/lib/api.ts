@@ -281,6 +281,10 @@ export const api = {
   getCephSuperimpositions: (patientId: string) => request(`/api/v1/ceph/patients/${patientId}/superimpositions`),
   createCephSuperimposition: (data: { baseline_tracing_id: string; follow_tracing_id: string; method?: 'sn' | 'structural' }) =>
     request('/api/v1/ceph/superimpositions', { method: 'POST', body: JSON.stringify(data) }),
+  getCephVtos: (patientId: string) => request(`/api/v1/ceph/patients/${patientId}/vtos`),
+  createCephVto: (data: { source_tracing_id: string; growth_months?: number; u1_retraction_mm?: number; l1_retraction_mm?: number; mandibular_growth_mm?: number }) =>
+    request('/api/v1/ceph/vto', { method: 'POST', body: JSON.stringify(data) }),
+  finalizeCephVto: (vtoId: string) => request(`/api/v1/ceph/vto/${vtoId}/finalize`, { method: 'POST' }),
   getImagingAlerts: (params?: { status?: string }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

@@ -385,3 +385,98 @@ async def list_superimpositions(patient_id: str, user: dict = Depends(get_curren
         ).order_by(CephSuperimposition.created_at.desc())
     )).scalars().all()
     return {"superimpositions": [_superimp_dict(s) for s in rows]}
+
+
+# ── VTO + soft-tissue morph (Phase E) ────────────────────────────────────────────
+
+class VTOCreate(BaseModel):
+    source_tracing_id: str
+    growth_months: int | None = Field(None, ge=0, le=120)
+    u1_retraction_mm: float | None = Field(None, ge=-10, le=10)
+    l1_retraction_mm: float | None = Field(None, ge=-10, le=10)
+    mandibular_growth_mm: float | None = Field(None, ge=-10, le=10)
+
+
+def _vto_dict(v) -> dict:
+    return {
+        "id": str(v.id),
+        "patient_id": str(v.patient_id),
+        "source_tracing_id": str(v.source_tracing_id),
+        "params": v.params or {},
+        "target_landmarks": v.target_landmarks or {},
+        "soft_tissue": v.soft_tissue or {},
+        "unit": v.unit,
+        "status": v.status,
+        "morph_provider": v.morph_provider,
+        "has_photo_morph": bool(v.morph_result_key),
+        "finalized_at": v.finalized_at.isoformat() if v.finalized_at else None,
+        "created_at": v.created_at.isoformat() if v.created_at else None,
+    }
+
+
+@router.get("/vto/morph-status")
+async def vto_morph_status(user: dict = Depends(get_current_user)):
+    """Report soft-tissue morph capability (schematic now; photo-realistic scaffolded)."""
+    from app.services import ceph_vto
+    return ceph_vto.morph_status()
+
+
+@router.post("/vto", status_code=status.HTTP_201_CREATED)
+async def create_vto(body: VTOCreate, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Project a predicted treatment objective (VTO) from a FINALIZED tracing + planned mechanics.
+    Output is a predicted target landmark set + schematic soft-tissue profile — a PREDICTION for
+    planning/communication, clinician-reviewed, not auto-finalized."""
+    from app.models.ceph import CephVTO
+    from app.services import ceph_vto
+    practice_id = uuid.UUID(user["practice_id"])
+    src = await _get_owned(db, user, body.source_tracing_id)
+    if src.status != "finalized":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Source tracing must be finalized before projecting a VTO")
+
+    params = {k: v for k, v in body.model_dump().items() if k != "source_tracing_id" and v is not None}
+    ppm = (src.calibration or {}).get("px_per_mm") if src.calibration else None
+    result = ceph_vto.project_vto(src.landmarks or {}, params, ppm)
+
+    v = CephVTO(
+        id=uuid.uuid4(), practice_id=practice_id, patient_id=src.patient_id, source_tracing_id=src.id,
+        params=params, target_landmarks=result["target_landmarks"],
+        soft_tissue={"profile": result["soft_tissue"], "assumptions": result["assumptions"],
+                     "disclaimer": result["disclaimer"]},
+        unit=result["unit"], status="draft",
+        created_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
+    )
+    db.add(v)
+    await db.commit()
+    await db.refresh(v)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.vto_create", "ceph_vtos", str(v.id))
+    return _vto_dict(v)
+
+
+@router.get("/patients/{patient_id}/vtos")
+async def list_vtos(patient_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.ceph import CephVTO
+    rows = (await db.execute(
+        select(CephVTO).where(
+            CephVTO.patient_id == uuid.UUID(patient_id),
+            CephVTO.practice_id == uuid.UUID(user["practice_id"]),
+        ).order_by(CephVTO.created_at.desc())
+    )).scalars().all()
+    return {"vtos": [_vto_dict(v) for v in rows]}
+
+
+@router.post("/vto/{vto_id}/finalize")
+async def finalize_vto(vto_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Doctor sign-off on a VTO before any patient-facing use (it is a prediction)."""
+    from app.models.ceph import CephVTO
+    import datetime as _dt
+    v = (await db.execute(
+        select(CephVTO).where(CephVTO.id == uuid.UUID(vto_id), CephVTO.practice_id == uuid.UUID(user["practice_id"]))
+    )).scalar_one_or_none()
+    if not v:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "VTO not found")
+    v.status = "finalized"
+    v.finalized_at = _dt.datetime.now(_dt.timezone.utc)
+    await db.commit()
+    await db.refresh(v)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.vto_finalize", "ceph_vtos", str(v.id))
+    return _vto_dict(v)
