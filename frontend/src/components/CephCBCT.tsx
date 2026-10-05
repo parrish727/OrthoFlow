@@ -15,16 +15,13 @@ interface Scan {
 
 export default function CephCBCT({ patientId, testId = 'ceph-cbct' }: { patientId: string; testId?: string }) {
   const [scans, setScans] = useState<Scan[]>([])
-  const [mode, setMode] = useState<string>('manual')
-  const [interpModel, setInterpModel] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
-    const [s, g] = await Promise.all([api.getPatientCbctScans(patientId), api.getCbctGeometryStatus()])
+    const s = await api.getPatientCbctScans(patientId)
     if (s.ok) { const d = await s.json(); setScans(d.scans || []) }
-    if (g.ok) { const d = await g.json(); setMode(d.mode); setInterpModel(d.interpretation_model || '') }
   }, [patientId])
 
   useEffect(() => { load() }, [load])
@@ -55,7 +52,7 @@ export default function CephCBCT({ patientId, testId = 'ceph-cbct' }: { patientI
         <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">BETA</span>
       </div>
       <p className="text-[11px] text-gray-400 mb-3">
-        3D auto-landmarking: <b className="text-gray-600">{mode}</b>{interpModel ? ` · interpretation by ${interpModel}` : ''}. Supervised, clinician-reviewed.
+        Upload a cone-beam CT (DICOM) for 3D skeletal analysis. AI-assisted, supervised, clinician-reviewed.
       </p>
 
       <input ref={fileRef} type="file" accept=".dcm,application/dicom,application/octet-stream" className="hidden"
