@@ -86,3 +86,29 @@ class CephAnalysisDefinition(Base):
     __table_args__ = (
         Index("idx_ceph_analysis_practice", "practice_id", "key"),
     )
+
+
+class CephSuperimposition(Base):
+    """Registers two finalized cephalometric tracings of the same patient on stable reference points
+    (anterior cranial base S–N by default) to visualize change over time — the ICS progress-tracking
+    analog. Stores computed per-landmark deltas and a summary (growth + treatment change).
+
+    deltas: {"<landmark>": {"dx": mm, "dy": mm, "total": mm}, ...}
+    """
+    __tablename__ = "ceph_superimpositions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    baseline_tracing_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ceph_tracings.id"), nullable=False)
+    follow_tracing_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ceph_tracings.id"), nullable=False)
+    method: Mapped[str] = mapped_column(String(20), nullable=False, default="sn")  # sn|structural
+    unit: Mapped[str] = mapped_column(String(4), nullable=False, default="mm")
+    deltas: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    summary: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_ceph_superimp_patient", "practice_id", "patient_id"),
+    )

@@ -118,4 +118,5 @@ from app.models.ortho_ops import (  # noqa: F401
 from app.models.ceph import (  # noqa: F401
     CephTracing,
     CephAnalysisDefinition,
+    CephSuperimposition,
 )

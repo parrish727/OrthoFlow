@@ -278,6 +278,9 @@ export const api = {
   getCephPolygons: (tracingId: string) => request(`/api/v1/ceph/tracings/${tracingId}/polygons`),
   generateCephReport: (tracingId: string, data: { format: 'pdf' | 'png' | 'json' | 'medicaid'; share_with_patient?: boolean }) =>
     request(`/api/v1/ceph/tracings/${tracingId}/report`, { method: 'POST', body: JSON.stringify(data) }),
+  getCephSuperimpositions: (patientId: string) => request(`/api/v1/ceph/patients/${patientId}/superimpositions`),
+  createCephSuperimposition: (data: { baseline_tracing_id: string; follow_tracing_id: string; method?: 'sn' | 'structural' }) =>
+    request('/api/v1/ceph/superimpositions', { method: 'POST', body: JSON.stringify(data) }),
   getImagingAlerts: (params?: { status?: string }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

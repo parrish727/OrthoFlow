@@ -320,3 +320,68 @@ async def _get_owned(db, user, tracing_id: str) -> CephTracing:
     if not t:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tracing not found")
     return t
+
+
+# ── Superimposition / progress tracking (Phase D) ────────────────────────────────
+
+class SuperimpositionCreate(BaseModel):
+    baseline_tracing_id: str
+    follow_tracing_id: str
+    method: str = Field("sn", pattern="^(sn|structural)$")
+
+
+def _superimp_dict(s) -> dict:
+    return {
+        "id": str(s.id),
+        "patient_id": str(s.patient_id),
+        "baseline_tracing_id": str(s.baseline_tracing_id),
+        "follow_tracing_id": str(s.follow_tracing_id),
+        "method": s.method,
+        "unit": s.unit,
+        "deltas": s.deltas or {},
+        "summary": s.summary or {},
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+@router.post("/superimpositions", status_code=status.HTTP_201_CREATED)
+async def create_superimposition(body: SuperimpositionCreate, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Register two FINALIZED tracings of the same patient on stable reference points and compute
+    per-landmark change over time (ICS-style progress tracking)."""
+    from app.models.ceph import CephSuperimposition
+    practice_id = uuid.UUID(user["practice_id"])
+    base = await _get_owned(db, user, body.baseline_tracing_id)
+    foll = await _get_owned(db, user, body.follow_tracing_id)
+    if base.patient_id != foll.patient_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tracings belong to different patients")
+    if base.status != "finalized" or foll.status != "finalized":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Both tracings must be finalized before superimposition")
+
+    ppm = (base.calibration or {}).get("px_per_mm") if base.calibration else None
+    result = ceph_engine.superimpose(base.landmarks or {}, foll.landmarks or {}, body.method, ppm)
+    if result.get("error"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, result["error"])
+
+    s = CephSuperimposition(
+        id=uuid.uuid4(), practice_id=practice_id, patient_id=base.patient_id,
+        baseline_tracing_id=base.id, follow_tracing_id=foll.id,
+        method=body.method, unit=result["unit"], deltas=result["deltas"], summary=result["summary"],
+        created_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
+    )
+    db.add(s)
+    await db.commit()
+    await db.refresh(s)
+    await audit_log(db, user["practice_id"], user["user_id"], "ceph.superimposition_create", "ceph_superimpositions", str(s.id))
+    return _superimp_dict(s)
+
+
+@router.get("/patients/{patient_id}/superimpositions")
+async def list_superimpositions(patient_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.ceph import CephSuperimposition
+    rows = (await db.execute(
+        select(CephSuperimposition).where(
+            CephSuperimposition.patient_id == uuid.UUID(patient_id),
+            CephSuperimposition.practice_id == uuid.UUID(user["practice_id"]),
+        ).order_by(CephSuperimposition.created_at.desc())
+    )).scalars().all()
+    return {"superimpositions": [_superimp_dict(s) for s in rows]}
