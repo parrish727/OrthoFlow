@@ -705,3 +705,49 @@ def _subscriber_dict(s: InsuranceSubscriber) -> dict:
         "eligibility_status": s.eligibility_status,
         "notes": s.notes,
     }
+
+
+# ── OrthoFi Financial Bridge ───────────────────────────────────────────────────
+# OrthoFi owns intake→~120 days; OrthoFlow owns the long-tail AR. These endpoints ingest an
+# OrthoFi "financial handoff" so delinquency tracking continues inside OrthoFlow. Source-agnostic
+# (future OrthoFi API or a CSV/JSON export); dormant until a real API/key is provisioned.
+
+class OrthoFiHandoffBody(BaseModel):
+    external_id: str = Field(..., min_length=1, max_length=100)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    date_of_birth: date | None = None
+    email: str | None = Field(None, max_length=255)
+    phone: str | None = Field(None, max_length=20)
+    outstanding_balance: Decimal
+    contract_total: Decimal | None = None
+    monthly_payment: Decimal | None = None
+    last_payment_date: date | None = None
+    handoff_date: date | None = None
+    plan_summary: str | None = Field(None, max_length=500)
+
+
+@router.get("/orthofi/status")
+async def orthofi_status(user: dict = Depends(get_current_user)):
+    """Report OrthoFi bridge readiness (configured/dormant + mode)."""
+    from app.services import orthofi
+    return orthofi.status()
+
+
+@router.post("/orthofi/handoff", status_code=201)
+async def orthofi_import_handoff(
+    body: OrthoFiHandoffBody,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Ingest a single OrthoFi financial handoff → create/match the patient + seed the outstanding
+    balance into the ledger so AR tracking continues. Idempotent per external_id."""
+    from app.services import orthofi
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    handoff = orthofi.OrthoFiHandoff(**body.model_dump())
+    result = await orthofi.import_handoff(
+        db, practice_id, handoff,
+        created_by=UUID(user["user_id"]) if user.get("user_id") else None,
+    )
+    await audit_log(db, practice_id, user["user_id"], "orthofi.handoff_import", "patient", result["patient_id"])
+    return result
