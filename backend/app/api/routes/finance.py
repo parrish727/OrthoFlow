@@ -4,7 +4,7 @@ Patient financial ledger: charges, payments, adjustments with running balance.
 Insurance subscriber management: link patients to plans, track benefits.
 """
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -273,14 +273,17 @@ async def ledger_roster(
     """Practice-wide ledger roster — every patient with charges/payments/balance in one call.
 
     Powers the roster-first Ledger view efficiently (single grouped query instead of N+1).
-    Only includes patients who have financial activity.
+    Only includes patients who have financial activity. Each row also carries an aging bucket
+    (current / 31-60 / 61-90 / 90+ / 120+) based on the oldest outstanding charge, plus the
+    per-patient AR/collections note — so financial coordinators can triage long-tail delinquency
+    (incl. 90-day-plus) and read contact notes without leaving the ledger.
     """
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
     patients = (await db.execute(
         select(Patient).where(Patient.practice_id == practice_id)
     )).scalars().all()
-    name_by_id = {str(p.id): (p.first_name, p.last_name) for p in patients}
+    pmap = {str(p.id): p for p in patients}
 
     rows = (await db.execute(
         select(
@@ -288,25 +291,88 @@ async def ledger_roster(
             func.sum(PatientLedgerEntry.amount),
             func.sum(func.greatest(PatientLedgerEntry.amount, 0)),  # charges (positive)
             func.sum(func.least(PatientLedgerEntry.amount, 0)),     # payments/adjustments (negative)
+            func.min(
+                func.coalesce(PatientLedgerEntry.service_date, PatientLedgerEntry.posted_date)
+            ).filter(PatientLedgerEntry.amount > 0),                 # oldest charge date
         ).where(PatientLedgerEntry.practice_id == practice_id)
         .group_by(PatientLedgerEntry.patient_id)
     )).all()
 
+    today = date.today()
+
+    def _bucket(days: int | None, balance: float) -> tuple[str, int | None]:
+        """Map oldest-charge age to an aging bucket. Only patients with a positive balance age."""
+        if balance <= 0 or days is None:
+            return "current", None
+        if days <= 30:
+            return "current", days
+        if days <= 60:
+            return "31-60", days
+        if days <= 90:
+            return "61-90", days
+        if days <= 120:
+            return "90-120", days
+        return "120+", days
+
     roster = []
-    for pid, balance, charges, payments in rows:
-        nm = name_by_id.get(str(pid))
-        if not nm:
+    for pid, balance, charges, payments, oldest_charge in rows:
+        p = pmap.get(str(pid))
+        if not p:
             continue
+        bal = float(balance or 0)
+        days_overdue = (today - oldest_charge).days if oldest_charge else None
+        bucket, days = _bucket(days_overdue, bal)
+        # delinquent_90_plus is the long-tail flag Adele's practice needs (TOPS dumps these to
+        # collections at 90; OrthoFlow keeps tracking + noting them instead).
+        delinquent_90_plus = bal > 0 and days is not None and days > 90
         roster.append({
             "patient_id": str(pid),
-            "first_name": nm[0],
-            "last_name": nm[1],
-            "balance": float(balance or 0),
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "balance": bal,
             "total_charges": float(charges or 0),
             "total_payments": float(payments or 0),  # negative
+            "aging_bucket": bucket,
+            "days_overdue": days,
+            "delinquent_90_plus": delinquent_90_plus,
+            "ar_note": p.ar_note,
+            "ar_note_updated_at": p.ar_note_updated_at.isoformat() if p.ar_note_updated_at else None,
         })
     roster.sort(key=lambda r: r["balance"], reverse=True)
     return {"count": len(roster), "patients": roster}
+
+
+class ARNoteUpdate(BaseModel):
+    ar_note: str | None = Field(None, max_length=2000)
+
+
+@router.patch("/ledger-roster/{patient_id}/ar-note")
+async def update_ar_note(
+    patient_id: UUID,
+    body: ARNoteUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Save a per-patient AR/collections note inline from the Ledger (financial coordinators)."""
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    patient = (await db.execute(
+        select(Patient).where(Patient.id == patient_id, Patient.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(404, "Patient not found")
+
+    note = (body.ar_note or "").strip() or None
+    patient.ar_note = note
+    patient.ar_note_updated_at = datetime.now(timezone.utc) if note else None
+    patient.ar_note_updated_by = UUID(user["user_id"]) if note else None
+    await db.commit()
+
+    await audit_log(db, practice_id, user["user_id"], "ledger.ar_note", "patient", str(patient_id))
+    return {
+        "patient_id": str(patient_id),
+        "ar_note": patient.ar_note,
+        "ar_note_updated_at": patient.ar_note_updated_at.isoformat() if patient.ar_note_updated_at else None,
+    }
 
 
 @router.get("/insurance-roster")
