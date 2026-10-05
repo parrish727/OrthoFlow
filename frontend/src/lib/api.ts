@@ -269,6 +269,8 @@ export const api = {
   getCephTracing: (tracingId: string) => request(`/api/v1/ceph/tracings/${tracingId}`),
   createCephTracing: (data: { image_id: string; analysis_type: string; landmarks?: Record<string, { x: number; y: number }>; calibration?: { px_per_mm: number; method?: string; ref_mm?: number; ref_px?: number }; is_ai_assisted?: boolean }) =>
     request('/api/v1/ceph/tracings', { method: 'POST', body: JSON.stringify(data) }),
+  autoLandmarkCeph: (data: { image_id: string; analysis_type: string }) =>
+    request('/api/v1/ceph/tracings/auto-landmark', { method: 'POST', body: JSON.stringify(data) }),
   updateCephTracing: (tracingId: string, data: { landmarks?: Record<string, { x: number; y: number }>; analysis_type?: string; calibration?: { px_per_mm: number; method?: string; ref_mm?: number; ref_px?: number }; notes?: string }) =>
     request(`/api/v1/ceph/tracings/${tracingId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   finalizeCephTracing: (tracingId: string) =>
