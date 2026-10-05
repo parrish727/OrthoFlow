@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import ToothChart from '../components/ToothChart'
 import ClinicalEnhancements from '../components/ClinicalEnhancements'
 import CephProgress from '../components/CephProgress'
+import CephVTO from '../components/CephVTO'
 import PatientOrthoPanel from '../components/PatientOrthoPanel'
 import PatientDocuments from '../components/PatientDocuments'
 import PatientAdminSummary from '../components/PatientAdminSummary'
@@ -600,6 +601,9 @@ export default function PatientDetail() {
 
             {/* Cephalometric progress (shows once ≥2 tracings are finalized; otherwise a hint). */}
             {id && <CephProgress patientId={id} />}
+
+            {/* Visual Treatment Objective (predicted target from a finalized tracing). */}
+            {id && <CephVTO patientId={id} />}
           </div>
 
           {/* Right Column — Appointments + Notes + Next Visit */}

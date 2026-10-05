@@ -112,3 +112,36 @@ class CephSuperimposition(Base):
     __table_args__ = (
         Index("idx_ceph_superimp_patient", "practice_id", "patient_id"),
     )
+
+
+class CephVTO(Base):
+    """Visual Treatment Objective — a predicted treatment target projected from a finalized tracing
+    (Ricketts growth + planned mechanics) with a Holdaway-style soft-tissue response. The output is
+    a target landmark set + schematic soft-tissue profile (2D). Photo-realistic morph is scaffolded
+    via profile_photo_key + soft_tissue_landmarks + morph_provider (not yet rendered).
+
+    status: draft | finalized (doctor sign-off before any patient-facing use — it's a PREDICTION).
+    """
+    __tablename__ = "ceph_vtos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    source_tracing_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ceph_tracings.id"), nullable=False)
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    target_landmarks: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    soft_tissue: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # {"profile":[pts], "assumptions":{}}
+    unit: Mapped[str] = mapped_column(String(4), nullable=False, default="mm")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    # Photo-morph scaffold (not yet rendered):
+    profile_photo_key: Mapped[str | None] = mapped_column(String(512))        # object key for a lateral profile photo
+    soft_tissue_landmarks: Mapped[dict | None] = mapped_column(JSONB)         # photo soft-tissue landmark correspondence
+    morph_provider: Mapped[str | None] = mapped_column(String(40))           # which morph backend, when active
+    morph_result_key: Mapped[str | None] = mapped_column(String(512))        # morphed image object key, when rendered
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_ceph_vto_patient", "practice_id", "patient_id"),
+    )
