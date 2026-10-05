@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     # ClamAV
     CLAMAV_URL: str = "http://clamav:3310"
 
+    # OrthoFi financial bridge. OrthoFi has no public developer API today — integration is
+    # partner-driven (PMS→OrthoFi import model). This stays DORMANT (enabled=False) until a
+    # partnership/API or an agreed export format lands; the ingest endpoint accepts a documented
+    # financial-handoff record (the 120-day boundary where OrthoFi stops and OrthoFlow takes over).
+    ORTHOFI_ENABLED: bool = False
+    ORTHOFI_API_KEY: str = ""
+    ORTHOFI_BASE_URL: str = ""  # set when a real OrthoFi API endpoint is provisioned
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest
