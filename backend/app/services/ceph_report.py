@@ -62,9 +62,10 @@ def build_medicaid(tracing: dict, patient_name: str, analysis_name: str) -> dict
                               for k, v in m.items()},
         "notable_deviations": {k: v.get("value") for k, v in abnormal.items()},
         "medical_necessity_note": (
-            "Cephalometric measurements supporting the orthodontic treatment plan. Deviations from "
-            "population norms documented above; submit alongside the HLD index score and clinical "
-            "photographs per payer orthodontic medical-necessity criteria."
+            "Optional supporting cephalometric evidence for the orthodontic treatment plan. Medicaid "
+            "medical-necessity is determined by the HLD index score and clinical photographs; a "
+            "cephalometric radiograph is NOT universally required and is state-dependent/supplemental. "
+            "Include this only if the specific Medicaid plan requests it, alongside the HLD score."
         ),
         "clinician_finalized": tracing.get("status") == "finalized",
     }
