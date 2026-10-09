@@ -554,11 +554,15 @@ async def create_vto(body: VTOCreate, user: dict = Depends(get_current_user), db
     ppm = (src.calibration or {}).get("px_per_mm") if src.calibration else None
     result = ceph_vto.project_vto(src.landmarks or {}, params, ppm)
 
+    # Source (before) soft-tissue profile, for a before/after morph overlay in the UI.
+    _profile_order = ["Sn", "UL", "LL", "Pog_soft", "Me"]
+    source_profile = [src.landmarks[k] for k in _profile_order if (src.landmarks or {}).get(k)]
+
     v = CephVTO(
         id=uuid.uuid4(), practice_id=practice_id, patient_id=src.patient_id, source_tracing_id=src.id,
         params=params, target_landmarks=result["target_landmarks"],
-        soft_tissue={"profile": result["soft_tissue"], "assumptions": result["assumptions"],
-                     "disclaimer": result["disclaimer"]},
+        soft_tissue={"profile": result["soft_tissue"], "source_profile": source_profile,
+                     "assumptions": result["assumptions"], "disclaimer": result["disclaimer"]},
         unit=result["unit"], status="draft",
         created_by=uuid.UUID(user["user_id"]) if user.get("user_id") else None,
     )

@@ -10,8 +10,28 @@ interface Tracing { id: string; analysis_type: string; status: string; created_a
 interface VTO {
   id: string; status: string; unit: string
   params: Record<string, number>
-  soft_tissue: { assumptions?: Record<string, unknown>; disclaimer?: string }
+  soft_tissue: { profile?: { x: number; y: number }[]; source_profile?: { x: number; y: number }[]; assumptions?: Record<string, unknown>; disclaimer?: string }
   finalized_at: string | null; created_at: string | null
+}
+
+// Render a before→after soft-tissue profile morph from two point lists into a normalized SVG box.
+function ProfileMorph({ before, after }: { before: { x: number; y: number }[]; after: { x: number; y: number }[] }) {
+  const all = [...before, ...after]
+  if (all.length < 2) return null
+  const xs = all.map(p => p.x), ys = all.map(p => p.y)
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY)
+  const pad = 10, W = 160, H = 200
+  const sx = (W - 2 * pad) / w, sy = (H - 2 * pad) / h, s = Math.min(sx, sy)
+  const map = (p: { x: number; y: number }) => `${pad + (p.x - minX) * s},${pad + (p.y - minY) * s}`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-40 h-52 bg-gray-900 rounded-lg" data-testid="vto-morph-svg">
+      {before.length >= 2 && <polyline points={before.map(map).join(' ')} fill="none" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 3" />}
+      {after.length >= 2 && <polyline points={after.map(map).join(' ')} fill="none" stroke="#a78bfa" strokeWidth={2.5} />}
+      <text x={8} y={16} fill="#94a3b8" fontSize={9}>— current</text>
+      <text x={8} y={28} fill="#a78bfa" fontSize={9}>— predicted</text>
+    </svg>
+  )
 }
 
 export default function CephVTO({ patientId, testId = 'ceph-vto' }: { patientId: string; testId?: string }) {
@@ -95,6 +115,11 @@ export default function CephVTO({ patientId, testId = 'ceph-vto' }: { patientId:
               ? <span className="text-emerald-700 font-medium flex items-center gap-1"><Check size={11} /> finalized</span>
               : <button data-testid={`vto-finalize-${v.id}`} onClick={() => finalize(v.id)} className="text-violet-600 hover:text-violet-800 font-medium">Finalize</button>}
           </div>
+          {(v.soft_tissue?.source_profile?.length || v.soft_tissue?.profile?.length) ? (
+            <div className="mt-2">
+              <ProfileMorph before={v.soft_tissue.source_profile || []} after={v.soft_tissue.profile || []} />
+            </div>
+          ) : null}
         </div>
       ))}
       <p className="text-[10px] text-gray-400 mt-3">Predicted objective for planning/communication — clinician-reviewed, not a guaranteed outcome. Photo-realistic morph coming; schematic profile today.</p>

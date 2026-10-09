@@ -36,6 +36,9 @@ _INITIAL = {
     "Go": {"x": 270, "y": 720}, "Me": {"x": 560, "y": 840}, "U1T": {"x": 630, "y": 575},
     "U1A": {"x": 600, "y": 500}, "L1T": {"x": 615, "y": 600}, "L1A": {"x": 590, "y": 680},
     "OccP1": {"x": 470, "y": 600}, "OccP2": {"x": 650, "y": 585},
+    # soft-tissue profile landmarks (so the VTO morph renders a real before/after profile)
+    "Sn": {"x": 648, "y": 470}, "UL": {"x": 660, "y": 560}, "LL": {"x": 655, "y": 625},
+    "Pog_soft": {"x": 600, "y": 720},
 }
 _PROGRESS = {**{k: dict(v) for k, v in _INITIAL.items()}}
 _PROGRESS["U1T"] = {"x": 614, "y": 575}   # upper incisor retracted ~16px
@@ -139,11 +142,13 @@ async def seed_ceph_demo():
         # 3) Finalized VTO projected from the initial tracing (predicted target).
         vto_params = {"growth_months": 12, "u1_retraction_mm": 3, "l1_retraction_mm": 2}
         vres = ceph_vto.project_vto(_INITIAL, vto_params, calib["px_per_mm"])
+        _profile_order = ["Sn", "UL", "LL", "Pog_soft", "Me"]
+        _source_profile = [_INITIAL[k] for k in _profile_order if _INITIAL.get(k)]
         db.add(CephVTO(
             id=uuid.uuid4(), practice_id=DEMO_PRACTICE_ID, patient_id=pid, source_tracing_id=t_initial.id,
             params=vto_params, target_landmarks=vres["target_landmarks"],
-            soft_tissue={"profile": vres["soft_tissue"], "assumptions": vres["assumptions"],
-                         "disclaimer": vres["disclaimer"]},
+            soft_tissue={"profile": vres["soft_tissue"], "source_profile": _source_profile,
+                         "assumptions": vres["assumptions"], "disclaimer": vres["disclaimer"]},
             unit=vres["unit"], status="finalized", finalized_at=now,
         ))
 
