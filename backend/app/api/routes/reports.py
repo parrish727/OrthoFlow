@@ -691,56 +691,27 @@ async def ar_aging_report(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """AR Aging: outstanding patient balances in 30/60/90/120+ day buckets."""
+    """AR Aging: outstanding patient balances in 30/60/90/120+ day buckets.
+
+    Uses the same lateness calculation as the Ledger roster (app/services/ar_aging.py): days past
+    the oldest uncovered payment-plan due date, or an estimate when a patient has no schedule. A
+    patient's whole positive balance goes in one bucket. Patients with a balance who are not past
+    due land in the first bucket.
+    """
+    from app.services import ar_aging
+
     practice_id = user["practice_id"]
     today = date.today()
 
-    # Get net balance per patient with their oldest outstanding charge date
-    # We calculate balance per patient then bucket by age of oldest unpaid charge
-    balance_query = (
-        select(
-            PatientLedgerEntry.patient_id,
-            func.sum(PatientLedgerEntry.amount).label("balance"),
-            func.min(PatientLedgerEntry.posted_date).label("oldest_date"),
-        )
-        .where(
-            PatientLedgerEntry.practice_id == practice_id,
-        )
-        .group_by(PatientLedgerEntry.patient_id)
-        .having(func.sum(PatientLedgerEntry.amount) > 0)
-    )
-
-    result = await db.execute(balance_query)
-    rows = result.all()
-
-    buckets = {
-        "0-30": {"total": 0.0, "patients": set()},
-        "31-60": {"total": 0.0, "patients": set()},
-        "61-90": {"total": 0.0, "patients": set()},
-        "91-120": {"total": 0.0, "patients": set()},
-        "120+": {"total": 0.0, "patients": set()},
-    }
-
-    for row in rows:
-        balance = float(row.balance)
-        oldest = row.oldest_date
-        if not oldest:
+    keys = ["0-30", "31-60", "61-90", "91-120", "120+"]
+    buckets = {k: {"total": 0.0, "patients": set()} for k in keys}
+    for r in await ar_aging.load_aging(db, practice_id, today):
+        ag = r.aging
+        if ag.balance <= 0:
             continue
-        days_old = (today - oldest).days
-
-        if days_old <= 30:
-            bucket_key = "0-30"
-        elif days_old <= 60:
-            bucket_key = "31-60"
-        elif days_old <= 90:
-            bucket_key = "61-90"
-        elif days_old <= 120:
-            bucket_key = "91-120"
-        else:
-            bucket_key = "120+"
-
-        buckets[bucket_key]["total"] += balance
-        buckets[bucket_key]["patients"].add(row.patient_id)
+        key = ar_aging.bucket_for(ag.days_past_due) if ag.days_past_due is not None else "0-30"
+        buckets[key]["total"] += ag.balance
+        buckets[key]["patients"].add(r.patient_id)
 
     total_outstanding = sum(b["total"] for b in buckets.values())
 

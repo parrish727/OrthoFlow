@@ -1,10 +1,14 @@
+from datetime import datetime, timezone
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_role
+from app.core.audit import audit_log
 from app.services.storage import upload_file
 
 router = APIRouter()
@@ -45,7 +49,54 @@ async def get_my_practice(
         "address": practice.address,
         "logo_url": practice.logo_url,
         "primary_color": practice.primary_color,
+        "ar_auto_outreach_enabled": practice.ar_auto_outreach_enabled,
     }
+
+
+class AROutreachSetting(BaseModel):
+    enabled: bool
+
+
+@router.get("/me/ar-outreach")
+async def get_ar_outreach(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Whether automatic collections reminders (30/60/90/120/180 days past due) are on."""
+    from app.models.models import Practice
+    from app.services import ar_aging
+    practice = (await db.execute(select(Practice).where(Practice.id == current_user["practice_id"]))).scalar_one_or_none()
+    return {
+        "enabled": bool(practice and practice.ar_auto_outreach_enabled),
+        "enabled_at": practice.ar_auto_outreach_enabled_at.isoformat() if practice and practice.ar_auto_outreach_enabled_at else None,
+        "milestones": list(ar_aging.active_milestones()),
+        "cap_days": ar_aging.cap_days(),
+    }
+
+
+@router.put("/me/ar-outreach")
+async def set_ar_outreach(
+    body: AROutreachSetting,
+    current_user: dict = Depends(require_role("owner", "doctor")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Turn automatic reminders on or off. Owner or doctor only; recorded in the audit log.
+
+    Normally chosen once during initial setup. Off by default. Manual follow-up tools are not
+    affected. Reminders go only to patients with SMS consent (TCPA) and never outside the send window.
+    """
+    from app.models.models import Practice
+    practice = (await db.execute(select(Practice).where(Practice.id == current_user["practice_id"]))).scalar_one_or_none()
+    if not practice:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Practice not found")
+    practice.ar_auto_outreach_enabled = body.enabled
+    practice.ar_auto_outreach_enabled_at = datetime.now(timezone.utc) if body.enabled else None
+    practice.ar_auto_outreach_enabled_by = UUID(current_user["user_id"]) if body.enabled else None
+    await db.commit()
+    await audit_log(db, practice.id, current_user["user_id"],
+                    "practice.ar_outreach_on" if body.enabled else "practice.ar_outreach_off", "practice", str(practice.id))
+    return {"enabled": practice.ar_auto_outreach_enabled}
 
 
 @router.post("/logo")

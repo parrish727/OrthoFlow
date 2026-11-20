@@ -38,6 +38,8 @@ from app.models.finance import (  # noqa: F401
     PatientLedgerEntry,
     ClaimLineItem,
     PaymentPosting,
+    PaymentPlanInstallment,
+    AROutreachEvent,
 )
 
 from app.models.communications import (  # noqa: F401
