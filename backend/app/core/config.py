@@ -109,6 +109,14 @@ class Settings(BaseSettings):
     ORTHOFI_API_KEY: str = ""
     ORTHOFI_BASE_URL: str = ""  # set when a real OrthoFi API endpoint is provisioned
 
+    # AR long-tail window (orthodontic patient-responsible balances only). OrthoFlow's long-tail
+    # follow-up activates STRICTLY AFTER the upstream financial platform's tracking window ends
+    # (START) and stops at CAP. Both are days since the patient's last payment (or, if none, since
+    # the oldest charge). Accounts imported through the OrthoFi handoff are active from the handoff
+    # date. Raise CAP only if it proves beneficial. See docs/specs/AR_LONGTAIL_HANDOFF.md.
+    AR_LONGTAIL_START_DAYS: int = 120
+    AR_LONGTAIL_CAP_DAYS: int = 180
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest

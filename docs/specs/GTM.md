@@ -78,6 +78,7 @@ Revenue model: SaaS monthly subscription per practice, three tiers based on prov
 3. **Patient Portal (MyOrthoChart)** — MyChart-quality patient experience. Reduces phone volume 40%+.
 4. **Independent Ownership** — No PE, no data hostage. Practices own their data.
 5. **Transparent Pricing** — Published tiers. No "call for a quote" games.
+6. **AR Long-Tail Follow-up (orthodontic balances past the upstream tracking window)** — Legacy PMSs and financial platforms stop tracking or push accounts to collections at 90–120 days. OrthoFlow keeps the account visible, noted and workable from the end of OrthoFi's window to a 180-day cap, working alongside OrthoFi rather than replacing it. Staff-triggered outreach, not automatic. Spec: `AR_LONGTAIL_HANDOFF.md`.
 
 ---
 
@@ -238,7 +239,8 @@ Every orthodontic practice loses 5–12% of revenue to insurance denials that go
 | "AI sounds scary for healthcare" | Staff approves every AI action. Nothing goes to a payer without human review. AI drafts; you decide. |
 | "We're too small" | Our Starter tier is $299/mo with unlimited users — less than most practices spend on their current fragmented stack of tools. |
 | "What if you go out of business?" | Your data is yours. We provide full export at any time. No lock-in. |
-| "HIPAA concerns with AI" | All AI processing happens on our HIPAA-compliant, self-hosted infrastructure. No data sent to third-party cloud AI. |
+| "HIPAA concerns with AI" | OrthoFlow is hosted on infrastructure Melanin Technologies operates (no hyperscale cloud). AI features call Anthropic's Claude API, staff review every AI output, and everything is audit-logged. *Internal: the earlier line "no data sent to third-party cloud AI" was false and is removed. Confirm the AI provider BAA before using any HIPAA-specific claim externally. See `DATA_HOSTING_AND_LOCALITY.md`.* |
+| "We already use OrthoFi" | Keep it. OrthoFi handles intake, verification, benefits and contracts. OrthoFlow picks up balances only after OrthoFi's tracking window ends, so the two never chase the same patient (`AR_LONGTAIL_HANDOFF.md`). |
 
 ---
 

@@ -15,6 +15,8 @@ interface PatientBalance {
   aging_bucket: string
   days_overdue: number | null
   delinquent_90_plus: boolean
+  longtail_status?: 'not_delinquent' | 'upstream_window' | 'active' | 'past_cap'
+  longtail_days?: number | null
   ar_note: string | null
   ar_note_updated_at: string | null
 }
@@ -54,6 +56,7 @@ export default function Ledger() {
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [only90, setOnly90] = useState(false)
+  const [onlyLongtail, setOnlyLongtail] = useState(false)
 
   useEffect(() => { loadAllBalances() }, [])
 
@@ -75,6 +78,7 @@ export default function Ledger() {
           id: p.patient_id || p.id, first_name: p.first_name, last_name: p.last_name,
           balance: p.balance, total_charges: p.total_charges, total_payments: p.total_payments,
           aging_bucket: p.aging_bucket, days_overdue: p.days_overdue, delinquent_90_plus: p.delinquent_90_plus,
+          longtail_status: p.longtail_status, longtail_days: p.longtail_days,
           ar_note: p.ar_note, ar_note_updated_at: p.ar_note_updated_at,
         })))
       }
@@ -106,11 +110,13 @@ export default function Ledger() {
 
   const totals = patients.reduce((acc, p) => ({ charges: acc.charges + p.total_charges, payments: acc.payments + Math.abs(p.total_payments), balance: acc.balance + p.balance }), { charges: 0, payments: 0, balance: 0 })
   const count90 = patients.filter(p => p.delinquent_90_plus).length
+  const countLongtail = patients.filter(p => p.longtail_status === 'active').length
 
-  // Client-side filter (roster is a single call): search by name + optional 90+ delinquency filter.
+  // Client-side filter (roster is a single call): search by name + optional 90+ / long-tail filters.
   const q = search.trim().toLowerCase()
   const visible = patients.filter(p => {
     if (only90 && !p.delinquent_90_plus) return false
+    if (onlyLongtail && p.longtail_status !== 'active') return false
     if (!q) return true
     return `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) || `${p.last_name} ${p.first_name}`.toLowerCase().includes(q)
   })
@@ -165,6 +171,14 @@ export default function Ledger() {
           className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border transition-colors ${only90 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'}`}
         >
           <AlertTriangle size={14} /> 90+ Days {only90 ? '✓' : `(${count90})`}
+        </button>
+        <button
+          data-testid="ledger-filter-longtail"
+          title="Accounts past the upstream tracking window and inside OrthoFlow's long-tail follow-up window"
+          onClick={() => setOnlyLongtail(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border transition-colors ${onlyLongtail ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200'}`}
+        >
+          Long-tail follow-up {onlyLongtail ? '✓' : `(${countLongtail})`}
         </button>
       </div>
 

@@ -1,6 +1,6 @@
 # OrthoFi ↔ OrthoFlow Integration — Feasibility & Bridge Design
 
-**Date:** 2026-10-04 · **Status:** Scaffolding shipped (dormant); live activation pending partnership.
+**Date:** 2026-10-04 (updated 2026-11-20) · **Status:** Scaffolding shipped (dormant); live activation pending partnership.
 
 ## Why
 OrthoFi is used by a large share of orthodontic practices for digital new-patient intake, insurance
@@ -8,6 +8,15 @@ verification, benefit calculation, and contract setup. Its key limitation: it **
 ~120 days**. OrthoFlow's AR aging + 90+/120+ delinquency tracking (shipped) is built to own exactly
 that long tail. Doctors treat "do you integrate with OrthoFi?" as a standard due-diligence question,
 so a credible bridge is strategically important for landing OrthoFi-using practices.
+
+## Handoff principle: work with OrthoFi, never against it (2026-11-20)
+OrthoFlow's long-tail follow-up opens **strictly after** OrthoFi's tracking limit and closes at a
+configurable cap (default 180 days). Accounts imported through the handoff carry an `ORTHOFI:`
+marker and open on the handoff date. The practice never has two systems chasing one patient.
+Window: `AR_LONGTAIL_START_DAYS` (default 120, to be confirmed with OrthoFi; internal discussion
+also used 90) and `AR_LONGTAIL_CAP_DAYS` (default 180). Scope is orthodontic patient-responsible
+balances only. Full spec, statuses, what is and is not built, and the asks for the OrthoFi
+meeting: `docs/specs/AR_LONGTAIL_HANDOFF.md`.
 
 ## Feasibility findings (discovery 2026-10-04)
 - **No public OrthoFi developer API.** OrthoFi integrations are **partner-driven**, not self-serve.

@@ -16,6 +16,7 @@ from app.core.auth import get_current_user
 from app.core.audit import audit_log
 from app.models.finance import InsuranceSubscriber, PatientLedgerEntry, InsuranceBenefitPeriod
 from app.models.clinical import Patient
+from app.services import ar_longtail
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
 
@@ -294,6 +295,12 @@ async def ledger_roster(
             func.min(
                 func.coalesce(PatientLedgerEntry.service_date, PatientLedgerEntry.posted_date)
             ).filter(PatientLedgerEntry.amount > 0),                 # oldest charge date
+            func.max(PatientLedgerEntry.posted_date).filter(
+                PatientLedgerEntry.entry_type == "payment"
+            ),                                                       # last payment date
+            func.max(
+                func.coalesce(PatientLedgerEntry.service_date, PatientLedgerEntry.posted_date)
+            ).filter(PatientLedgerEntry.reference_number.like("ORTHOFI:%")),  # OrthoFi handoff date
         ).where(PatientLedgerEntry.practice_id == practice_id)
         .group_by(PatientLedgerEntry.patient_id)
     )).all()
@@ -315,7 +322,7 @@ async def ledger_roster(
         return "120+", days
 
     roster = []
-    for pid, balance, charges, payments, oldest_charge in rows:
+    for pid, balance, charges, payments, oldest_charge, last_payment, handoff_date in rows:
         p = pmap.get(str(pid))
         if not p:
             continue
@@ -325,6 +332,11 @@ async def ledger_roster(
         # delinquent_90_plus is the long-tail flag Adele's practice needs (TOPS dumps these to
         # collections at 90; OrthoFlow keeps tracking + noting them instead).
         delinquent_90_plus = bal > 0 and days is not None and days > 90
+        # Long-tail window (ar_longtail): opens strictly after the upstream platform's limit.
+        lt_days = ar_longtail.delinquent_days(today, last_payment, oldest_charge, handoff_date)
+        lt_status = ar_longtail.classify(
+            bal, lt_days, handed_off=ar_longtail.released_by_upstream(last_payment, handoff_date)
+        )
         roster.append({
             "patient_id": str(pid),
             "first_name": p.first_name,
@@ -335,11 +347,18 @@ async def ledger_roster(
             "aging_bucket": bucket,
             "days_overdue": days,
             "delinquent_90_plus": delinquent_90_plus,
+            "longtail_status": lt_status,
+            "longtail_days": lt_days if lt_status != ar_longtail.NOT_DELINQUENT else None,
             "ar_note": p.ar_note,
             "ar_note_updated_at": p.ar_note_updated_at.isoformat() if p.ar_note_updated_at else None,
         })
     roster.sort(key=lambda r: r["balance"], reverse=True)
-    return {"count": len(roster), "patients": roster}
+    w = ar_longtail.window()
+    return {
+        "count": len(roster),
+        "patients": roster,
+        "longtail_window": {"start_days": w.start_days, "cap_days": w.cap_days},
+    }
 
 
 class ARNoteUpdate(BaseModel):

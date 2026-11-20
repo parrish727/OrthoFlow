@@ -15,7 +15,7 @@ The platform serves small to mid-size orthodontic practices (1–10 providers) a
 
 OrthoFlow is live in production, processing real clinical workflows with five role-based access tiers (Owner, Doctor, Office Manager, DA, Front Desk) plus a Consultant role for practice optimization. The system includes multi-tenant practice isolation, AI features powered by Anthropic Claude for denial analysis, appeal generation, clinical note summarization, and predictive intelligence.
 
-**Key additions since v1.0:** Invisalign integration (Align Technology Doctor Site), Consultant Reports module (7 practice optimization reports), MyOrthoChart full redesign (Epic MyChart patterns), virtual visits (LiveKit), full orthodontic appointment types (26 types), appliance order management, and AI auto-response for messaging.
+**Key additions since v1.0:** Invisalign integration (Align Technology Doctor Site), Consultant Reports module (7 practice optimization reports), MyOrthoChart full redesign (Epic MyChart patterns), full orthodontic appointment types (26 types), appliance order management, and AI auto-response for messaging.
 
 ---
 
@@ -68,7 +68,7 @@ OrthoFlow is live in production, processing real clinical workflows with five ro
 ### Practice Profile
 
 - **Size:** 1–10 providers
-- **Specialties:** Orthodontics (primary), general dentistry. Future: periodontics, pediatric dentistry (backlog)
+- **Specialties:** Orthodontics only
 - **Geography:** United States
 - **Tech maturity:** Varies (OrthoFlow handles migration from legacy systems)
 
@@ -363,8 +363,16 @@ The patient experience mirrors what patients already expect from hospital system
 
 #### Accounts Receivable Aging
 - 30/60/90/120+ day aging buckets
+- 90+ day delinquency filter and count on the Ledger, per-patient inline AR/collections notes, ledger patient search
 - By payer and by patient
 - Follow-up prioritization
+
+#### AR Long-Tail Follow-up (orthodontic patient balances, post-OrthoFi handoff)
+- OrthoFlow follow-up opens **strictly after** the upstream financial platform's tracking limit (default 120 days, `AR_LONGTAIL_START_DAYS`) and closes at a cap (default 180 days, `AR_LONGTAIL_CAP_DAYS`). Cap is raised only if practice data shows it pays.
+- Per-account `longtail_status` on the Ledger roster (`upstream_window`, `active`, `past_cap`) and a "Long-tail follow-up" filter.
+- OrthoFi handoff import seeds the balance, marks provenance, and opens the window on the handoff date. Dormant until a feed exists.
+- Outreach is staff-triggered (AI collections letters, report-builder bundle SMS). No scheduled automatic outreach is built.
+- Spec: `docs/specs/AR_LONGTAIL_HANDOFF.md`
 
 #### Provider Productivity
 - Appointments per day/week
@@ -410,22 +418,11 @@ The patient experience mirrors what patients already expect from hospital system
 
 ---
 
-### 5.15 Multi-Specialty Support
+### 5.15 Multi-Specialty Support (REMOVED — orthodontics only)
 
-#### Periodontal Charting
-- Full-mouth perio charting (6-point probing depths)
-- Bleeding on probing, recession, furcation
-- Historical comparison and trend visualization
-
-#### Hygiene Recall
-- Automated recall scheduling
-- Recall due list and follow-up tracking
-- Configurable recall intervals per patient
-
-#### Restorative
-- Restorative treatment tracking
-- Procedure-specific documentation
-- CDT code integration for restorative procedures
+OrthoFlow is strictly orthodontic. Periodontal charting was removed in Part 2 (migration 020,
+`/api/v1/perio` returns 404). Hygiene recall and restorative tracking are not part of the product
+scope and are not offered or marketed.
 
 ---
 
@@ -627,6 +624,7 @@ Patient/Staff Action → FastAPI Endpoint → Anthropic Claude API (direct httpx
 |---------|--------|--------|
 | Stedi clearinghouse integration | In development | Electronic claim submission + same-day appeals |
 | MyOrthoChart native mobile app | In development | iOS and Android via React Native |
+| OrthoFi financial handoff feed | Import scaffold shipped (dormant); live feed pending partnership | See `docs/specs/ORTHOFI_INTEGRATION_FEASIBILITY.md` and `AR_LONGTAIL_HANDOFF.md` |
 
 ### Planned (Backlog, Not Started)
 
@@ -658,7 +656,7 @@ All features listed in Section 5 (Feature Inventory) are deployed and operationa
 
 1. **AI-Native Revenue Cycle** — Denial review, appeal generation, and pattern analysis built into the claims workflow (not a bolt-on add-on).
 2. **MyOrthoChart Patient Portal** — MyChart-equivalent experience that dental/ortho patients expect but don't currently get.
-3. **Multi-Specialty in One System** — Orthodontics, perio, hygiene, and restorative in a single platform with shared patient records.
+3. **Orthodontics-Only Focus** — Every workflow is built for orthodontic practices (no perio, hygiene or restorative modules to configure around).
 4. **Data Ownership** — Self-hosted infrastructure means practices own their data with no vendor lock-in.
 5. **Modern Developer Experience** — React + FastAPI + PostgreSQL stack enables rapid feature development (vs. competitors on legacy .NET/Java).
 6. **Transparent Pricing** — No per-seat gouging, no surprise fees, no PE-driven price increases.
