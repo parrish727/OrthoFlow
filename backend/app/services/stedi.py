@@ -370,7 +370,7 @@ class StediClient:
             }
         return payload, pcn
 
-    async def submit_dental_claim(self, claim_data: dict) -> SubmissionResult:
+    async def submit_dental_claim(self, claim_data: dict, simulate: bool = False) -> SubmissionResult:
         """Submit a dental claim (837D).
 
         In sandbox (STEDI_LIVE_CLAIMS=false) this simulates Stedi's synchronous response
@@ -379,8 +379,12 @@ class StediClient:
         """
         payload, pcn = self.build_837d(claim_data)
 
-        if not self.live_claims:
+        # Simulation is for the demo practice only (callers pass simulate=True for it). A real
+        # practice never gets a fabricated acknowledgment: if live claims are off, it fails clearly.
+        if simulate:
             return self._simulate_submission(payload, pcn)
+        if not self.live_claims:
+            return SubmissionResult(success=False, errors=["Live claim submission is not enabled yet."])
 
         try:
             response = await self._request(
@@ -471,9 +475,11 @@ class StediClient:
 
     # ── Claim status (276/277) — PROD only; simulated in sandbox ────────────────
 
-    async def check_status(self, claim_id: str, simulated_status: str | None = None) -> ClaimStatus:
-        """Check claim adjudication status. Simulated in sandbox (no 276/277 in test mode)."""
-        if not self.live_claims:
+    async def check_status(self, claim_id: str, simulated_status: str | None = None, simulate: bool = False) -> ClaimStatus:
+        """Check claim adjudication status. Simulated only when simulate=True (demo practice)."""
+        if not simulate and not self.live_claims:
+            raise StediError("Live claim status is not enabled yet.")
+        if simulate:
             return ClaimStatus(
                 claim_id=claim_id,
                 status=simulated_status or "accepted",

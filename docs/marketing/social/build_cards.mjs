@@ -1,14 +1,15 @@
 // Builds the AR/Collections long-tail social cards (SVG + PNG).
 // Usage (from this folder):  node build_cards.mjs
 // PNG rendering uses macOS QuickLook (qlmanage); run on a Mac.
-// START/CAP mirror AR_LONGTAIL_START_DAYS / AR_LONGTAIL_CAP_DAYS. If OrthoFi confirms a different
-// limit, change them here and re-run so the cards match the product configuration.
+// MILESTONES/CAP mirror the AR cadence in backend/app/services/ar_aging.py (30/60/90/120/180).
+// If the cadence changes, edit them here and re-run so the cards match the product.
 import { writeFileSync, mkdirSync, renameSync, readFileSync, unlinkSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-const START = 120
+const MILESTONES = [30, 60, 90, 120, 180]
+const LONG_TAIL = 120
 const CAP = 180
 const TEAL = '#00C2A8'
 const NAVY = '#0B1B2B'
@@ -34,14 +35,17 @@ function logo(x, y, k) {
 // ---- body renderers (all return svg for the area below the headline) ----
 function timeline(W, y) {
   const x0 = 80, x1 = W - 80, w = x1 - x0
-  const mid = x0 + (w * START) / CAP
+  const px = (d) => x0 + (w * d) / CAP
+  const tail = px(LONG_TAIL)
+  const ticks = MILESTONES.map((m) => `
+    <circle cx="${px(m)}" cy="${y + 13}" r="15" fill="${m >= LONG_TAIL ? NAVY : TEAL}" stroke="${m >= LONG_TAIL ? '#fff' : NAVY}" stroke-width="3"/>
+    ${text(px(m), y + 64, `${m}`, { size: 24, fill: m >= LONG_TAIL ? TEAL : '#fff', anchor: 'middle' })}`).join('')
   return `
-    <rect x="${x0}" y="${y}" width="${mid - x0 - 4}" height="26" rx="13" fill="#1B3550"/>
-    <rect x="${mid}" y="${y}" width="${x1 - mid}" height="26" rx="13" fill="${TEAL}"/>
-    ${text(x0, y + 62, `Days 0–${START}`, { size: 22, fill: '#fff' })}
-    ${text(x0, y + 90, 'Your billing platform tracks', { size: 22, weight: 500, fill: '#9FB3C8' })}
-    ${text(mid, y + 62, `Days ${START}–${CAP}`, { size: 22, fill: TEAL })}
-    ${text(mid, y + 90, 'OrthoFlow follows up', { size: 22, weight: 500, fill: '#9FB3C8' })}`
+    <rect x="${x0}" y="${y}" width="${tail - x0 - 4}" height="26" rx="13" fill="#1B3550"/>
+    <rect x="${tail}" y="${y}" width="${x1 - tail}" height="26" rx="13" fill="${TEAL}" opacity="0.55"/>
+    ${ticks}
+    ${text(x0, y + 104, 'Days past due', { size: 20, weight: 500, fill: '#9FB3C8' })}
+    ${text(x1, y + 104, 'The long tail many tools drop', { size: 20, weight: 700, fill: TEAL, anchor: 'end' })}`
 }
 
 function bullets(W, y, items, gap) {
@@ -55,50 +59,50 @@ function bullets(W, y, items, gap) {
 
 function flow(W, y) {
   const steps = [
-    ['Intake &', 'contracts'],
-    ['Early', 'tracking'],
-    [`Handoff`, `day ${START}`],
-    ['OrthoFlow', `to day ${CAP}`],
+    ['Verify coverage', 'Stedi'],
+    ['Send claims', 'Stedi'],
+    ['Pay by bank', 'Plaid'],
+    ['Follow up', '30 to 180 days'],
   ]
   const gap = 18
   const bw = (W - 160 - gap * 3) / 4
   return steps
     .map(([a, b], i) => {
       const x = 80 + i * (bw + gap)
-      const hot = i >= 2
+      const hot = i === 3
       return `
       <rect x="${x}" y="${y}" width="${bw}" height="104" rx="18" fill="${hot ? TEAL : '#1B3550'}"/>
-      ${text(x + bw / 2, y + 46, a, { size: 25, fill: hot ? NAVY : '#fff', anchor: 'middle' })}
-      ${text(x + bw / 2, y + 78, b, { size: 25, weight: 500, fill: hot ? NAVY : '#9FB3C8', anchor: 'middle' })}`
+      ${text(x + bw / 2, y + 46, a, { size: 23, fill: hot ? NAVY : '#fff', anchor: 'middle' })}
+      ${text(x + bw / 2, y + 78, b, { size: 23, weight: 500, fill: hot ? NAVY : '#9FB3C8', anchor: 'middle' })}`
     })
     .join('')
 }
 
 const cards = [
   {
-    id: 'long-tail-1-handoff',
+    id: 'long-tail-1-cadence',
     eyebrow: 'AR & COLLECTIONS LONG TAIL',
-    head: [`Your billing platform`, `stops tracking at day ${START}.`],
-    accent: ['We keep going.'],
+    head: ['Many billing tools stop', 'at 90 to 120 days.'],
+    accent: ['We follow up through 180.'],
     body: (W, y) => timeline(W, y),
     foot: 'Orthodontic balances only. Your team reviews every message.',
   },
   {
     id: 'long-tail-2-unfinished',
     eyebrow: 'AR & COLLECTIONS LONG TAIL',
-    head: [`Past ${START} days isn't`, 'lost revenue.'],
+    head: [`Past ${LONG_TAIL} days isn't`, 'lost revenue.'],
     accent: ["It's unfinished follow-up."],
     body: (W, y, land) =>
-      bullets(W, y + 18, ['Every aging account flagged in your Ledger', 'Notes, so nobody calls twice', 'Letters and texts your team approves'], land ? 52 : 62),
-    foot: 'Orthodontic balances only. Your team reviews every message.',
+      bullets(W, y + 18, ['Reminders at 30, 60, 90, 120 and 180 days', 'A secure pay link by text to MyOrthoChart', 'Automatic or manual. You choose.'], land ? 52 : 62),
+    foot: 'Automatic reminders are off until you turn them on.',
   },
   {
-    id: 'long-tail-3-together',
-    eyebrow: 'WORKS ALONGSIDE YOUR TOOLS',
-    head: ['Works with your financial', 'platform. Not against it.'],
-    accent: ['We start only after', 'theirs ends.'],
+    id: 'long-tail-3-stedi-plaid',
+    eyebrow: 'POWERED BY STEDI AND PLAID',
+    head: ['Verify. Bill. Collect.', 'In one orthodontic platform.'],
+    accent: ['Then keep following up.'],
     body: (W, y) => flow(W, y),
-    foot: 'No double outreach. Handoff window is configurable.',
+    foot: 'Insurance checks and claims by Stedi. Bank payments by Plaid.',
   },
 ]
 

@@ -78,7 +78,8 @@ Revenue model: SaaS monthly subscription per practice, three tiers based on prov
 3. **Patient Portal (MyOrthoChart)** — MyChart-quality patient experience. Reduces phone volume 40%+.
 4. **Independent Ownership** — No PE, no data hostage. Practices own their data.
 5. **Transparent Pricing** — Published tiers. No "call for a quote" games.
-6. **AR Long-Tail Follow-up (orthodontic balances past the upstream tracking window)** — Legacy PMSs and financial platforms stop tracking or push accounts to collections at 90–120 days. OrthoFlow keeps the account visible, noted and workable from the end of OrthoFi's window to a 180-day cap, working alongside OrthoFi rather than replacing it. Staff-triggered outreach, not automatic. Spec: `AR_LONGTAIL_HANDOFF.md`.
+6. **AR Collections Cadence (the long tail)** — Many billing tools stop tracking balances at 90 to 120 days, and some legacy PMSs push them to collections. OrthoFlow follows up at 30, 60, 90, 120 and 180 days past due against real payment-plan due dates, texts a secure MyOrthoChart pay link, and lets the doctor choose automatic or manual follow-up at setup. Orthodontic balances only. Spec: `AR_COLLECTIONS_CADENCE.md`.
+7. **Partners built in: Stedi and Plaid** — Insurance eligibility, claims and remittances run through Stedi, our clearinghouse partner. Bank connections and pay-by-bank run through Plaid. One platform covers what practices otherwise buy as a separate financial service next to their PMS (see `FINANCIAL_LAYER_STEDI_PLAID.md`). Do not advertise patient pay-by-bank until it is switched on in production.
 
 ---
 
@@ -240,7 +241,7 @@ Every orthodontic practice loses 5–12% of revenue to insurance denials that go
 | "We're too small" | Our Starter tier is $299/mo with unlimited users — less than most practices spend on their current fragmented stack of tools. |
 | "What if you go out of business?" | Your data is yours. We provide full export at any time. No lock-in. |
 | "HIPAA concerns with AI" | OrthoFlow is hosted on infrastructure Melanin Technologies operates (no hyperscale cloud). AI features call Anthropic's Claude API, staff review every AI output, and everything is audit-logged. *Internal: the earlier line "no data sent to third-party cloud AI" was false and is removed. Confirm the AI provider BAA before using any HIPAA-specific claim externally. See `DATA_HOSTING_AND_LOCALITY.md`.* |
-| "We already use OrthoFi" | Keep it. OrthoFi handles intake, verification, benefits and contracts. OrthoFlow picks up balances only after OrthoFi's tracking window ends, so the two never chase the same patient (`AR_LONGTAIL_HANDOFF.md`). |
+| "We already use a separate financial platform" | OrthoFlow includes digital paperwork, insurance verification (Stedi), contracts with due dates, claims and collections follow-up, so most practices replace it. If you keep it, OrthoFlow still tracks balances to 180 days. Migration from Dolphin, Cloud 9 and Ortho2 is supported. |
 
 ---
 

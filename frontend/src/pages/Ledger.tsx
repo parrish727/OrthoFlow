@@ -15,8 +15,13 @@ interface PatientBalance {
   aging_bucket: string
   days_overdue: number | null
   delinquent_90_plus: boolean
-  longtail_status?: 'not_delinquent' | 'upstream_window' | 'active' | 'past_cap'
-  longtail_days?: number | null
+  due_source?: 'schedule' | 'estimated' | 'none'
+  amount_past_due?: number
+  next_due_date?: string | null
+  next_due_amount?: number | null
+  milestone?: number | null
+  long_tail?: boolean
+  past_cap?: boolean
   ar_note: string | null
   ar_note_updated_at: string | null
 }
@@ -78,7 +83,8 @@ export default function Ledger() {
           id: p.patient_id || p.id, first_name: p.first_name, last_name: p.last_name,
           balance: p.balance, total_charges: p.total_charges, total_payments: p.total_payments,
           aging_bucket: p.aging_bucket, days_overdue: p.days_overdue, delinquent_90_plus: p.delinquent_90_plus,
-          longtail_status: p.longtail_status, longtail_days: p.longtail_days,
+          due_source: p.due_source, amount_past_due: p.amount_past_due, next_due_date: p.next_due_date,
+          next_due_amount: p.next_due_amount, milestone: p.milestone, long_tail: p.long_tail, past_cap: p.past_cap,
           ar_note: p.ar_note, ar_note_updated_at: p.ar_note_updated_at,
         })))
       }
@@ -110,13 +116,13 @@ export default function Ledger() {
 
   const totals = patients.reduce((acc, p) => ({ charges: acc.charges + p.total_charges, payments: acc.payments + Math.abs(p.total_payments), balance: acc.balance + p.balance }), { charges: 0, payments: 0, balance: 0 })
   const count90 = patients.filter(p => p.delinquent_90_plus).length
-  const countLongtail = patients.filter(p => p.longtail_status === 'active').length
+  const countLongtail = patients.filter(p => p.long_tail).length
 
   // Client-side filter (roster is a single call): search by name + optional 90+ / long-tail filters.
   const q = search.trim().toLowerCase()
   const visible = patients.filter(p => {
     if (only90 && !p.delinquent_90_plus) return false
-    if (onlyLongtail && p.longtail_status !== 'active') return false
+    if (onlyLongtail && !p.long_tail) return false
     if (!q) return true
     return `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) || `${p.last_name} ${p.first_name}`.toLowerCase().includes(q)
   })
@@ -174,7 +180,7 @@ export default function Ledger() {
         </button>
         <button
           data-testid="ledger-filter-longtail"
-          title="Accounts past the upstream tracking window and inside OrthoFlow's long-tail follow-up window"
+          title="Accounts 120+ days past due, up to the 180-day follow-up cap"
           onClick={() => setOnlyLongtail(v => !v)}
           className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border transition-colors ${onlyLongtail ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200'}`}
         >
@@ -248,9 +254,13 @@ function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt,
         <td className="px-6 py-3">
           {patient.balance > 0 ? (
             <span data-testid={`aging-badge-${patient.id}`} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${BUCKET_STYLE[patient.aging_bucket] || 'bg-gray-100 text-gray-500'}`}>
-              {BUCKET_LABEL[patient.aging_bucket] || patient.aging_bucket}{patient.days_overdue != null ? ` · ${patient.days_overdue}d` : ''}
+              {BUCKET_LABEL[patient.aging_bucket] || patient.aging_bucket}{patient.days_overdue != null ? ` · ${patient.days_overdue}d${patient.due_source === 'estimated' ? ' est.' : ''}` : ''}
             </span>
           ) : <span className="text-[10px] text-gray-300">—</span>}
+          {patient.balance > 0 && patient.next_due_date && (
+            <div data-testid={`next-due-${patient.id}`} className="text-[10px] text-gray-500 mt-0.5">next due {new Date(patient.next_due_date + 'T00:00:00').toLocaleDateString()}{patient.next_due_amount != null ? ` · $${patient.next_due_amount.toFixed(0)}` : ''}</div>
+          )}
+          {patient.past_cap && <div className="text-[10px] text-red-600 font-medium mt-0.5">past 180-day cap</div>}
         </td>
         <td className="px-6 py-3 text-right text-sm text-gray-700">{fmt(patient.total_charges)}</td>
         <td className="px-6 py-3 text-right text-sm text-emerald-600">{fmt(Math.abs(patient.total_payments))}</td>
@@ -267,6 +277,8 @@ function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt,
               <button data-testid="quicklink-claims" onClick={() => navigate(`/claims?patient_id=${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><FileText size={13} /> Claims</button>
               <button data-testid="quicklink-payments" onClick={() => navigate(`/payments?patient_id=${patient.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-full hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"><CreditCard size={13} /> Payments</button>
             </div>
+
+            <PaymentPlanPanel patientId={patient.id} fmt={fmt} />
 
             {/* AR / collections note — single place for financial-coordinator contact notes */}
             <div className="mb-3 bg-white rounded-xl border border-gray-200 p-3" onClick={e => e.stopPropagation()} data-testid={`ar-note-editor-${patient.id}`}>
@@ -350,5 +362,43 @@ function PatientRow({ patient, expanded, entries, entriesLoading, onToggle, fmt,
         </tr>
       )}
     </>
+  )
+}
+
+
+interface PlanInstallment { sequence: number; due_date: string; amount: number; covered: number; status: 'paid' | 'partial' | 'overdue' | 'due' | 'upcoming' }
+const PLAN_STYLE: Record<string, string> = {
+  paid: 'bg-emerald-100 text-emerald-700', partial: 'bg-amber-100 text-amber-700', overdue: 'bg-red-100 text-red-700',
+  due: 'bg-blue-100 text-blue-700', upcoming: 'bg-gray-100 text-gray-500',
+}
+
+function PaymentPlanPanel({ patientId, fmt }: { patientId: string; fmt: (n: number) => string }) {
+  const [rows, setRows] = useState<PlanInstallment[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await api.getPaymentPlan(patientId)
+        if (res.ok && alive) setRows((await res.json()).installments || [])
+      } catch { if (alive) setRows([]) }
+    })()
+    return () => { alive = false }
+  }, [patientId])
+  if (rows === null || rows.length === 0) return null
+  return (
+    <div className="mb-3 bg-white rounded-xl border border-gray-200 p-3" onClick={e => e.stopPropagation()} data-testid={`payment-plan-${patientId}`}>
+      <div className="text-xs font-semibold text-gray-700 mb-2">Payment plan due dates</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {rows.map(r => (
+          <div key={r.sequence} className="border border-gray-100 rounded-lg px-2.5 py-1.5">
+            <div className="text-[11px] text-gray-500">#{r.sequence} · {new Date(r.due_date + 'T00:00:00').toLocaleDateString()}</div>
+            <div className="flex items-center justify-between mt-0.5">
+              <span className="text-sm font-medium text-gray-800">{fmt(r.amount)}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PLAN_STYLE[r.status]}`}>{r.status}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

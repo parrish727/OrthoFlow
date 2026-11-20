@@ -2,6 +2,8 @@ import { ArrowLeft, Link2, CheckCircle, AlertCircle, HelpCircle, Shield } from '
 import { useNavigate } from 'react-router-dom'
 import Tooltip from '../components/Tooltip'
 import { api } from '../lib/api'
+import AROutreachSetting from '../components/AROutreachSetting'
+import DataLocationPanel from '../components/DataLocationPanel'
 
 const integrations = [
   { name: 'QuickBooks Online', status: 'available', description: 'Sync approved invoices as Bills automatically', icon: '📗' },
@@ -34,6 +36,11 @@ return (
               Manage Permissions
             </button>
           </div>
+        </div>
+
+        <div className="mb-6 space-y-4">
+          <AROutreachSetting />
+          <DataLocationPanel />
         </div>
 
         {/* Practice Info */}

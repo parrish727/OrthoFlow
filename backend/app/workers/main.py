@@ -136,6 +136,7 @@ async def worker_loop():
     await _ensure_model()
 
     last_automation_date = None
+    last_outreach_date = None
     while True:
         invoice_id = await dequeue_invoice()
         if invoice_id:
@@ -151,7 +152,43 @@ async def worker_loop():
                     last_automation_date = today
                 except Exception as e:
                     log.warning(f"Daily automation run failed: {e}")
+            # Collections reminders: once per local day, only inside the practice send window.
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                from zoneinfo import ZoneInfo as _Zone
+                from app.services import ar_outreach
+                now_utc = _dt.now(_tz.utc)
+                local_today = now_utc.astimezone(_Zone(settings.AR_OUTREACH_TZ)).date()
+                if last_outreach_date != local_today and ar_outreach.in_send_window(now_utc):
+                    await _run_ar_outreach(now_utc, local_today)
+                    last_outreach_date = local_today
+            except Exception as e:
+                log.warning(f"AR outreach run failed: {e}")
             await asyncio.sleep(2)
+
+
+async def _run_ar_outreach(now_utc, local_today):
+    """Send due 30/60/90/120/180-day reminders for every practice that has turned them on."""
+    from app.core.database import SessionLocal
+    from app.models.models import Practice
+    from app.services import ar_outreach, automation
+    from sqlalchemy import select as _select
+
+    async with SessionLocal() as db:
+        practices = (await db.execute(
+            _select(Practice).where(Practice.ar_auto_outreach_enabled.is_(True)))).scalars().all()
+        for practice in practices:
+            try:
+                res = await ar_outreach.run_for_practice(db, practice, local_today, now_utc)
+                if res["sent"] or res["failed"]:
+                    await automation._record(
+                        db, practice.id, "ar_outreach", local_today, res["sent"],
+                        f"Sent {res['sent']} collections reminder(s); {res['skipped_no_consent']} skipped (no SMS consent).",
+                        res)
+                    await db.commit()
+            except Exception as e:
+                await db.rollback()
+                log.warning(f"AR outreach for practice {practice.id} failed: {e}")
 
 
 async def _run_daily_automations(today):

@@ -199,6 +199,12 @@ export const api = {
   logRecentSearch: (patientId: string) =>
     request('/api/v1/recent-searches', { method: 'POST', body: JSON.stringify({ patient_id: patientId }) }),
   getLedgerRoster: () => request('/api/v1/finance/ledger-roster'),
+  getPaymentPlan: (patientId: string) => request(`/api/v1/finance/payment-plan/${patientId}`),
+  setPaymentPlan: (patientId: string, data: { first_due_date: string; months: number; total: number }) =>
+    request(`/api/v1/finance/payment-plan/${patientId}`, { method: 'POST', body: JSON.stringify(data) }),
+  getArOutreach: () => request('/api/v1/practices/me/ar-outreach'),
+  setArOutreach: (enabled: boolean) =>
+    request('/api/v1/practices/me/ar-outreach', { method: 'PUT', body: JSON.stringify({ enabled }) }),
   getPaymentsRoster: () => request('/api/v1/finance/payments-roster'),
   addInsurancePlan: (data: Record<string, unknown>) =>
     request('/api/v1/finance/insurance', { method: 'POST', body: JSON.stringify(data) }),

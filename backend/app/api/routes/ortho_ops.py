@@ -541,6 +541,28 @@ async def place_contract(
 
     c.status = "active"
 
+    # Payment-plan due dates: monthly installments for the patient's remaining portion over the
+    # treatment timeline, first due one month after placement. Skipped (not guessed) when the
+    # proposal has no patient portion or no estimated months; staff can set a plan on the Ledger.
+    from app.models.finance import PaymentPlanInstallment
+    from app.services import ar_aging
+    payment_plan = None
+    remaining = (c.patient_portion or Decimal("0")) - (c.down_payment or Decimal("0"))
+    if c.estimated_months and remaining > 0:
+        existing = (await db.execute(
+            select(func.count()).select_from(PaymentPlanInstallment).where(
+                PaymentPlanInstallment.contract_id == c.id, PaymentPlanInstallment.canceled.is_(False))
+        )).scalar() or 0
+        if not existing:
+            first_due = ar_aging.add_months(date.today(), 1)
+            plan = ar_aging.build_schedule(first_due, c.estimated_months, remaining)
+            for n, (due, amt) in enumerate(plan, start=1):
+                db.add(PaymentPlanInstallment(
+                    practice_id=practice_id, patient_id=c.patient_id, contract_id=c.id,
+                    sequence=n, due_date=due, amount=amt, created_by=user["user_id"]))
+            payment_plan = {"installments": len(plan), "first_due_date": plan[0][0].isoformat(),
+                            "last_due_date": plan[-1][0].isoformat()}
+
     # Lifecycle: patient leaves the TC "new patient" stage → scheduled_patient.
     patient = (await db.execute(select(Patient).where(Patient.id == c.patient_id))).scalar_one_or_none()
     if patient and patient.status in ("new_patient", "prospective", "pending", None):
@@ -549,7 +571,8 @@ async def place_contract(
     await db.commit()
     await audit_log(db, practice_id, user["user_id"], "contract.place", "patient_insurance_contract", str(contract_id))
     return {"id": str(contract_id), "status": "active", "patient_status": patient.status if patient else None,
-            "posted_charges": float(c.expected_first_charges or 0), "posted_down_payment": float(c.down_payment or 0)}
+            "posted_charges": float(c.expected_first_charges or 0), "posted_down_payment": float(c.down_payment or 0),
+            "payment_plan": payment_plan}
 
 
 @router.post("/contracts/{contract_id}/send-initial-claim")
@@ -628,7 +651,11 @@ async def run_payment_poll(
     with live clearinghouse creds it queries the payer/clearinghouse for paid/failed status.
     """
     import random
+    from app.core.demo import is_demo_practice
     practice_id = user["practice_id"]
+    if not is_demo_practice(practice_id):
+        # Payer polling is not connected for real practices yet; never fabricate payment results.
+        raise HTTPException(409, "Payer payment polling is not connected yet for this practice.")
     today = date.today()
     contracts = (await db.execute(
         select(PatientInsuranceContract).where(

@@ -101,21 +101,24 @@ class Settings(BaseSettings):
     # ClamAV
     CLAMAV_URL: str = "http://clamav:3310"
 
-    # OrthoFi financial bridge. OrthoFi has no public developer API today — integration is
-    # partner-driven (PMS→OrthoFi import model). This stays DORMANT (enabled=False) until a
-    # partnership/API or an agreed export format lands; the ingest endpoint accepts a documented
-    # financial-handoff record (the 120-day boundary where OrthoFi stops and OrthoFlow takes over).
-    ORTHOFI_ENABLED: bool = False
-    ORTHOFI_API_KEY: str = ""
-    ORTHOFI_BASE_URL: str = ""  # set when a real OrthoFi API endpoint is provisioned
+    # AR collections cadence: reminders at 30/60/90/120/180 days past due. Nothing runs past the cap.
+    # Automatic sending is OFF per practice until the owner/doctor enables it (Practice.ar_auto_outreach_enabled),
+    # and runs only inside the send window below (practice-local time) so no one is texted at midnight.
+    AR_OUTREACH_CAP_DAYS: int = 180
+    AR_OUTREACH_TZ: str = "America/New_York"
+    AR_OUTREACH_START_HOUR: int = 10
+    AR_OUTREACH_END_HOUR: int = 17
 
-    # AR long-tail window (orthodontic patient-responsible balances only). OrthoFlow's long-tail
-    # follow-up activates STRICTLY AFTER the upstream financial platform's tracking window ends
-    # (START) and stops at CAP. Both are days since the patient's last payment (or, if none, since
-    # the oldest charge). Accounts imported through the OrthoFi handoff are active from the handoff
-    # date. Raise CAP only if it proves beneficial. See docs/specs/AR_LONGTAIL_HANDOFF.md.
-    AR_LONGTAIL_START_DAYS: int = 120
-    AR_LONGTAIL_CAP_DAYS: int = 180
+    # MyOrthoChart base URL used in patient SMS pay links.
+    PORTAL_BASE_URL: str = "https://app.orthoflowsolutions.com"
+
+    # Patient ACH payments through MyOrthoChart (Plaid). OFF until Plaid Transfer is approved for
+    # production and the settlement model with practices is signed off.
+    PATIENT_PAYMENTS_ENABLED: bool = False
+
+    # Send ceph images to the cloud vision model for landmark suggestions. Metadata is stripped, but
+    # text burned into the image cannot be removed, so this can be switched off per environment.
+    CEPH_AI_CLOUD_ENABLED: bool = True
 
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True

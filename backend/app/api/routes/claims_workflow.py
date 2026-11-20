@@ -394,13 +394,21 @@ async def submit_claim(
         ],
     }
 
+    from app.core.demo import is_demo_practice
+    demo = is_demo_practice(practice_id)
     submission = None
     try:
         from app.services.stedi import StediClient
         client = StediClient()
-        submission = await client.submit_dental_claim(claim_data)
-    except Exception as e:  # never lose the claim on a clearinghouse hiccup
-        logger.warning(f"Stedi claim submission error, marking submitted with local ref: {e}")
+        submission = await client.submit_dental_claim(claim_data, simulate=demo)
+    except Exception as e:
+        if not demo:
+            logger.warning(f"Stedi claim submission error for claim {claim_id}: {type(e).__name__}")
+            raise HTTPException(502, "Could not reach the clearinghouse. The claim stays a draft; try again.")
+        logger.warning(f"Stedi claim submission error, marking submitted with local ref: {e}")  # demo only
+    if not demo and not (submission and submission.success):
+        reason = (submission.errors[0] if submission and submission.errors else "The clearinghouse did not accept the claim.")
+        raise HTTPException(409, f"Claim was not submitted: {reason}")
 
     claim.status = "submitted"
     claim.submission_date = datetime.now(timezone.utc)
@@ -444,8 +452,12 @@ async def adjudicate_claim_simulate(
     """
     from app.services.stedi import StediClient
     from app.models.finance import PaymentPosting
+    from app.core.demo import is_demo_practice
 
     practice_id = user["practice_id"]
+    if not is_demo_practice(practice_id):
+        # Simulated payments must never be posted to a real practice's ledger.
+        raise HTTPException(403, "Simulated adjudication is only available in the demo practice. Real payments post from the payer's 835.")
     claim = (await db.execute(
         select(InsuranceClaim).where(InsuranceClaim.id == claim_id, InsuranceClaim.practice_id == practice_id)
     )).scalar_one_or_none()

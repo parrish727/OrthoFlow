@@ -9,6 +9,8 @@ import logging
 import os
 
 import httpx
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession, age_years
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -61,38 +63,9 @@ class ImagingReasoningResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation."""
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "Request timed out")
-    except Exception as e:
-        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
-    except httpx.HTTPStatusError as e:
-        logger.error("darius_http_error", extra={"status": e.response.status_code})
-        raise HTTPException(503, "AI referral service unavailable")
-    except Exception as e:
-        logger.error("darius_error", extra={"error": str(e)[:200]})
-        raise HTTPException(503, f"AI referral service error: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 2048) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 async def _get_patient_context_for_referral(
@@ -149,18 +122,26 @@ async def _get_patient_context_for_referral(
                 parts.append(f"Appliances: {', '.join(appliance_names)}")
         chart_summary = "; ".join(parts)
 
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
+    if patient.responsible_party:
+        deid.add_person("GUARDIAN", None, None, full=patient.responsible_party)
     notes_summary = "\n".join(
-        f"  [{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:150]}" for n in notes[:5]
+        deid.scrub(f"  [{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:150]}", dates="token") for n in notes[:5]
     )
 
     imaging_dates = [
         f"{img.image_type}: {img.captured_date.isoformat()}" for img in images[:5]
     ]
 
+    dob_token = deid.add_value("DOB", patient.date_of_birth) if patient.date_of_birth else "Unknown"
     return {
         "patient": patient,
+        "deid": deid,
         "patient_name": f"{patient.first_name} {patient.last_name}",
-        "dob": patient.date_of_birth.isoformat() if patient.date_of_birth else "Unknown",
+        "patient_token": "[PATIENT_NAME]",
+        "dob": dob_token,
+        "age": age_years(patient.date_of_birth),
         "treatment_phase": patient.treatment_phase or "unknown",
         "chart_summary": chart_summary or "Not documented",
         "notes_summary": notes_summary or "No recent notes",
@@ -193,8 +174,8 @@ Generate a professional referral letter to send to another provider.
 REFERRING PRACTICE: OrthoFlow Orthodontics
 
 PATIENT INFORMATION:
-- Name: {context['patient_name']}
-- DOB: {context['dob']}
+- Name: {context['patient_token']}
+- DOB: {context['dob']} (age {context['age']})
 - Treatment Phase: {context['treatment_phase']}
 - Current Orthodontic Status: {context['chart_summary']}
 
@@ -223,7 +204,7 @@ LETTER_TEXT: [Write the complete professional referral letter. Include:
 - Professional closing with callback number placeholder
 Keep it professional, concise, and clinically relevant.]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, context['deid'])
 
     # Parse response
     letter_type = "referral"
@@ -336,10 +317,12 @@ async def imaging_reasoning(
             parts.append(f"Lower wire: {chart.lower_wire}")
         chart_summary = "; ".join(parts) if parts else "Chart exists"
 
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
     prompt = f"""You are a clinical imaging advisor for an orthodontic practice.
 Explain WHY this overdue imaging is needed based on clinical guidelines.
 
-PATIENT: {patient.first_name} {patient.last_name}
+PATIENT: [PATIENT_NAME]
 TREATMENT PHASE: {patient.treatment_phase or 'unknown'}
 ORTHODONTIC STATUS: {chart_summary or 'Not documented'}
 
@@ -356,7 +339,7 @@ CLINICAL_GUIDELINES: [Pipe-separated list of relevant clinical guidelines or sta
 RECOMMENDED_VIEWS: [Comma-separated list of specific views/images to take, e.g. "Panoramic radiograph, Lateral cephalogram"]
 URGENCY_LEVEL: [one of: routine, soon, urgent]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     reasoning = ""

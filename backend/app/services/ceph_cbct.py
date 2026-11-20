@@ -110,25 +110,22 @@ async def interpret(patient_name: str, measurements_3d: dict) -> str:
     higher-tier Anthropic model (language reasoning over numbers, not geometry)."""
     if not settings.ANTHROPIC_API_KEY:
         raise RuntimeError("AI not configured")
-    import httpx, json
+    from app.services import anthropic_gateway as gateway
+    from app.services.deid import DeidSession
+    deid = DeidSession()
+    deid.add_person("PATIENT", None, None, full=patient_name)
     rows = "\n".join(
         f"- {m.get('label', k)}: {m.get('value')}{m.get('unit', '')} (norm {m.get('norm')}±{m.get('sd')}, {m.get('status')})"
         for k, m in measurements_3d.items()
     )
     prompt = (
         "You are assisting a board-certified orthodontist. Given these 3D cephalometric measurements "
-        f"for patient {patient_name}, write a concise, clinically useful DRAFT interpretation (skeletal "
+        "for patient [PATIENT_NAME], write a concise, clinically useful DRAFT interpretation (skeletal "
         "class, vertical pattern, notable deviations, and what to confirm). This is decision-support "
         "the orthodontist will review and edit — do not give definitive diagnosis or treatment orders.\n\n"
         f"{rows}\n"
     )
-    async with httpx.AsyncClient(timeout=90) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": settings.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": settings.ANTHROPIC_CBCT_MODEL, "max_tokens": 1200,
-                  "messages": [{"role": "user", "content": prompt}]},
-        )
-        resp.raise_for_status()
-        return resp.json()["content"][0]["text"]
+    try:
+        return await gateway.complete(prompt, deid, max_tokens=1200, model=settings.ANTHROPIC_CBCT_MODEL, timeout=90)
+    except gateway.GatewayError as e:
+        raise RuntimeError(e.message) from e

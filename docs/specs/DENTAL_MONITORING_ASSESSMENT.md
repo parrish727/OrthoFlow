@@ -47,4 +47,4 @@ DM does not do scheduling, billing, claims or charting. It relies on a PMS for t
 ## Open questions
 - DM partner terms and fees; whether DM requires a revenue share or certification.
 - Whether practices want DM scan summaries inside OrthoFlow or are content with a deep link.
-- Priority versus the OrthoFi meeting and first-client onboarding.
+- Priority versus the Stedi and Plaid go-live work and first-client onboarding.

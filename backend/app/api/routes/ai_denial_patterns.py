@@ -11,6 +11,8 @@ import logging
 import os
 
 import httpx
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -78,38 +80,9 @@ class BatchReviewResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation."""
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "Request timed out")
-    except Exception as e:
-        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
-    except httpx.HTTPStatusError as e:
-        logger.error("darius_http_error", extra={"status": e.response.status_code})
-        raise HTTPException(503, "AI analysis service unavailable")
-    except Exception as e:
-        logger.error("darius_error", extra={"error": str(e)[:200]})
-        raise HTTPException(503, f"AI analysis service error: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 2048) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -184,6 +157,7 @@ async def analyze_denial_patterns(
     top_codes = sorted(code_groups.items(), key=lambda x: len(x[1]), reverse=True)[:10]
     code_lines = [f"Code {code}: {len(claims)} denials" for code, claims in top_codes]
 
+    deid = DeidSession()
     prompt = f"""You are an orthodontic insurance claims analyst. Analyze these denial patterns and provide actionable recommendations.
 
 PRACTICE DENIAL SUMMARY:
@@ -200,7 +174,7 @@ RESPOND IN THIS EXACT FORMAT (no markdown):
 RECOMMENDATIONS: [Pipe-separated list of 3-5 specific actionable recommendations, e.g. "Submit narratives with D8080 for Delta Dental|Pre-authorize all Class II cases with Cigna|Appeal timely filing denials from MetLife within 30 days"]
 RECOVERY_POTENTIAL_PCT: [Integer 0-100 representing what percentage of denied dollars could potentially be recovered with proper action]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse Darius response
     recommendations: list[str] = []
@@ -328,6 +302,7 @@ async def payer_denial_patterns(
     ]
     code_lines = [f"{code}: {code_denial_counts[code]} line denials" for code in top_denied_codes[:10]]
 
+    deid = DeidSession()
     prompt = f"""You are an orthodontic insurance claims analyst. Analyze denial patterns for this specific payer.
 
 PAYER: {payer_id}
@@ -345,7 +320,7 @@ TOP DENIED CODES:
 RESPOND IN THIS EXACT FORMAT (no markdown):
 RECOMMENDATIONS: [Pipe-separated list of 3-5 payer-specific recommendations]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     recommendations: list[str] = []
     for line in result.split("\n"):
@@ -416,13 +391,16 @@ async def batch_review_claims(
     # Build context for Darius
     claim_lines: list[str] = []
     valid_claims: list[InsuranceClaim] = []
+    deid = DeidSession()
 
-    for claim in claims:
+    for n, claim in enumerate(claims, start=1):
         valid_claims.append(claim)
+        if claim.patient_name:
+            deid.add_person(f"P{n}", None, None, full=claim.patient_name)
         claim_lines.append(
             f"CLAIM:{claim.id} | Payer:{claim.payer_id} | Codes:{claim.cdt_codes} | "
             f"Billed:${float(claim.total_billed):.2f} | Status:{claim.status} | "
-            f"Denial:{claim.denial_reason or 'N/A'}"
+            f"Denial:{deid.scrub(claim.denial_reason or 'N/A', dates='relative')}"
         )
 
     total_denied = sum(
@@ -442,7 +420,7 @@ After all claims, output:
 PRACTICE_SUMMARY: [2-3 sentences summarizing the overall denial situation and top recommended action]
 RECOVERABLE_PCT: [Integer 0-100 of estimated recoverable percentage]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     claim_insights: list[ClaimDenialInsight] = []

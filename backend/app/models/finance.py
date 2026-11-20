@@ -182,3 +182,55 @@ class PaymentPosting(Base):
         Index("idx_payment_posting_status", "practice_id", "status"),
         Index("idx_payment_posting_era", "era_trace_number"),
     )
+
+
+class PaymentPlanInstallment(Base):
+    """One scheduled patient payment on a treatment payment plan.
+
+    The schedule is what gives the Ledger real due dates: delinquency is measured from the oldest
+    installment that payments have not covered, not from when a charge was posted. Payments are
+    NOT stored on the installment; coverage is computed first-in-first-out from patient payments
+    (see app/services/ar_aging.py) so there is no second ledger to keep in sync.
+    """
+    __tablename__ = "payment_plan_installments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patient_insurance_contracts.id"))
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    canceled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_installment_patient_due", "practice_id", "patient_id", "due_date"),
+        Index("idx_installment_contract", "contract_id"),
+    )
+
+
+class AROutreachEvent(Base):
+    """One automatic collections reminder sent to a patient (dedupe + audit trail).
+
+    Unique per (patient, milestone, anchor_due_date): a patient gets each milestone message at
+    most once per delinquency cycle. anchor_due_date is the oldest uncovered installment due date
+    when the message was sent; a new lapse after the patient catches up starts a new cycle.
+    """
+    __tablename__ = "ar_outreach_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    practice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practices.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id"), nullable=False)
+    milestone_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    channel: Mapped[str] = mapped_column(String(10), default="sms", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="sent", nullable=False)  # sent | skipped_no_consent | failed
+    message_log_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("uq_ar_outreach_cycle", "patient_id", "milestone_days", "anchor_due_date", unique=True),
+        Index("idx_ar_outreach_practice", "practice_id", "created_at"),
+    )

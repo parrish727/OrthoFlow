@@ -9,6 +9,8 @@ Also provides SQL-aggregated practice benchmarks (no AI).
 """
 import logging
 import os
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession, relative_date
 from datetime import date
 
 import httpx
@@ -60,38 +62,9 @@ class BenchmarksResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation."""
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "Request timed out")
-    except Exception as e:
-        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
-    except httpx.HTTPStatusError as e:
-        logger.error("darius_http_error", extra={"status": e.response.status_code})
-        raise HTTPException(503, "AI timeline service unavailable")
-    except Exception as e:
-        logger.error("darius_error", extra={"error": str(e)[:200]})
-        raise HTTPException(503, f"AI timeline service error: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 2048) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -159,8 +132,12 @@ async def predict_timeline(
         )
     ).scalars().all()
 
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
+    if getattr(patient, "responsible_party", None):
+        deid.add_person("GUARDIAN", None, None, full=patient.responsible_party)
     notes_text = "\n".join(
-        f"  [{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:150]}" for n in notes
+        deid.scrub(f"  [{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:150]}", dates="relative") for n in notes
     )
 
     # Tooth chart state
@@ -176,11 +153,11 @@ async def predict_timeline(
         if chart.upper_wire:
             parts.append(f"Upper wire: {chart.upper_wire}")
             if chart.upper_wire_date:
-                parts.append(f"(placed {chart.upper_wire_date.isoformat()})")
+                parts.append(f"(placed {relative_date(chart.upper_wire_date)})")
         if chart.lower_wire:
             parts.append(f"Lower wire: {chart.lower_wire}")
             if chart.lower_wire_date:
-                parts.append(f"(placed {chart.lower_wire_date.isoformat()})")
+                parts.append(f"(placed {relative_date(chart.lower_wire_date)})")
         if chart.appliances:
             appliance_info = [
                 f"{a.get('type', 'unknown')}" for a in chart.appliances if isinstance(a, dict)
@@ -214,7 +191,7 @@ async def predict_timeline(
     prompt = f"""You are a clinical timeline predictor for an orthodontic practice.
 Predict the remaining treatment timeline for this patient based on their current state.
 
-PATIENT: {patient.first_name} {patient.last_name}
+PATIENT: [PATIENT_NAME]
 TREATMENT PHASE: {patient.treatment_phase or 'unknown'}
 MONTHS IN TREATMENT: {months_in_treatment}
 COMPLETED APPOINTMENTS: {completed_count}
@@ -240,7 +217,7 @@ CONFIDENCE_LEVEL: [high, medium, or low]
 MILESTONES: [Pipe-separated list of upcoming milestones with timing, format: "description~timing~confidence" e.g. "Wire progression to 19x25 SS~in 2 months~high|Begin finishing elastics~in 4 months~medium|Debond and retention~in 8 months~medium"]
 DELAY_FACTORS: [Comma-separated list of things that could extend treatment, e.g. "Poor elastic wear compliance, Missed appointments, Impacted teeth requiring surgical exposure, Root resorption requiring rest periods"]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     estimated_months = 12

@@ -52,13 +52,13 @@ async def send_push(user_id: str, title: str, body: str, url: str = "/"):
             pass
 
 
-async def send_sms(phone: str, message: str):
-    """Send SMS via Twilio."""
+async def send_sms(phone: str, message: str) -> bool:
+    """Send SMS via Twilio. Returns True only when Twilio accepted the message."""
     if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-        return
+        return False
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(
+            resp = await client.post(
                 f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json",
                 data={
                     "To": phone,
@@ -68,8 +68,9 @@ async def send_sms(phone: str, message: str):
                 auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
                 timeout=10,
             )
+            return resp.status_code < 300
     except Exception:
-        pass
+        return False
 
 
 async def notify(user_id: str, title: str, body: str, url: str = "/"):

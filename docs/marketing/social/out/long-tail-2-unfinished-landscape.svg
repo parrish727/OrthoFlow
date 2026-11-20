@@ -10,14 +10,14 @@
   <text x="80" y="236" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="800" fill="#fff" text-anchor="start" letter-spacing="0">Past 120 days isn't</text><text x="80" y="290" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="800" fill="#fff" text-anchor="start" letter-spacing="0">lost revenue.</text><text x="80" y="344" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="800" fill="#00C2A8" text-anchor="start" letter-spacing="0">It's unfinished follow-up.</text>
     <circle cx="92" cy="388" r="15" fill="#00C2A8"/>
     <path d="M 84 388 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="124" y="396" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Every aging account flagged in your Ledger</text>
+    <text x="124" y="396" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Reminders at 30, 60, 90, 120 and 180 days</text>
     <circle cx="92" cy="440" r="15" fill="#00C2A8"/>
     <path d="M 84 440 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="124" y="448" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Notes, so nobody calls twice</text>
+    <text x="124" y="448" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">A secure pay link by text to MyOrthoChart</text>
     <circle cx="92" cy="492" r="15" fill="#00C2A8"/>
     <path d="M 84 492 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="124" y="500" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Letters and texts your team approves</text>
+    <text x="124" y="500" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Automatic or manual. You choose.</text>
   <rect x="80" y="541" width="1040" height="1" fill="#1B3550"/>
-  <text x="80" y="583" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="500" fill="#9FB3C8" text-anchor="start" letter-spacing="0">Orthodontic balances only. Your team reviews every message.</text>
+  <text x="80" y="583" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="500" fill="#9FB3C8" text-anchor="start" letter-spacing="0">Automatic reminders are off until you turn them on.</text>
   <text x="1120" y="583" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="700" fill="#fff" text-anchor="end" letter-spacing="0">orthoflowsolutions.com</text>
 </svg>
