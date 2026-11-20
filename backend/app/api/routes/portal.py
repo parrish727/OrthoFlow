@@ -5,7 +5,8 @@ Patients can view appointments, message the office, fill forms, and track treatm
 """
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -834,13 +835,89 @@ def _portal_auto_pay_status(e) -> str | None:
 async def get_billing_methods(
     patient: dict = Depends(get_current_patient),
 ) -> dict:
-    """Patient's saved payment methods (placeholder — would integrate with payment processor)."""
-    return {
-        "methods": [
-            {"id": "pm_1", "type": "credit_card", "last4": "4242", "brand": "Visa", "exp": "12/27", "is_default": True},
-        ],
-        "auto_pay_enabled": True,
-    }
+    """Saved payment methods. None are stored: patients link a bank through Plaid per payment."""
+    return {"methods": [], "auto_pay_enabled": False}
+
+
+# ── Pay online (Plaid ACH) ─────────────────────────────────────────────────────
+# Scaffolding: OFF until PATIENT_PAYMENTS_ENABLED and Plaid credentials are set. The SMS pay link
+# lands on /portal?section=billing, where the patient signs in (SMS code) and pays here.
+
+@router.get("/billing/pay/status")
+async def pay_status(patient: dict = Depends(get_current_patient)) -> dict:
+    from app.services import plaid
+    r = plaid.patient_payments_ready()
+    return {"enabled": r["enabled"], "environment": r["environment"]}
+
+
+@router.post("/billing/pay/link-token")
+async def pay_link_token(patient: dict = Depends(get_current_patient)) -> dict:
+    from app.services import plaid
+    if not plaid.patient_payments_ready()["enabled"]:
+        raise HTTPException(status_code=503, detail="Online payments are not available yet. Please call the office.")
+    try:
+        return {"link_token": await plaid.create_patient_link_token(str(patient["patient_id"]))}
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not start the bank connection. Please try again.")
+
+
+class PayBody(BaseModel):
+    public_token: str = Field(..., min_length=1, max_length=200)
+    account_id: str = Field(..., min_length=1, max_length=100)
+    amount: Decimal = Field(..., gt=0, le=Decimal("100000"))
+    request_id: str = Field(..., min_length=8, max_length=40)  # client-generated, makes retries safe
+
+
+@router.post("/billing/pay", status_code=status.HTTP_201_CREATED)
+async def pay_balance(
+    body: PayBody,
+    patient: dict = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pay part or all of the balance by ACH. Posts a pending payment to the ledger."""
+    from app.models.finance import PatientLedgerEntry
+    from app.services import plaid
+    patient_id, practice_id = patient["patient_id"], patient["practice_id"]
+    if not plaid.patient_payments_ready()["enabled"]:
+        raise HTTPException(status_code=503, detail="Online payments are not available yet. Please call the office.")
+
+    amount = body.amount.quantize(Decimal("0.01"))
+    balance = (await db.execute(
+        select(func.sum(PatientLedgerEntry.amount)).where(
+            PatientLedgerEntry.patient_id == patient_id, PatientLedgerEntry.practice_id == practice_id)
+    )).scalar() or Decimal("0")
+    if balance <= 0:
+        raise HTTPException(status_code=400, detail="There is no balance to pay.")
+    if amount > balance:
+        raise HTTPException(status_code=400, detail="That is more than your current balance.")
+
+    ref = f"PLAID:{body.request_id}"[:50]
+    dup = (await db.execute(
+        select(PatientLedgerEntry.id).where(
+            PatientLedgerEntry.patient_id == patient_id, PatientLedgerEntry.practice_id == practice_id,
+            PatientLedgerEntry.reference_number == ref)
+    )).first()
+    if dup:
+        return {"status": "already_submitted", "amount": float(amount)}
+
+    rec = (await db.execute(select(Patient).where(Patient.id == patient_id))).scalar_one_or_none()
+    legal_name = f"{rec.first_name} {rec.last_name}" if rec else "Patient"
+    try:
+        transfer = await plaid.initiate_patient_debit(
+            body.public_token, body.account_id, str(amount), legal_name, body.request_id)
+    except RuntimeError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="We could not submit your payment. You have not been charged. Please try again or call the office.")
+
+    db.add(PatientLedgerEntry(
+        practice_id=practice_id, patient_id=patient_id, entry_type="payment",
+        description="MyOrthoChart ACH payment (pending)", amount=-amount, posted_date=date.today(),
+        payment_method="ach", reference_number=ref,
+        notes=f"Plaid transfer {transfer.get('id', '')}. Settles in 1-3 business days; returns are not auto-posted yet.",
+    ))
+    await db.commit()
+    return {"status": "submitted", "amount": float(amount), "transfer_status": transfer.get("status")}
 
 
 @router.get("/documents")

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <defs><radialGradient id="g" cx="85%" cy="10%" r="70%"><stop offset="0" stop-color="#00C2A8" stop-opacity="0.22"/><stop offset="1" stop-color="#00C2A8" stop-opacity="0"/></radialGradient></defs>
+  <rect width="1080" height="1080" fill="#0B1B2B"/>
+  <rect width="1080" height="1080" fill="url(#g)"/>
+  <g transform="translate(70,52) scale(1)">
+    <path d="M 30 22 C 30 14 38 10 46 14 C 50 16 50 16 54 14 C 62 10 70 14 70 22 C 70 30 66 34 64 42 C 62 52 60 62 56 76 C 55 80 50 80 49 76 C 47 66 46 58 45 50 C 44 58 43 66 41 76 C 40 80 35 80 34 76 C 30 62 28 52 26 42 C 24 34 30 30 30 22 Z" transform="translate(-20,-6)" stroke="#00C2A8" stroke-width="6" stroke-linejoin="round" fill="none"/>
+    <text x="52" y="40" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="38" font-weight="900" letter-spacing="-1" fill="#fff">Ortho<tspan fill="#00C2A8">Flow</tspan></text>
+  </g>
+  <text x="80" y="236" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="700" fill="#00C2A8" text-anchor="start" letter-spacing="3">AR &amp; COLLECTIONS LONG TAIL</text>
+  <text x="80" y="310" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="74" font-weight="800" fill="#fff" text-anchor="start" letter-spacing="0">Past 120 days isn't</text><text x="80" y="398" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="74" font-weight="800" fill="#fff" text-anchor="start" letter-spacing="0">lost revenue.</text><text x="80" y="486" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="74" font-weight="800" fill="#00C2A8" text-anchor="start" letter-spacing="0">It's unfinished follow-up.</text>
+    <circle cx="92" cy="586" r="15" fill="#00C2A8"/>
+    <path d="M 84 586 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="124" y="594" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Reminders at 30, 60, 90, 120 and 180 days</text>
+    <circle cx="92" cy="648" r="15" fill="#00C2A8"/>
+    <path d="M 84 648 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="124" y="656" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">A secure pay link by text to MyOrthoChart</text>
+    <circle cx="92" cy="710" r="15" fill="#00C2A8"/>
+    <path d="M 84 710 l 6 6 l 11 -12" stroke="#0B1B2B" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="124" y="718" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" fill="#fff" text-anchor="start" letter-spacing="0">Automatic or manual. You choose.</text>
+  <rect x="80" y="994" width="920" height="1" fill="#1B3550"/>
+  <text x="80" y="1036" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="500" fill="#9FB3C8" text-anchor="start" letter-spacing="0">Automatic reminders are off until you turn them on.</text>
+  <text x="1000" y="1036" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="700" fill="#fff" text-anchor="end" letter-spacing="0">orthoflowsolutions.com</text>
+</svg>

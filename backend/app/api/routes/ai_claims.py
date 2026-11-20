@@ -10,6 +10,8 @@ Routes denial analysis through Darius → LLM to:
 Architecture: OrthoFlow → Darius → Claude Haiku (future: Mistral Small local)
 """
 import os
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession, claim_session, days_between
 from uuid import UUID
 from datetime import datetime, timezone
 import httpx
@@ -60,32 +62,9 @@ class AppealResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation."""
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "AI analysis timed out — try again")
-    except Exception as e:
-        raise HTTPException(503, f"AI service unavailable: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 2048) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 async def _get_claim_context(db: AsyncSession, claim_id: str, practice_id: str) -> dict:
@@ -108,7 +87,9 @@ async def _get_claim_context(db: AsyncSession, claim_id: str, practice_id: str) 
         "payer_type": claim.payer_type,
         "total_billed": float(claim.total_billed) if claim.total_billed else 0,
         "service_date": claim.service_date.isoformat() if claim.service_date else "unknown",
-        "submission_date": claim.submission_date.isoformat() if claim.submission_date else "unknown",
+        "submission_date": claim.submission_date.date().isoformat() if claim.submission_date else "unknown",
+        "days_service_to_submission": days_between(claim.service_date, claim.submission_date),
+        "deid": claim_session(claim),
         "denial_codes": claim.denial_codes or [],
         "denial_reason": claim.denial_reason or "Not specified",
         "cdt_codes": [li.cdt_code for li in lines],
@@ -148,10 +129,11 @@ async def review_denial(
     prompt = f"""You are an orthodontic insurance claims specialist. Analyze this denied claim and provide recommendations.
 
 CLAIM DETAILS:
-- Patient: {context['patient_name']}
+- Patient: [PATIENT_NAME]
 - Payer: {context['payer_id']} ({context['payer_type']})
 - Service Date: {context['service_date']}
 - Submission Date: {context['submission_date']}
+- Days from service to submission: {context['days_service_to_submission']}
 - Total Billed: ${context['total_billed']:.2f}
 - Prior Authorization: {context['prior_auth'] or 'None'}
 - CDT Codes: {', '.join(context['cdt_codes'])}
@@ -173,7 +155,7 @@ APPEAL_LETTER: [Write a professional appeal letter addressed to the payer's clai
 SUPPORTING_DOCS: [Comma-separated list of documents to include with the appeal]
 CORRECTIVE_ACTIONS: [Comma-separated list of things to fix or verify before resubmitting]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, context['deid'])
 
     # Parse response
     category = "other"
@@ -285,7 +267,7 @@ async def generate_appeal(
 
     prompt = f"""You are an orthodontic insurance appeals specialist. Write a formal appeal letter for this denied claim.
 
-CLAIM: {context['patient_name']} | Payer: {context['payer_id']} | Service: {context['service_date']} | Billed: ${context['total_billed']:.2f}
+CLAIM: [PATIENT_NAME] | Payer: {context['payer_id']} | Service: {context['service_date']} | Billed: ${context['total_billed']:.2f}
 DENIAL: {context['denial_reason']}
 CODES: {', '.join(context['cdt_codes'])}
 PRIOR AUTH: {context['prior_auth'] or 'None on file'}
@@ -303,7 +285,7 @@ RESPOND IN THIS EXACT FORMAT:
 APPEAL_TYPE: [one of: clinical_narrative, coding_correction, timely_filing_exception, peer_to_peer_request]
 LETTER: [The complete appeal letter text]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, context['deid'])
 
     # Parse
     appeal_type = "clinical_narrative"

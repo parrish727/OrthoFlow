@@ -112,3 +112,75 @@ async def initiate_ach_payment(access_token: str, account_id: str, amount: float
         )
         transfer_resp.raise_for_status()
         return transfer_resp.json()["transfer"]
+
+
+# ── Patient payments (MyOrthoChart) ───────────────────────────────────────────
+# Scaffolding for patient ACH payments. The call sequence follows Plaid's documented Link ->
+# token exchange -> transfer authorization -> transfer flow. It stays OFF until
+# PATIENT_PAYMENTS_ENABLED is set; production credentials and the Plaid Transfer setup are
+# provided by the owner. Card data never touches OrthoFlow (bank-account ACH only).
+
+def patient_payments_ready() -> dict:
+    """Readiness for the portal and for logs. Never exposes secrets."""
+    creds = bool(settings.PLAID_CLIENT_ID and settings.PLAID_SECRET)
+    return {
+        "enabled": bool(settings.PATIENT_PAYMENTS_ENABLED and creds),
+        "flag_on": bool(settings.PATIENT_PAYMENTS_ENABLED),
+        "credentials_present": creds,
+        "environment": settings.PLAID_ENVIRONMENT,
+    }
+
+
+async def create_patient_link_token(patient_id: str) -> str:
+    """Link token for a patient in MyOrthoChart (client_user_id is the patient id, never a name)."""
+    base = _PLAID_BASE.get(settings.PLAID_ENVIRONMENT, _PLAID_BASE["sandbox"])
+    payload = {
+        "client_id": settings.PLAID_CLIENT_ID,
+        "secret": settings.PLAID_SECRET,
+        "user": {"client_user_id": patient_id},
+        "client_name": "MyOrthoChart",
+        "products": ["auth"],
+        "country_codes": ["US"],
+        "language": "en",
+    }
+    if settings.PLAID_ENVIRONMENT == "production":
+        payload["redirect_uri"] = f"{settings.PORTAL_BASE_URL.rstrip('/')}/plaid/callback"
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{base}/link/token/create", json=payload, timeout=15)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Plaid error: {resp.json().get('error_message', resp.text[:200])}")
+        return resp.json()["link_token"]
+
+
+async def initiate_patient_debit(
+    public_token: str, account_id: str, amount: str, legal_name: str, idempotency_key: str
+) -> dict:
+    """Exchange the Link public token, authorize a one-time ACH debit and create the transfer.
+
+    Raises RuntimeError with a patient-safe message if Plaid declines. `idempotency_key`
+    (max 50 chars) makes a retried request create at most one transfer.
+    """
+    base = _PLAID_BASE.get(settings.PLAID_ENVIRONMENT, _PLAID_BASE["sandbox"])
+    auth = {"client_id": settings.PLAID_CLIENT_ID, "secret": settings.PLAID_SECRET}
+    async with httpx.AsyncClient(timeout=20) as client:
+        ex = await client.post(f"{base}/item/public_token/exchange", json={**auth, "public_token": public_token})
+        ex.raise_for_status()
+        access_token = ex.json()["access_token"]
+
+        az = await client.post(f"{base}/transfer/authorization/create", json={
+            **auth, "access_token": access_token, "account_id": account_id,
+            "type": "debit", "network": "ach", "amount": amount, "ach_class": "web",
+            "user": {"legal_name": legal_name},
+        })
+        az.raise_for_status()
+        authorization = az.json()["authorization"]
+        if authorization.get("decision") != "approved":
+            raise RuntimeError("Your bank could not approve this payment. Please try another account or call the office.")
+
+        tr = await client.post(f"{base}/transfer/create", json={
+            **auth, "access_token": access_token, "account_id": account_id,
+            "authorization_id": authorization["id"], "amount": amount,
+            "description": "Ortho payment", "idempotency_key": idempotency_key[:50],
+        })
+        tr.raise_for_status()
+        return tr.json()["transfer"]

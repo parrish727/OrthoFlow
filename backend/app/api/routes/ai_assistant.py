@@ -12,6 +12,8 @@ The model selection is handled by Darius config — no code changes needed to sw
 """
 import os
 import httpx
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -73,7 +75,12 @@ async def _get_patient_context(db: AsyncSession, patient_id: str, practice_id: s
         .order_by(TreatmentNote.created_at.desc())
         .limit(5)
     )
-    recent_notes = [n.note_text for n in notes_result.scalars().all()]
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
+    if patient.responsible_party:
+        deid.add_person("GUARDIAN", None, None, full=patient.responsible_party)
+    raw_notes = [n.note_text for n in notes_result.scalars().all()]
+    recent_notes = [deid.scrub(t, dates="relative") for t in raw_notes]
 
     # Tooth chart summary
     chart = (await db.execute(
@@ -88,41 +95,18 @@ async def _get_patient_context(db: AsyncSession, patient_id: str, practice_id: s
 
     return {
         "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_token": "[PATIENT_NAME]",
+        "deid": deid,
         "treatment_phase": patient.treatment_phase or "unknown",
-        "recent_notes": recent_notes,
+        "recent_notes": recent_notes,          # de-identified: for prompts only
+        "recent_notes_raw": raw_notes,         # real text: for showing to staff
         "chart_summary": chart_summary,
     }
 
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation.
-    Bypasses Darius agent (which has a litellm cache_control bug).
-    When Mistral Small is deployed locally, this will route there instead.
-    """
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 1024,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "Request timed out — try again")
-    except Exception as e:
-        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 1024) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -145,21 +129,21 @@ async def assist_note(
 A dental assistant has written rough notes about a patient visit. Convert them into a properly structured clinical note.
 
 PATIENT CONTEXT:
-- Name: {context['patient_name']}
+- Name: {context['patient_token']}
 - Treatment Phase: {context['treatment_phase']}
 - Current Wires/Appliances: {context['chart_summary'] or 'Not documented'}
 - Recent Notes: {'; '.join(context['recent_notes'][:3]) if context['recent_notes'] else 'None on file'}
 {f'- Appointment Type: {body.appointment_type}' if body.appointment_type else ''}
 
 DA'S RAW INPUT:
-{body.raw_input}
+{context['deid'].scrub(body.raw_input, dates='relative')}
 
 RESPOND IN THIS EXACT FORMAT (no markdown, no extra text):
 STRUCTURED_NOTE: [Write the full clinical note in proper orthodontic documentation format. Include: Procedure, Findings, Patient Compliance, Archwire/Appliance Changes, and Next Steps.]
 NEXT_VISIT: [One sentence suggesting what to plan for next visit based on the note content and treatment phase]
 MISSING: [Comma-separated list of any important clinical details that seem missing from the DA's input, or NONE if complete]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, context["deid"])
 
     # Parse the structured response
     structured_note = ""
@@ -213,23 +197,23 @@ async def appointment_prep_brief(
 
     context = await _get_patient_context(db, str(appt.patient_id), user["practice_id"])
 
-    last_note_summary = context["recent_notes"][0][:200] if context["recent_notes"] else None
+    last_note_summary = context["recent_notes_raw"][0][:200] if context["recent_notes_raw"] else None
 
     # Build prompt for prep brief
     prompt = f"""You are a clinical prep assistant for an orthodontic practice.
 Generate a brief prep summary for a dental assistant before a patient appointment.
 
-PATIENT: {context['patient_name']}
+PATIENT: {context['patient_token']}
 TREATMENT PHASE: {context['treatment_phase']}
 APPOINTMENT TYPE: {appt.appointment_type or 'General'}
 CURRENT WIRES: {context['chart_summary'] or 'Not documented'}
-LAST VISIT NOTE: {last_note_summary or 'No previous notes'}
+LAST VISIT NOTE: {context['deid'].scrub(last_note_summary or '', dates='relative') or 'No previous notes'}
 
 RESPOND IN THIS EXACT FORMAT (no markdown, no extra text):
 TODAY_EXPECTED: [One sentence on what will likely happen today based on treatment phase and last visit]
 PREP_ITEMS: [Comma-separated list of supplies/instruments to have ready]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, context["deid"])
 
     # Parse
     today_expected = appt.appointment_type or "General appointment"

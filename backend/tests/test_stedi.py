@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.stedi import StediClient, _gen_pcn, _money
+from app.services.stedi import StediClient, StediError, _gen_pcn, _money
 from app.services.stedi_payers import resolve_stedi_test_payer, STEDI_DENTAL_TEST_PAYERS
 
 
@@ -51,7 +51,7 @@ def test_build_837d_matches_stedi_contract():
 
 @pytest.mark.asyncio
 async def test_submit_dental_claim_simulated_returns_277ca():
-    result = await _client().submit_dental_claim(CLAIM_DATA)
+    result = await _client().submit_dental_claim(CLAIM_DATA, simulate=True)
     assert result.success is True
     assert result.tracking_number and len(result.tracking_number) == 17
     assert result.raw["status"] == "SUCCESS"
@@ -88,3 +88,21 @@ def test_all_mapped_payers_resolve():
     from app.services.stedi_payers import INTERNAL_PAYER_TO_STEDI
     for internal in INTERNAL_PAYER_TO_STEDI:
         assert resolve_stedi_test_payer(internal) is not None, internal
+
+
+@pytest.mark.asyncio
+async def test_real_practice_never_gets_a_simulated_claim_when_live_is_off():
+    c = _client()
+    c.live_claims = False
+    r = await c.submit_dental_claim(CLAIM_DATA)  # simulate defaults to False
+    assert r.success is False and "not enabled" in r.errors[0]
+    assert not (r.raw or {}).get("meta", {}).get("simulated")
+
+
+@pytest.mark.asyncio
+async def test_real_practice_status_check_is_refused_when_live_is_off():
+    c = _client()
+    c.live_claims = False
+    with pytest.raises(StediError):
+        await c.check_status("abc")
+    assert (await c.check_status("abc", simulate=True)).status == "accepted"

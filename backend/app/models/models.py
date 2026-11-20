@@ -47,6 +47,11 @@ class Practice(Base):
     tier: Mapped[str] = mapped_column(String(20), default="standard")  # standard | enterprise
     logo_url: Mapped[str | None] = mapped_column(String(512))
     primary_color: Mapped[str | None] = mapped_column(String(7))  # hex color
+    # Automatic collections reminders (30/60/90/120/180 days past due). Off until the doctor/owner
+    # turns it on, normally at initial setup. Manual follow-up tools are unaffected by this flag.
+    ar_auto_outreach_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    ar_auto_outreach_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ar_auto_outreach_enabled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="practice")

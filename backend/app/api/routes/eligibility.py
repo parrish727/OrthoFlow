@@ -103,7 +103,11 @@ async def check_eligibility(
     stedi_errors: list[str] = []
 
     mapping = resolve_stedi_test_payer(sub.payer_id)
-    if settings.STEDI_ENABLED and settings.STEDI_API_KEY and mapping:
+    from app.core.demo import is_demo_practice
+    # Once Stedi is live, the demo practice's fake subscribers must never reach a production payer
+    # check; it falls back to stored benefits. (Sandbox behavior is unchanged.)
+    demo_blocked = is_demo_practice(user["practice_id"]) and settings.STEDI_LIVE_CLAIMS
+    if settings.STEDI_ENABLED and settings.STEDI_API_KEY and mapping and not demo_blocked:
         try:
             from app.services.stedi import StediClient  # lazy import; avoids httpx at module load
             client = StediClient()

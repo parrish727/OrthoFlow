@@ -15,7 +15,7 @@ The platform serves small to mid-size orthodontic practices (1–10 providers) a
 
 OrthoFlow is live in production, processing real clinical workflows with five role-based access tiers (Owner, Doctor, Office Manager, DA, Front Desk) plus a Consultant role for practice optimization. The system includes multi-tenant practice isolation, AI features powered by Anthropic Claude for denial analysis, appeal generation, clinical note summarization, and predictive intelligence.
 
-**Key additions since v1.0:** Invisalign integration (Align Technology Doctor Site), Consultant Reports module (7 practice optimization reports), MyOrthoChart full redesign (Epic MyChart patterns), virtual visits (LiveKit), full orthodontic appointment types (26 types), appliance order management, and AI auto-response for messaging.
+**Key additions since v1.0:** Invisalign integration (Align Technology Doctor Site), Consultant Reports module (7 practice optimization reports), MyOrthoChart full redesign (Epic MyChart patterns), full orthodontic appointment types (26 types), appliance order management, and AI auto-response for messaging.
 
 ---
 
@@ -68,7 +68,7 @@ OrthoFlow is live in production, processing real clinical workflows with five ro
 ### Practice Profile
 
 - **Size:** 1–10 providers
-- **Specialties:** Orthodontics (primary), general dentistry. Future: periodontics, pediatric dentistry (backlog)
+- **Specialties:** Orthodontics only
 - **Geography:** United States
 - **Tech maturity:** Varies (OrthoFlow handles migration from legacy systems)
 
@@ -363,8 +363,17 @@ The patient experience mirrors what patients already expect from hospital system
 
 #### Accounts Receivable Aging
 - 30/60/90/120+ day aging buckets
+- 90+ day delinquency filter and count on the Ledger, per-patient inline AR/collections notes, ledger patient search
 - By payer and by patient
 - Follow-up prioritization
+
+#### AR Collections Cadence (orthodontic patient balances)
+- Payment-plan schedule with due dates (created when a contract is placed, or set by staff); shown on the Ledger with paid / overdue / upcoming status.
+- One lateness calculation for the Ledger roster and the AR Aging report (days past the oldest uncovered due date, or an estimate when no schedule exists).
+- Reminder milestones at 30, 60, 90, 120 and 180 days past due, cap 180 (`AR_OUTREACH_CAP_DAYS`). Days 120 to the cap are the long tail that many billing tools drop.
+- Automatic SMS reminders with a MyOrthoChart pay link are opt-in, chosen by the owner or doctor at setup. They require SMS consent, respect quiet hours and send only in office hours. Manual tools work either way.
+- Pay online in MyOrthoChart through Plaid (scaffolded, off until enabled).
+- Spec: `docs/specs/AR_COLLECTIONS_CADENCE.md`, `docs/specs/FINANCIAL_LAYER_STEDI_PLAID.md`
 
 #### Provider Productivity
 - Appointments per day/week
@@ -410,22 +419,11 @@ The patient experience mirrors what patients already expect from hospital system
 
 ---
 
-### 5.15 Multi-Specialty Support
+### 5.15 Multi-Specialty Support (REMOVED — orthodontics only)
 
-#### Periodontal Charting
-- Full-mouth perio charting (6-point probing depths)
-- Bleeding on probing, recession, furcation
-- Historical comparison and trend visualization
-
-#### Hygiene Recall
-- Automated recall scheduling
-- Recall due list and follow-up tracking
-- Configurable recall intervals per patient
-
-#### Restorative
-- Restorative treatment tracking
-- Procedure-specific documentation
-- CDT code integration for restorative procedures
+OrthoFlow is strictly orthodontic. Periodontal charting was removed in Part 2 (migration 020,
+`/api/v1/perio` returns 404). Hygiene recall and restorative tracking are not part of the product
+scope and are not offered or marketed.
 
 ---
 
@@ -508,7 +506,7 @@ The patient experience mirrors what patients already expect from hospital system
 
 | Component | Specification |
 |-----------|--------------|
-| Host | Mac Pro (16-core, 32GB RAM) |
+| Host | Melanin Technologies Inc. local infrastructure |
 | Containerization | Docker Compose |
 | CI/CD | GitHub → GHCR → Watchtower (auto-deploy on image push) |
 | DNS | Cloudflare (DDNS update every 5 min) |
@@ -627,6 +625,7 @@ Patient/Staff Action → FastAPI Endpoint → Anthropic Claude API (direct httpx
 |---------|--------|--------|
 | Stedi clearinghouse integration | In development | Electronic claim submission + same-day appeals |
 | MyOrthoChart native mobile app | In development | iOS and Android via React Native |
+| Patient pay-by-bank (Plaid) in MyOrthoChart | Scaffolded, off until Plaid Transfer is approved and the funds flow is set | `FINANCIAL_LAYER_STEDI_PLAID.md` |
 
 ### Planned (Backlog, Not Started)
 
@@ -658,7 +657,7 @@ All features listed in Section 5 (Feature Inventory) are deployed and operationa
 
 1. **AI-Native Revenue Cycle** — Denial review, appeal generation, and pattern analysis built into the claims workflow (not a bolt-on add-on).
 2. **MyOrthoChart Patient Portal** — MyChart-equivalent experience that dental/ortho patients expect but don't currently get.
-3. **Multi-Specialty in One System** — Orthodontics, perio, hygiene, and restorative in a single platform with shared patient records.
+3. **Orthodontics-Only Focus** — Every workflow is built for orthodontic practices (no perio, hygiene or restorative modules to configure around).
 4. **Data Ownership** — Self-hosted infrastructure means practices own their data with no vendor lock-in.
 5. **Modern Developer Experience** — React + FastAPI + PostgreSQL stack enables rapid feature development (vs. competitors on legacy .NET/Java).
 6. **Transparent Pricing** — No per-seat gouging, no surprise fees, no PE-driven price increases.

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OrthoFlow — Pitch Deck</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Brand: teal #00C2A8, navy #0B1B2B, Inter. Open in a browser; File > Print > Save as PDF (landscape, no margins). */
+  :root { --teal:#00C2A8; --navy:#0B1B2B; --panel:#12283D; --line:#1B3550; --mute:#9FB3C8; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:#050d16; font-family:Inter,-apple-system,"Helvetica Neue",Arial,sans-serif; color:#fff; }
+  .slide { width:1280px; height:720px; margin:24px auto; padding:64px 80px; position:relative; overflow:hidden;
+           background:radial-gradient(circle at 90% 0%, rgba(0,194,168,.20), transparent 55%), var(--navy); page-break-after:always; }
+  .brand { position:absolute; top:34px; left:80px; display:flex; align-items:center; gap:8px; font-weight:900; font-size:24px; letter-spacing:-.5px; }
+  .brand svg { width:30px; height:30px; } .brand b { color:var(--teal); }
+  .foot { position:absolute; bottom:28px; left:80px; right:80px; display:flex; justify-content:space-between; color:var(--mute); font-size:14px; border-top:1px solid var(--line); padding-top:12px; }
+  .eyebrow { color:var(--teal); font-weight:700; letter-spacing:3px; font-size:15px; margin-top:44px; }
+  h1 { font-size:64px; line-height:1.08; font-weight:800; margin-top:14px; }
+  h2 { font-size:44px; line-height:1.12; font-weight:800; margin-top:10px; }
+  .teal { color:var(--teal); } .mute { color:var(--mute); }
+  p.lead { font-size:24px; line-height:1.4; color:var(--mute); margin-top:22px; max-width:900px; }
+  .grid { display:grid; gap:18px; margin-top:30px; } .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr} .g4{grid-template-columns:repeat(4,1fr)}
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px 22px; }
+  .card h3 { font-size:20px; font-weight:700; color:var(--teal); margin-bottom:8px; }
+  .card p, .card li { font-size:16px; line-height:1.45; color:#dbe6f1; } .card ul { padding-left:18px; }
+  .bar { display:flex; height:30px; border-radius:15px; overflow:hidden; margin-top:36px; gap:4px; }
+  .bar div { display:flex; align-items:center; padding-left:16px; font-weight:700; font-size:15px; }
+  .note { font-size:14px; color:var(--mute); margin-top:14px; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:8px; background:var(--line); color:var(--mute); margin-left:6px; vertical-align:middle; }
+  @page { size:1280px 720px; margin:0 } @media print { body{background:none} .slide{margin:0} }
+</style>
+</head>
+<body>
+
+<!-- 1 TITLE -->
+<section class="slide">
+  <div class="brand"><svg viewBox="15 0 70 90"><path d="M 30 22 C 30 14 38 10 46 14 C 50 16 50 16 54 14 C 62 10 70 14 70 22 C 70 30 66 34 64 42 C 62 52 60 62 56 76 C 55 80 50 80 49 76 C 47 66 46 58 45 50 C 44 58 43 66 41 76 C 40 80 35 80 34 76 C 30 62 28 52 26 42 C 24 34 30 30 30 22 Z" fill="none" stroke="#00C2A8" stroke-width="6" stroke-linejoin="round"/></svg><span>Ortho<b>Flow</b></span></div>
+  <div style="margin-top:150px" class="eyebrow">THE ORTHODONTIC PRACTICE PLATFORM</div>
+  <h1>One system for the whole practice.<br><span class="teal">Built only for orthodontics.</span></h1>
+  <p class="lead">Scheduling, charting, ceph tracing, billing, claims, patient portal and AR follow-up that keeps working after other tools stop.</p>
+  <div class="foot"><span>Melanin Technologies Inc.</span><span>orthoflowsolutions.com</span></div>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">THE PROBLEM</div>
+  <h2>Your team is working across five tools, and money slips through the gaps.</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Fragmented stack</h3><p>Scheduling, imaging, billing, messaging and patient forms live in separate systems that do not talk to each other.</p></div>
+    <div class="card"><h3>Hours of manual work</h3><p>Weekly rebuilt spreadsheets, notes kept off-system, and the same patient contacted twice.</p></div>
+    <div class="card"><h3>The long tail goes dark</h3><p>Many billing tools stop tracking balances at 90 to 120 days. The account is still owed, but nobody is working it.</p></div>
+  </div>
+  <div class="foot"><span>OrthoFlow</span><span>2</span></div>
+</section>
+
+<!-- 3 WEDGE -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">AR &amp; COLLECTIONS LONG TAIL</div>
+  <h2>Many billing tools stop at 90 to 120 days. We follow up through 180.</h2>
+  <div class="bar">
+    <div style="flex:120;background:var(--line)">Reminders at 30 · 60 · 90 days past due</div>
+    <div style="flex:60;background:var(--teal);color:var(--navy)">120 · 180: the long tail</div>
+  </div>
+  <div class="grid g3">
+    <div class="card"><h3>Real due dates</h3><p>Each patient's payment plan has due dates on the Ledger. Late means days past a missed due date, not days since a charge.</p></div>
+    <div class="card"><h3>Pay link by text</h3><p>Each reminder texts a secure link that opens MyOrthoChart on the Billing page.</p></div>
+    <div class="card"><h3>Automatic or manual</h3><p>The doctor chooses at setup. Only patients who agreed to texts are contacted, only in office hours. Orthodontic balances only.</p></div>
+  </div>
+  <p class="note">Automatic reminders are off until the owner or doctor turns them on. Manual follow-up (notes, letters, bulk text) works either way.</p>
+  <div class="foot"><span>OrthoFlow</span><span>3</span></div>
+</section>
+
+<!-- 4 PLATFORM -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">THE PLATFORM</div>
+  <h2>Everything an orthodontic practice runs on.</h2>
+  <div class="grid g4">
+    <div class="card"><h3>Schedule &amp; flow</h3><ul><li>Chair-based calendar, full-month view</li><li>Patient flow board</li><li>Today's notes</li></ul></div>
+    <div class="card"><h3>Clinical chart</h3><ul><li>Treatment notes with author initials</li><li>Tooth chart, appliance tracking</li><li>Documents and emergency medical banner</li></ul></div>
+    <div class="card"><h3>Cephalometrics</h3><ul><li>2D tracing and analyses (ABO, Steiner, Downs, McNamara, Wits, Jarabak)</li><li>AI landmark draft, doctor finalizes</li><li>Superimposition, VTO</li><li>3D CBCT <span class="tag">BETA</span></li></ul></div>
+    <div class="card"><h3>Money</h3><ul><li>Patient ledger, contracts, end-of-day report</li><li>Lifetime-benefit insurance tracking</li><li>AR aging, 90+ and long-tail views</li><li>Claims drafted for review</li></ul></div>
+  </div>
+  <div class="grid g3" style="margin-top:18px">
+    <div class="card"><h3>MyOrthoChart portal</h3><p>Patients view billing, documents and appointments, and exchange files securely with the office.</p></div>
+    <div class="card"><h3>Reports</h3><p>Build a patient or insurance list, then message everyone on it in one step.</p></div>
+    <div class="card"><h3>AI letters</h3><p>Eight letter types that learn each doctor's writing style.</p></div>
+  </div>
+  <div class="foot"><span>OrthoFlow</span><span>4</span></div>
+</section>
+
+<!-- 5 AI -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">AI THAT STAFF CONTROL</div>
+  <h2>AI drafts. Your team decides.</h2>
+  <div class="grid g2">
+    <div class="card"><h3>Revenue cycle</h3><ul><li>Checkout work creates a draft claim for review, never auto-submitted</li><li>Denial analysis and appeal drafts</li><li>Dashboard view of recoverable revenue and unbilled claims</li></ul></div>
+    <div class="card"><h3>Clinical</h3><ul><li>Ceph landmarks suggested with confidence shading</li><li>Nothing is final until the doctor signs off</li><li>Predictions are labeled as predictions</li></ul></div>
+  </div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card"><h3>Stedi</h3><p>Our clearinghouse partner: insurance eligibility checks, claims and remittances.</p></div>
+    <div class="card"><h3>Plaid</h3><p>Our banking partner: secure bank connections for patient payments. No card numbers are stored.</p></div>
+  </div>
+  <p class="note">Claims are never auto-submitted. Staff review every draft.</p>
+  <div class="foot"><span>OrthoFlow</span><span>5</span></div>
+</section>
+
+<!-- 6 DATA -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">YOUR DATA</div>
+  <h2>Hosted by us, isolated for you.</h2>
+  <div class="grid g3">
+    <div class="card"><h3>No public-cloud hosting</h3><p>OrthoFlow runs on U.S. infrastructure operated by Melanin Technologies. The practice hosts nothing and maintains nothing.</p></div>
+    <div class="card"><h3>Isolated and encrypted</h3><p>Every practice's data is separated by practice. Encrypted in transit and at rest. Every access is audit-logged. Uploaded files are virus-scanned.</p></div>
+    <div class="card"><h3>You own it</h3><p>Export on request. A business associate agreement is signed before go-live.</p></div>
+  </div>
+  <p class="note">AI features send each task's context to our AI provider, and staff review every output.</p>
+  <div class="foot"><span>OrthoFlow</span><span>6</span></div>
+</section>
+
+<!-- 7 WHY -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">WHY ONBOARD WITH US</div>
+  <h2>Less work for staff. More collected. One vendor.</h2>
+  <div class="grid g2">
+    <div class="card"><h3>For the doctor</h3><ul><li>See what is owed and why, including accounts older than 120 days</li><li>Ceph and treatment planning in the same chart</li><li>AI that writes in your voice and waits for your approval</li></ul></div>
+    <div class="card"><h3>For the front desk and billing team</h3><ul><li>One Ledger with search, aging, and notes</li><li>Bulk list-to-message for patients who owe</li><li>Claims drafted at checkout</li></ul></div>
+    <div class="card"><h3>For patients</h3><ul><li>MyOrthoChart for billing, documents and appointments</li><li>Secure file exchange with the office</li></ul></div>
+    <div class="card"><h3>For the practice</h3><ul><li>Works alongside your financial platform, not instead of it</li><li>Onboarding checklist and staff training plan</li><li>Orthodontics only: no unused modules</li></ul></div>
+  </div>
+  <div class="foot"><span>OrthoFlow</span><span>7</span></div>
+</section>
+
+<!-- 8 ONBOARDING -->
+<section class="slide">
+  <div class="brand"><span>Ortho<b>Flow</b></span></div>
+  <div class="eyebrow">GETTING STARTED</div>
+  <h2>How onboarding works.</h2>
+  <div class="grid g4">
+    <div class="card"><h3>1. Kickoff</h3><p>We complete a short checklist: providers, chairs, clearinghouse, imaging, migration.</p></div>
+    <div class="card"><h3>2. Set up &amp; migrate</h3><p>Practice configured, staff accounts and roles created, patient list and images moved over where available.</p></div>
+    <div class="card"><h3>3. Train &amp; verify</h3><p>Role-based staff training, then a pre-live check of login, schedule, test claim and reminders.</p></div>
+    <div class="card"><h3>4. Go live</h3><p>BAA signed and integrations switched on. Typically 1 to 2 weeks from kickoff, depending on clearinghouse enrollment.</p></div>
+  </div>
+  <p class="lead" style="margin-top:36px">Ready to see your long tail? <span class="teal">Book a demo at orthoflowsolutions.com.</span></p>
+  <div class="foot"><span>Melanin Technologies Inc.</span><span>8</span></div>
+</section>
+
+</body>
+</html>

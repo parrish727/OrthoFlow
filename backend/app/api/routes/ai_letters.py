@@ -7,6 +7,8 @@ personalization, NOT model fine-tuning. Anthropic Claude only.
 """
 import logging
 import httpx
+from app.services import anthropic_gateway as gateway
+from app.services.deid import DeidSession
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -56,33 +58,13 @@ class SaveStyleRequest(BaseModel):
     tone: str | None = None
 
 
-async def _call_claude(prompt: str) -> str:
-    """Anthropic Claude text generation (approved provider only)."""
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(503, "AI is not configured")
+async def _call_claude(prompt: str, deid: DeidSession) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            return resp.json()["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "AI request timed out")
-    except Exception as e:
-        logger.error("ai_letters_error", extra={"error": str(e)[:200]})
-        raise HTTPException(503, f"AI letter service error: {str(e)[:100]}")
+        return await gateway.complete(prompt, deid, max_tokens=2048)
+    except gateway.GatewayError as e:
+        logger.error("ai_letters_error", extra={"kind": e.kind})
+        raise HTTPException(422 if e.kind == "deid" else 503, e.message)
 
 
 async def _style_examples(db: AsyncSession, practice_id, user_id, letter_type: str) -> str:
@@ -153,22 +135,28 @@ async def generate_letter(
     """Generate a letter of the requested type, personalized to the doctor's style (few-shot)."""
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
+    deid = DeidSession()
     patient_name = "the patient"
     if body.patient_id:
         p = (await db.execute(select(Patient).where(Patient.id == UUID(body.patient_id), Patient.practice_id == practice_id))).scalar_one_or_none()
         if p:
-            patient_name = f"{p.first_name} {p.last_name}"
+            patient_name = deid.add_person("PATIENT", p.first_name, p.last_name)
+            if p.responsible_party:
+                deid.add_person("GUARDIAN", None, None, full=p.responsible_party)
 
     style = await _style_examples(db, practice_id, UUID(user["user_id"]) if isinstance(user["user_id"], str) else user["user_id"], body.letter_type)
+    # Saved sample letters and typed context can contain real names: tokenize every proper noun.
+    style = deid.scrub(style, aggressive=True)
+    typed_context = deid.scrub(body.context or "none", aggressive=True)
     desc = LETTER_TYPES.get(body.letter_type, LETTER_TYPES["general"])
     prompt = (
         f"You are drafting {desc} for an orthodontic practice. Patient: {patient_name}. "
-        f"Tone: {body.tone}. Additional context: {body.context or 'none'}. "
+        f"Tone: {body.tone}. Additional context: {typed_context}. "
         f"Write a complete, ready-to-send letter with appropriate salutation and closing. "
         f"Use bracketed placeholders like [Practice Name] where specifics are unknown."
         f"{style}"
     )
-    text = await _call_claude(prompt)
+    text = await _call_claude(prompt, deid)
     # Usage learning: bump use_count on this doctor's saved styles for this letter type so
     # frequently-used types float to the top of suggestions (prompt-time personalization seed).
     await db.execute(
@@ -191,11 +179,13 @@ async def polish_letter(
 ):
     """Gmail-style AI polish — rewrite the given text in the chosen tone, keeping meaning."""
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    deid = DeidSession()
+    letter = deid.scrub(body.text, aggressive=True)   # names are restored in the answer
     prompt = (
         f"Rewrite the following letter to be more {body.tone}, preserving all facts and intent. "
-        f"Return only the rewritten letter.\n\n{body.text}"
+        f"Return only the rewritten letter.\n\n{letter}"
     )
-    text = await _call_claude(prompt)
+    text = await _call_claude(prompt, deid)
     await audit_log(db, practice_id, user["user_id"], "ai_letter.polish", "letter", body.tone)
     return {"tone": body.tone, "letter_text": text}
 

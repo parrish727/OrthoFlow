@@ -18,6 +18,7 @@ import logging
 
 import httpx
 
+from app.services import anthropic_gateway as gateway
 from app.core.config import settings
 from app.services.storage import download_file
 
@@ -78,8 +79,6 @@ async def auto_landmark(image_bytes: bytes, content_type: str | None, filename: 
         raise RuntimeError("AI not configured (ANTHROPIC_API_KEY unset)")
 
     size = _image_size(image_bytes)
-    b64 = base64.standard_b64encode(image_bytes).decode()
-    media_type = _media_type(content_type, filename)
 
     wanted = {k: _LANDMARK_GLOSSARY.get(k, k) for k in landmark_keys}
     prompt = (
@@ -94,33 +93,9 @@ async def auto_landmark(image_bytes: bytes, content_type: str | None, filename: 
     )
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 1500,
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-                            {"type": "text", "text": prompt},
-                        ],
-                    }],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            text = resp.json()["content"][0]["text"]
-    except httpx.TimeoutException as e:
-        raise RuntimeError("AI landmarking timed out") from e
-    except Exception as e:
-        raise RuntimeError(f"AI landmarking failed: {str(e)[:120]}") from e
+        text = await gateway.complete_image(prompt, image_bytes, max_tokens=1500)
+    except gateway.GatewayError as e:
+        raise RuntimeError(e.message) from e
 
     parsed = _extract_json(text)
     raw = (parsed or {}).get("landmarks", {})

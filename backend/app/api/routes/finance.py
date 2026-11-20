@@ -16,6 +16,7 @@ from app.core.auth import get_current_user
 from app.core.audit import audit_log
 from app.models.finance import InsuranceSubscriber, PatientLedgerEntry, InsuranceBenefitPeriod
 from app.models.clinical import Patient
+from app.services import ar_aging
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
 
@@ -270,13 +271,14 @@ async def ledger_roster(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Practice-wide ledger roster — every patient with charges/payments/balance in one call.
+    """Practice-wide ledger roster: every patient with charges, payments or a payment plan.
 
-    Powers the roster-first Ledger view efficiently (single grouped query instead of N+1).
-    Only includes patients who have financial activity. Each row also carries an aging bucket
-    (current / 31-60 / 61-90 / 90+ / 120+) based on the oldest outstanding charge, plus the
-    per-patient AR/collections note — so financial coordinators can triage long-tail delinquency
-    (incl. 90-day-plus) and read contact notes without leaving the ledger.
+    Lateness comes from app/services/ar_aging.py, the same source the /reports/ar-aging report
+    uses, so the two always agree. With a payment-plan schedule the clock is days past the oldest
+    uncovered due date (due_source = "schedule"); otherwise it is an estimate from the last
+    payment or oldest charge (due_source = "estimated"). Each row also carries the cadence
+    milestone reached (30/60/90/120/180), a long-tail flag (120+ days, up to the cap) and the
+    per-patient AR/collections note.
     """
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
 
@@ -285,61 +287,42 @@ async def ledger_roster(
     )).scalars().all()
     pmap = {str(p.id): p for p in patients}
 
-    rows = (await db.execute(
-        select(
-            PatientLedgerEntry.patient_id,
-            func.sum(PatientLedgerEntry.amount),
-            func.sum(func.greatest(PatientLedgerEntry.amount, 0)),  # charges (positive)
-            func.sum(func.least(PatientLedgerEntry.amount, 0)),     # payments/adjustments (negative)
-            func.min(
-                func.coalesce(PatientLedgerEntry.service_date, PatientLedgerEntry.posted_date)
-            ).filter(PatientLedgerEntry.amount > 0),                 # oldest charge date
-        ).where(PatientLedgerEntry.practice_id == practice_id)
-        .group_by(PatientLedgerEntry.patient_id)
-    )).all()
-
-    today = date.today()
-
-    def _bucket(days: int | None, balance: float) -> tuple[str, int | None]:
-        """Map oldest-charge age to an aging bucket. Only patients with a positive balance age."""
-        if balance <= 0 or days is None:
-            return "current", None
-        if days <= 30:
-            return "current", days
-        if days <= 60:
-            return "31-60", days
-        if days <= 90:
-            return "61-90", days
-        if days <= 120:
-            return "90-120", days
-        return "120+", days
+    rows = await ar_aging.load_aging(db, practice_id, date.today())
 
     roster = []
-    for pid, balance, charges, payments, oldest_charge in rows:
-        p = pmap.get(str(pid))
+    for r in rows:
+        p = pmap.get(r.patient_id)
         if not p:
             continue
-        bal = float(balance or 0)
-        days_overdue = (today - oldest_charge).days if oldest_charge else None
-        bucket, days = _bucket(days_overdue, bal)
-        # delinquent_90_plus is the long-tail flag Adele's practice needs (TOPS dumps these to
-        # collections at 90; OrthoFlow keeps tracking + noting them instead).
-        delinquent_90_plus = bal > 0 and days is not None and days > 90
+        ag = r.aging
+        days = ag.days_past_due
+        capped = ar_aging.past_cap(days)
         roster.append({
-            "patient_id": str(pid),
+            "patient_id": r.patient_id,
             "first_name": p.first_name,
             "last_name": p.last_name,
-            "balance": bal,
-            "total_charges": float(charges or 0),
-            "total_payments": float(payments or 0),  # negative
-            "aging_bucket": bucket,
+            "balance": ag.balance,
+            "total_charges": r.total_charges,
+            "total_payments": r.total_payments,  # negative
+            "aging_bucket": ar_aging.roster_bucket(days) if days is not None else "current",
             "days_overdue": days,
-            "delinquent_90_plus": delinquent_90_plus,
+            "delinquent_90_plus": days is not None and days > 90,
+            "due_source": ag.due_source,
+            "amount_past_due": ag.amount_past_due,
+            "next_due_date": ag.next_due_date.isoformat() if ag.next_due_date else None,
+            "next_due_amount": ag.next_due_amount,
+            "milestone": ar_aging.milestone_reached(days),
+            "long_tail": days is not None and days >= ar_aging.LONG_TAIL_FROM_DAYS and not capped,
+            "past_cap": capped,
             "ar_note": p.ar_note,
             "ar_note_updated_at": p.ar_note_updated_at.isoformat() if p.ar_note_updated_at else None,
         })
     roster.sort(key=lambda r: r["balance"], reverse=True)
-    return {"count": len(roster), "patients": roster}
+    return {
+        "count": len(roster),
+        "patients": roster,
+        "cadence": {"milestones": list(ar_aging.active_milestones()), "cap_days": ar_aging.cap_days()},
+    }
 
 
 class ARNoteUpdate(BaseModel):
@@ -707,47 +690,79 @@ def _subscriber_dict(s: InsuranceSubscriber) -> dict:
     }
 
 
-# ── OrthoFi Financial Bridge ───────────────────────────────────────────────────
-# OrthoFi owns intake→~120 days; OrthoFlow owns the long-tail AR. These endpoints ingest an
-# OrthoFi "financial handoff" so delinquency tracking continues inside OrthoFlow. Source-agnostic
-# (future OrthoFi API or a CSV/JSON export); dormant until a real API/key is provisioned.
+# ── Payment plan (ledger due dates) ────────────────────────────────────────────
 
-class OrthoFiHandoffBody(BaseModel):
-    external_id: str = Field(..., min_length=1, max_length=100)
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
-    date_of_birth: date | None = None
-    email: str | None = Field(None, max_length=255)
-    phone: str | None = Field(None, max_length=20)
-    outstanding_balance: Decimal
-    contract_total: Decimal | None = None
-    monthly_payment: Decimal | None = None
-    last_payment_date: date | None = None
-    handoff_date: date | None = None
-    plan_summary: str | None = Field(None, max_length=500)
-
-
-@router.get("/orthofi/status")
-async def orthofi_status(user: dict = Depends(get_current_user)):
-    """Report OrthoFi bridge readiness (configured/dormant + mode)."""
-    from app.services import orthofi
-    return orthofi.status()
-
-
-@router.post("/orthofi/handoff", status_code=201)
-async def orthofi_import_handoff(
-    body: OrthoFiHandoffBody,
+@router.get("/payment-plan/{patient_id}")
+async def get_payment_plan(
+    patient_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Ingest a single OrthoFi financial handoff → create/match the patient + seed the outstanding
-    balance into the ledger so AR tracking continues. Idempotent per external_id."""
-    from app.services import orthofi
+    """The patient's installment schedule with paid / overdue / upcoming status per due date."""
+    from app.models.finance import PaymentPlanInstallment as I
     practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
-    handoff = orthofi.OrthoFiHandoff(**body.model_dump())
-    result = await orthofi.import_handoff(
-        db, practice_id, handoff,
-        created_by=UUID(user["user_id"]) if user.get("user_id") else None,
-    )
-    await audit_log(db, practice_id, user["user_id"], "orthofi.handoff_import", "patient", result["patient_id"])
-    return result
+    inst = (await db.execute(
+        select(I).where(I.practice_id == practice_id, I.patient_id == patient_id, I.canceled.is_(False))
+        .order_by(I.due_date)
+    )).scalars().all()
+    if not inst:
+        return {"patient_id": str(patient_id), "installments": [], "days_past_due": None, "amount_past_due": 0.0}
+
+    rows = await ar_aging.load_aging(db, practice_id, date.today(), patient_id=patient_id)
+    paid = rows[0].plan_paid if rows else Decimal("0")
+    ag = rows[0].aging if rows else ar_aging.Aging()
+    stats = ar_aging.installment_statuses(date.today(), [(i.due_date, i.amount) for i in inst], paid)
+    return {
+        "patient_id": str(patient_id),
+        "installments": [
+            {"sequence": i.sequence, "due_date": s["due_date"].isoformat(), "amount": s["amount"],
+             "covered": s["covered"], "status": s["status"]}
+            for i, s in zip(inst, stats)
+        ],
+        "days_past_due": ag.days_past_due,
+        "amount_past_due": ag.amount_past_due,
+        "milestone": ar_aging.milestone_reached(ag.days_past_due),
+    }
+
+
+class PaymentPlanBody(BaseModel):
+    first_due_date: date
+    months: int = Field(..., ge=1, le=120)
+    total: Decimal = Field(..., gt=0)
+    contract_id: UUID | None = None
+
+
+@router.post("/payment-plan/{patient_id}", status_code=201)
+async def set_payment_plan(
+    patient_id: UUID,
+    body: PaymentPlanBody,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Create (or replace) the patient's monthly installment schedule.
+
+    Existing installments are canceled, not deleted, so the audit trail keeps the old schedule.
+    """
+    from app.models.finance import PaymentPlanInstallment as I
+    practice_id = UUID(user["practice_id"]) if isinstance(user["practice_id"], str) else user["practice_id"]
+    patient = (await db.execute(
+        select(Patient).where(Patient.id == patient_id, Patient.practice_id == practice_id)
+    )).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(404, "Patient not found")
+
+    created_by = UUID(user["user_id"]) if user.get("user_id") else None
+    old = (await db.execute(
+        select(I).where(I.practice_id == practice_id, I.patient_id == patient_id, I.canceled.is_(False))
+    )).scalars().all()
+    for o in old:
+        o.canceled = True
+    plan = ar_aging.build_schedule(body.first_due_date, body.months, body.total)
+    for n, (due, amt) in enumerate(plan, start=1):
+        db.add(I(practice_id=practice_id, patient_id=patient_id, contract_id=body.contract_id,
+                 sequence=n, due_date=due, amount=amt, created_by=created_by))
+    await db.commit()
+    await audit_log(db, practice_id, user["user_id"], "payment_plan.set", "patient", str(patient_id))
+    return {"patient_id": str(patient_id), "installments": len(plan),
+            "first_due_date": plan[0][0].isoformat(), "last_due_date": plan[-1][0].isoformat(),
+            "replaced": len(old)}

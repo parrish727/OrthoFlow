@@ -73,6 +73,20 @@ type PortalSection = 'home' | 'schedule' | 'messages' | 'visits' | 'billing' | '
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
+/** Load Plaid Link once, only when the patient starts a payment. */
+function loadPlaidScript(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((window as any).Plaid) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script')
+    el.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js'
+    el.onload = () => resolve()
+    el.onerror = () => reject(new Error('Plaid failed to load'))
+    document.head.appendChild(el)
+  })
+}
+
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
@@ -96,7 +110,9 @@ export default function PatientPortal() {
   const [loginLoading, setLoginLoading] = useState(false)
 
   // App state
-  const [activeSection, setActiveSection] = useState<PortalSection>('home')
+  // SMS pay links open /portal?section=billing; the patient still signs in first.
+  const [activeSection, setActiveSection] = useState<PortalSection>(() =>
+    new URLSearchParams(window.location.search).get('section') === 'billing' ? 'billing' : 'home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [dashboard, setDashboard] = useState<PortalDashboard | null>(null)
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -116,6 +132,12 @@ export default function PatientPortal() {
   const [docDownloadingId, setDocDownloadingId] = useState<string | null>(null)
   const docFileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
+
+  // Pay online (Plaid ACH). Enabled flag comes from the server; nothing renders until it is on.
+  const [payEnabled, setPayEnabled] = useState(false)
+  const [payAmount, setPayAmount] = useState('')
+  const [payBusy, setPayBusy] = useState(false)
+  const [payMsg, setPayMsg] = useState('')
 
   // Video state
   const [showVideoRoom, setShowVideoRoom] = useState(false)
@@ -197,6 +219,49 @@ export default function PatientPortal() {
     }
     return res
   }, [])
+
+  useEffect(() => {
+    if (activeSection !== 'billing') return
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await portalRequest('/api/v1/portal/billing/pay/status')
+        if (r.ok && alive) setPayEnabled(!!(await r.json()).enabled)
+      } catch { /* leave hidden */ }
+    })()
+    return () => { alive = false }
+  }, [activeSection, portalRequest])
+
+  async function startPayment() {
+    if (!billing) return
+    const amount = Number(payAmount || billing.balance)
+    if (!(amount > 0) || amount > billing.balance) { setPayMsg('Enter an amount up to your balance.'); return }
+    setPayBusy(true); setPayMsg('')
+    try {
+      const tokRes = await portalRequest('/api/v1/portal/billing/pay/link-token', { method: 'POST' })
+      if (!tokRes.ok) { setPayMsg((await tokRes.json().catch(() => ({}))).detail || 'Could not start payment.'); setPayBusy(false); return }
+      const { link_token } = await tokRes.json()
+      await loadPlaidScript()
+      const requestId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (window as any).Plaid.create({
+        token: link_token,
+        onSuccess: async (publicToken: string, metadata: { accounts?: { id: string }[]; account?: { id: string } }) => {
+          const accountId = metadata.account?.id || metadata.accounts?.[0]?.id
+          const res = await portalRequest('/api/v1/portal/billing/pay', {
+            method: 'POST',
+            body: JSON.stringify({ public_token: publicToken, account_id: accountId, amount, request_id: requestId }),
+          })
+          const body = await res.json().catch(() => ({}))
+          setPayMsg(res.ok ? 'Payment submitted. It can take 1 to 3 business days to clear.' : (body.detail || 'Payment could not be submitted.'))
+          if (res.ok) { const b = await portalRequest('/api/v1/portal/billing'); if (b.ok) setBilling(await b.json()) }
+          setPayBusy(false)
+        },
+        onExit: () => setPayBusy(false),
+      })
+      handler.open()
+    } catch { setPayMsg('Could not start payment.'); setPayBusy(false) }
+  }
 
   // ── Data Loading ─────────────────────────────────────────────────────────
 
@@ -791,6 +856,38 @@ export default function PatientPortal() {
                   <p className="text-xs text-gray-500 mt-1">Responsible Party: {billing.responsible_party}</p>
                 )}
               </div>
+
+              {billing && billing.balance > 0 && (
+                <div className="mb-5 text-center" data-testid="portal-pay">
+                  {payEnabled ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">$</span>
+                        <input
+                          data-testid="portal-pay-amount"
+                          value={payAmount}
+                          onChange={e => setPayAmount(e.target.value)}
+                          placeholder={billing.balance.toFixed(2)}
+                          inputMode="decimal"
+                          className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                        <button
+                          data-testid="portal-pay-button"
+                          onClick={startPayment}
+                          disabled={payBusy}
+                          className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          {payBusy ? 'Working…' : 'Pay from my bank'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-400">Secure bank connection by Plaid. No card numbers are stored.</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500" data-testid="portal-pay-call">To pay your balance, please call the office.</p>
+                  )}
+                  {payMsg && <p data-testid="portal-pay-msg" className="text-sm text-gray-700 mt-2">{payMsg}</p>}
+                </div>
+              )}
 
               {/* Recent payments with auto-pay status (mirrors OrthoFlow ledger color coding) */}
               {billing && billing.recent_payments.length > 0 && (
