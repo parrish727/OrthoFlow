@@ -86,9 +86,7 @@ notifications + email confirmations. OrthoFlow is the source of truth; MyOrthoCh
   clearinghouse), claims creation/workflow, ERA/payment posting, and AI denial analysis.
 
 ### Integrations
-- **Do you integrate with OrthoFi?** Not yet — an OrthoFi ↔ OrthoFlow financial bridge is on the
-  active roadmap (OrthoFi stops tracking at 120 days; OrthoFlow is designed to own the long tail).
-  See the integration note below.
+- **Do you work with separate financial platforms?** OrthoFlow does that job itself: digital paperwork, insurance verification and claims through Stedi, contracts with due dates, and collections follow-up at 30, 60, 90, 120 and 180 days past due. There is no separate integration to set up. See `FINANCIAL_LAYER_STEDI_PLAID.md`.
 - **Do you integrate with TOPS?** TOPS is a closed ecosystem that states it does not integrate with
   third-party software. We're investigating any data-export/migration path; direct live integration
   is unlikely to be available from TOPS's side.
@@ -120,12 +118,8 @@ notifications + email confirmations. OrthoFlow is the source of truth; MyOrthoCh
 
 ---
 
-## 4. OrthoFi integration (status note for the first client)
-OrthoFi is used by a large share of ortho practices for digital new-patient paperwork, insurance
-verification, benefit calculation, and contract setup — but it **stops tracking at 120 days**.
-OrthoFlow's AR aging + 90+/120+ delinquency tracking is designed to own exactly that long tail. A
-formal OrthoFi ↔ OrthoFlow financial bridge is on the active roadmap; until it ships, OrthoFlow runs
-standalone for financials and the practice continues OrthoFi as-is for front-end intake if desired.
+## 4. Financial layer (Stedi and Plaid)
+OrthoFlow handles intake paperwork, insurance verification, contracts and payment-plan due dates, claims, and collections follow-up in one system. Insurance eligibility and claims run through Stedi. Online pay-by-bank in MyOrthoChart runs through Plaid and is switched on per the owner's go-live decision. At setup the owner or doctor chooses whether automatic payment reminders are on (off by default). Details: `docs/specs/AR_COLLECTIONS_CADENCE.md` and `docs/specs/FINANCIAL_LAYER_STEDI_PLAID.md`.
 
 ---
 

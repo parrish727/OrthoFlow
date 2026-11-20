@@ -367,12 +367,13 @@ The patient experience mirrors what patients already expect from hospital system
 - By payer and by patient
 - Follow-up prioritization
 
-#### AR Long-Tail Follow-up (orthodontic patient balances, post-OrthoFi handoff)
-- OrthoFlow follow-up opens **strictly after** the upstream financial platform's tracking limit (default 120 days, `AR_LONGTAIL_START_DAYS`) and closes at a cap (default 180 days, `AR_LONGTAIL_CAP_DAYS`). Cap is raised only if practice data shows it pays.
-- Per-account `longtail_status` on the Ledger roster (`upstream_window`, `active`, `past_cap`) and a "Long-tail follow-up" filter.
-- OrthoFi handoff import seeds the balance, marks provenance, and opens the window on the handoff date. Dormant until a feed exists.
-- Outreach is staff-triggered (AI collections letters, report-builder bundle SMS). No scheduled automatic outreach is built.
-- Spec: `docs/specs/AR_LONGTAIL_HANDOFF.md`
+#### AR Collections Cadence (orthodontic patient balances)
+- Payment-plan schedule with due dates (created when a contract is placed, or set by staff); shown on the Ledger with paid / overdue / upcoming status.
+- One lateness calculation for the Ledger roster and the AR Aging report (days past the oldest uncovered due date, or an estimate when no schedule exists).
+- Reminder milestones at 30, 60, 90, 120 and 180 days past due, cap 180 (`AR_OUTREACH_CAP_DAYS`). Days 120 to the cap are the long tail that many billing tools drop.
+- Automatic SMS reminders with a MyOrthoChart pay link are opt-in, chosen by the owner or doctor at setup. They require SMS consent, respect quiet hours and send only in office hours. Manual tools work either way.
+- Pay online in MyOrthoChart through Plaid (scaffolded, off until enabled).
+- Spec: `docs/specs/AR_COLLECTIONS_CADENCE.md`, `docs/specs/FINANCIAL_LAYER_STEDI_PLAID.md`
 
 #### Provider Productivity
 - Appointments per day/week
@@ -624,7 +625,7 @@ Patient/Staff Action → FastAPI Endpoint → Anthropic Claude API (direct httpx
 |---------|--------|--------|
 | Stedi clearinghouse integration | In development | Electronic claim submission + same-day appeals |
 | MyOrthoChart native mobile app | In development | iOS and Android via React Native |
-| OrthoFi financial handoff feed | Import scaffold shipped (dormant); live feed pending partnership | See `docs/specs/ORTHOFI_INTEGRATION_FEASIBILITY.md` and `AR_LONGTAIL_HANDOFF.md` |
+| Patient pay-by-bank (Plaid) in MyOrthoChart | Scaffolded, off until Plaid Transfer is approved and the funds flow is set | `FINANCIAL_LAYER_STEDI_PLAID.md` |
 
 ### Planned (Backlog, Not Started)
 

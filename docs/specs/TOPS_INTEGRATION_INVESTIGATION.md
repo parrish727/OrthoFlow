@@ -40,4 +40,4 @@ the exact gap driving interest in OrthoFlow (the practice's delinquency sits mos
 
 ## Related
 - `docs/onboarding/ONBOARDING_CHECKLIST.md` §6 Data Migration (current PMS export intake).
-- `docs/specs/ORTHOFI_INTEGRATION_FEASIBILITY.md` (the other integration track).
+- `docs/specs/FINANCIAL_LAYER_STEDI_PLAID.md` (the financial layer: Stedi and Plaid).
