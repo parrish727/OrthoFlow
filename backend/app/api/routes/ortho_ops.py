@@ -651,7 +651,11 @@ async def run_payment_poll(
     with live clearinghouse creds it queries the payer/clearinghouse for paid/failed status.
     """
     import random
+    from app.core.demo import is_demo_practice
     practice_id = user["practice_id"]
+    if not is_demo_practice(practice_id):
+        # Payer polling is not connected for real practices yet; never fabricate payment results.
+        raise HTTPException(409, "Payer payment polling is not connected yet for this practice.")
     today = date.today()
     contracts = (await db.execute(
         select(PatientInsuranceContract).where(

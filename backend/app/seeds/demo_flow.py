@@ -19,7 +19,7 @@ from app.models.portal import PortalAccount, PortalForm, PortalMessage
 # CONSTANTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-DEMO_PRACTICE_ID = uuid.UUID("82fe9d87-6250-4b15-ac7d-26de094a4be8")
+from app.core.demo import DEMO_PRACTICE_ID  # single source of truth for the demo practice id
 # Use Eastern time for "today" since the practice is in US Eastern timezone
 # Use system date — computed at runtime in seed_demo_flow(), not import time
 TODAY: date = date.today()  # Default, overridden in seed_demo_flow()

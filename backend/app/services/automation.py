@@ -70,6 +70,10 @@ async def run_recurring_claims(db: AsyncSession, practice_id, run_date: date) ->
 async def run_payment_poll(db: AsyncSession, practice_id, run_date: date) -> dict:
     """Poll payer payment status (paid/pending/failed) for daily-poll contracts."""
     import random
+    from app.core.demo import is_demo_practice
+    if not is_demo_practice(practice_id):
+        # Real payer polling is not connected yet. Never fabricate paid/failed results for a real practice.
+        return {"task": "payment_poll", "skipped": True, "reason": "payer polling not connected"}
     if await _already_ran(db, practice_id, "payment_poll", run_date):
         return {"task": "payment_poll", "skipped": True}
     contracts = (await db.execute(
