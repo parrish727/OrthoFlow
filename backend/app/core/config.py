@@ -116,6 +116,10 @@ class Settings(BaseSettings):
     # production and the settlement model with practices is signed off.
     PATIENT_PAYMENTS_ENABLED: bool = False
 
+    # Send ceph images to the cloud vision model for landmark suggestions. Metadata is stripped, but
+    # text burned into the image cannot be removed, so this can be switched off per environment.
+    CEPH_AI_CLOUD_ENABLED: bool = True
+
     # HIPAA
     AUDIT_LOG_ENABLED: bool = True
     PHI_ENCRYPTION_KEY: str = ""  # AES-256 key for PHI at rest

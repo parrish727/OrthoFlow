@@ -506,7 +506,7 @@ scope and are not offered or marketed.
 
 | Component | Specification |
 |-----------|--------------|
-| Host | Mac Pro (16-core, 32GB RAM) |
+| Host | Melanin Technologies Inc. local infrastructure |
 | Containerization | Docker Compose |
 | CI/CD | GitHub → GHCR → Watchtower (auto-deploy on image push) |
 | DNS | Cloudflare (DDNS update every 5 min) |

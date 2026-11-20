@@ -120,11 +120,12 @@ def test_installment_statuses():
 
 
 # ── outreach helpers ──
-def test_message_has_name_practice_link_and_no_amount():
+def test_message_is_generic_and_points_to_portal():
     for m in (30, 60, 90, 120, 180):
-        t = o.message_for(m, "Ada", "Smile Ortho")
-        assert "Ada" in t and "Smile Ortho" in t and "/portal?section=billing" in t
-        assert "$" not in t and "STOP" in t
+        t = o.message_for(m)
+        assert "/portal?section=billing" in t and "STOP" in t
+        assert "$" not in t and "day" not in t.lower().replace("today", "")
+        assert not any(ch.isdigit() for ch in t.split("http")[0])
 
 
 def test_send_window_uses_practice_timezone():

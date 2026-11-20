@@ -13,7 +13,7 @@ Safety rules, all enforced here:
   patient, milestone and the oldest uncovered due date). If an account is first seen late, only
   the highest due milestone is sent; lower ones are recorded as superseded.
 - Nothing is sent past the cap (AR_OUTREACH_CAP_DAYS, default 180).
-- The text carries first name, practice name and the MyOrthoChart link. No balance amount.
+- The text is generic: no patient name, practice name, balance or day count. It only points to the signed-in MyOrthoChart page.
 - A failed send is logged but not recorded as sent, so it retries on the next run.
 """
 from __future__ import annotations
@@ -35,24 +35,20 @@ def pay_url() -> str:
     return f"{settings.PORTAL_BASE_URL.rstrip('/')}/portal?section=billing"
 
 
-def message_for(milestone: int, first_name: str, practice_name: str) -> str:
-    first = (first_name or "there").strip() or "there"
+def message_for(milestone: int) -> str:
+    """Generic text on purpose: no name, no practice name, no amount, no day count. SMS is not
+    encrypted, so the message only points the patient to the signed-in portal."""
     url = pay_url()
     stop = " Reply STOP to opt out."
     if milestone <= 30:
-        return (f"Hi {first}, {practice_name}: a payment on your treatment plan is past due. "
-                f"Pay securely in MyOrthoChart: {url}{stop}")
+        return f"You have a billing notice from your orthodontic office. Review it in MyOrthoChart: {url}{stop}"
     if milestone <= 60:
-        return (f"Hi {first}, {practice_name}: your account is now over 60 days past due. "
-                f"Please pay in MyOrthoChart: {url} or call us to set up a plan.{stop}")
+        return f"Second notice: you have an unpaid billing notice from your orthodontic office. Sign in to MyOrthoChart: {url}{stop}"
     if milestone <= 90:
-        return (f"Hi {first}, {practice_name}: your account is over 90 days past due. "
-                f"Please pay in MyOrthoChart: {url} or call us so we can help.{stop}")
+        return f"Important: please review your billing notice from your orthodontic office in MyOrthoChart: {url} or call the office.{stop}"
     if milestone <= 120:
-        return (f"Hi {first}, {practice_name}: we still show a past-due balance on your account "
-                f"(over 120 days). Please pay in MyOrthoChart: {url} or call us to talk through options.{stop}")
-    return (f"Hi {first}, {practice_name}: this is our final automatic reminder about the past-due "
-            f"balance on your account. Please pay in MyOrthoChart: {url} or call us.{stop}")
+        return f"Reminder: your billing notice is still open. Sign in to MyOrthoChart: {url} or call the office to talk through options.{stop}"
+    return f"Final reminder about your open billing notice. Sign in to MyOrthoChart: {url} or call the office.{stop}"
 
 
 def in_send_window(now_utc: datetime) -> bool:
@@ -128,7 +124,7 @@ async def run_for_practice(
             result["skipped_quiet_hours"] += 1
             continue
 
-        body = message_for(send_m, pat.first_name, practice.name)
+        body = message_for(send_m)
         ok = await sender(phone, body)
         log = MessageLog(
             practice_id=practice.id, patient_id=pat.id, direction="outbound", channel="sms",

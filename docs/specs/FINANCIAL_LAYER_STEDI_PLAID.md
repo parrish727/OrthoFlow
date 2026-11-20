@@ -21,6 +21,8 @@ OrthoFi sits next to a practice management system (Dolphin, Cloud 9, Ortho2) and
 ## Plaid: what is built and what the owner provides
 Built (scaffold, `PATIENT_PAYMENTS_ENABLED=False`): `POST /portal/billing/pay/link-token`, `POST /portal/billing/pay`, and `GET /portal/billing/pay/status`; Plaid Link in MyOrthoChart; link token, public-token exchange, transfer authorization (WEB debit) and transfer create, with an idempotency key so a retry cannot double-charge; a pending payment posted to the ledger; checks that the amount is positive and not above the balance. No card data is handled. The fake saved Visa 4242 that `/portal/billing/methods` returned has been removed.
 
+**Contract finding (2026-11-20):** the draft Plaid reseller agreement in `BusinessDocs/Contracts` (dated 2026-10-23, countersignature not confirmed) covers Auth, Identity and Balance. It does not cover Plaid Transfer, and has no HIPAA or BAA language. The ACH debit path below therefore needs its own Plaid product approval and an originating-bank/processor arrangement, and Plaid's written HIPAA position should be obtained. See `docs/compliance/VENDOR_SECURITY_ARCHITECTURE_2026-11-20.md`.
+
 Needed from the owner before turning it on:
 1. **Plaid production credentials and API structure** (`PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENVIRONMENT=production`). Currently defaults to sandbox.
 2. **Plaid Transfer approval and the funds flow.** In a Plaid debit, money lands with the party that originates the transfer. Decide how funds reach each practice (payout model, who is the originator of record, refunds, disputes). This needs Plaid and counsel, not code.

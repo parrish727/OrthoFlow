@@ -1,5 +1,7 @@
 """Same-Day Appeal Automation — orchestrates denial review, appeal generation, and resubmission."""
 import logging
+from app.services import anthropic_gateway as gateway
+from app.services.deid import claim_session, days_between
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -39,7 +41,9 @@ async def _build_denial_context(claim: InsuranceClaim, lines: list) -> dict:
         "payer_id": claim.payer_id,
         "payer_type": claim.payer_type,
         "service_date": claim.service_date.isoformat() if claim.service_date else "unknown",
-        "submission_date": claim.submission_date.isoformat() if claim.submission_date else "unknown",
+        "submission_date": claim.submission_date.date().isoformat() if claim.submission_date else "unknown",
+        "days_service_to_submission": days_between(claim.service_date, claim.submission_date),
+        "deid": claim_session(claim),
         "total_billed": float(claim.total_billed) if claim.total_billed else 0,
         "prior_auth": claim.prior_auth_number,
         "denial_codes": claim.denial_codes or [],
@@ -60,14 +64,11 @@ async def _build_denial_context(claim: InsuranceClaim, lines: list) -> dict:
 
 async def _call_ai_denial_review(context: dict) -> dict:
     """Call Anthropic Claude for denial analysis — reuses logic pattern from ai_claims.py."""
-    import os
-    import httpx
-    from app.core.config import settings
-
     prompt = f"""You are an orthodontic insurance claims specialist. Analyze this denied claim and determine if an appeal should be filed.
 
 CLAIM DETAILS:
-- Patient: {context['patient_name']}
+- Patient: [PATIENT_NAME]
+- Days from service to submission: {context['days_service_to_submission']}
 - Payer: {context['payer_id']} ({context['payer_type']})
 - Service Date: {context['service_date']}
 - Total Billed: ${context['total_billed']:.2f}
@@ -88,31 +89,15 @@ APPEAL_LETTER: [If appeal recommended, write a professional appeal letter addres
 CORRECTIVE_ACTIONS: [Comma-separated list of corrections needed]"""
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["content"][0]["text"]
+        text = await gateway.complete(prompt, context["deid"], max_tokens=2048)
     except Exception as e:
-        logger.error(f"AI denial review failed: {e}")
+        logger.error(f"AI denial review failed: {type(e).__name__}")
         return {
             "appeal_recommended": False,
             "success_likelihood": "low",
             "appeal_letter": None,
             "corrective_actions": [],
-            "error": str(e),
+            "error": "AI review unavailable",
         }
 
     # Parse response

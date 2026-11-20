@@ -10,6 +10,8 @@ import logging
 import os
 
 import httpx
+from app.services.anthropic_gateway import http_complete
+from app.services.deid import DeidSession
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -60,38 +62,9 @@ class BatchInsightsResponse(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _call_darius(task: str) -> str:
-    """Call Anthropic Claude directly for text generation."""
-    from app.core.config import settings
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": settings.ANTHROPIC_MODEL,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": task}],
-                },
-                timeout=60.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["content"][0]["text"]
-    except httpx.TimeoutException:
-        raise HTTPException(503, "Request timed out")
-    except Exception as e:
-        raise HTTPException(503, f"Service unavailable: {str(e)[:100]}")
-    except httpx.HTTPStatusError as e:
-        logger.error("darius_http_error", extra={"status": e.response.status_code})
-        raise HTTPException(503, "AI intelligence service unavailable")
-    except Exception as e:
-        logger.error("darius_error", extra={"error": str(e)[:200]})
-        raise HTTPException(503, f"AI intelligence service error: {str(e)[:100]}")
+async def _call_darius(task: str, deid: DeidSession, max_tokens: int = 2048) -> str:
+    """Claude text generation through the de-identifying gateway (no identifiers leave our servers)."""
+    return await http_complete(task, deid, max_tokens=max_tokens)
 
 
 async def _get_patient_or_404(
@@ -183,14 +156,18 @@ async def summarize_treatment(
     if not notes:
         raise HTTPException(400, "No treatment notes available to summarize")
 
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
+    if getattr(patient, "responsible_party", None):
+        deid.add_person("GUARDIAN", None, None, full=patient.responsible_party)
     notes_text = "\n".join(
-        f"[{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:300]}" for n in notes
+        deid.scrub(f"[{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:300]}", dates="relative") for n in notes
     )
 
     prompt = f"""You are a clinical intelligence assistant for an orthodontic practice.
 Summarize this patient's treatment history from their clinical notes.
 
-PATIENT: {patient.first_name} {patient.last_name}
+PATIENT: [PATIENT_NAME]
 TREATMENT PHASE: {patient.treatment_phase or 'unknown'}
 NOTES (most recent first, up to 20):
 {notes_text}
@@ -200,7 +177,7 @@ TREATMENT_SUMMARY: [A 2-4 sentence summary of the full treatment journey so far]
 KEY_MILESTONES: [Comma-separated list of significant treatment events with approximate dates, e.g. "Bonded upper 2024-03, Wire progression to 18SS 2024-06, Elastics started 2024-09"]
 CURRENT_STATUS: [One sentence describing where the patient is right now in their treatment]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     treatment_summary = ""
@@ -251,18 +228,22 @@ async def next_visit_suggestion(
     chart_summary = await _get_tooth_chart_summary(db, patient_id)
     appointments = await _get_recent_appointments(db, patient_id, limit=5)
 
+    deid = DeidSession()
+    deid.add_person("PATIENT", patient.first_name, patient.last_name)
+    if getattr(patient, "responsible_party", None):
+        deid.add_person("GUARDIAN", None, None, full=patient.responsible_party)
     notes_text = "\n".join(
-        f"[{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:200]}" for n in notes
+        deid.scrub(f"[{n.created_at.strftime('%Y-%m-%d')}] {n.note_text[:200]}", dates="relative") for n in notes
     )
     appt_text = "\n".join(
-        f"[{a.appointment_date.isoformat()}] {a.appointment_type or 'General'} ({a.status})"
+        deid.scrub(f"[{a.appointment_date.isoformat()}] {a.appointment_type or 'General'} ({a.status})", dates="relative")
         for a in appointments
     )
 
     prompt = f"""You are a clinical intelligence assistant for an orthodontic practice.
 Based on the patient's treatment context, suggest what should happen at their next visit.
 
-PATIENT: {patient.first_name} {patient.last_name}
+PATIENT: [PATIENT_NAME]
 TREATMENT PHASE: {patient.treatment_phase or 'unknown'}
 TOOTH CHART: {chart_summary}
 
@@ -278,7 +259,7 @@ REASONING: [2-3 sentences explaining why these procedures are appropriate given 
 ESTIMATED_DURATION: [Integer minutes, e.g. 30]
 SUPPLIES_NEEDED: [Comma-separated list of supplies/materials to have ready, e.g. "18x25 SS upper archwire, Elastic hooks, Power chain"]"""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     suggested_procedures: list[str] = []
@@ -334,6 +315,7 @@ async def batch_insights(
     practice_id = user["practice_id"]
 
     # Gather context for all patients
+    deid = DeidSession()
     patient_contexts: list[str] = []
     valid_ids: list[str] = []
 
@@ -361,8 +343,10 @@ async def batch_insights(
         ).scalar_one_or_none()
 
         note_text = last_note.note_text[:150] if last_note else "No notes"
+        label = deid.add_person(f"P{len(patient_contexts) + 1}", patient.first_name, patient.last_name)
         patient_contexts.append(
-            f"ID:{pid} | {patient.first_name} {patient.last_name} | Phase: {patient.treatment_phase or 'unknown'} | Last note: {note_text}"
+            f"ID:{pid} | {label} | Phase: {patient.treatment_phase or 'unknown'} | Last note: "
+            + deid.scrub(note_text, dates="relative")
         )
 
     if not patient_contexts:
@@ -382,7 +366,7 @@ INSIGHT: [patient_id] | [status_summary max 50 chars] | [next_action max 50 char
 
 Output one INSIGHT line per patient listed above."""
 
-    result = await _call_darius(prompt)
+    result = await _call_darius(prompt, deid)
 
     # Parse response
     insights: list[BatchInsightItem] = []

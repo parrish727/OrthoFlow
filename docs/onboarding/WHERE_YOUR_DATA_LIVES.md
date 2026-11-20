@@ -3,14 +3,14 @@
 A one-page workflow for practice owners, office managers and IT contacts. It answers: where is our data, who can see it, what is in our office, and what do I do if I want it moved or removed.
 
 ## The short version
-Your patient data is stored on servers operated by Melanin Technologies in the United States. It is not stored in your office and not on a shared public cloud. Your practice's records are kept separate from every other practice, encrypted, and every access is logged.
+Your patient data is stored on Melanin Technologies Inc. local infrastructure in the United States. It is not stored in your office and not on a shared public cloud. Your practice's records are kept separate from every other practice, encrypted, and every access is logged.
 
 ## Step 1: Pick your setup (done at onboarding)
 
 | Option | What it means | Available |
 |---|---|---|
 | **Hosted by OrthoFlow** (default) | Everything runs on our servers. Your team uses a web browser. Nothing is installed in your office. | **Yes** |
-| **Hosted + office device** | A small device (for example a Mac mini) sits in your office and connects to OrthoFlow. First use: capturing images from your imaging equipment and sending them to your OrthoFlow records. | Not yet. Ask us; it is planned. |
+| **Hosted + edge device / practice local server** | A small device sits in your office and connects to OrthoFlow. First use: capturing images from your imaging equipment and sending them to your OrthoFlow records. | Not yet. Ask us; it is planned. |
 | **Fully on-site** | OrthoFlow runs entirely in your office. | Not available today. |
 
 ## Step 2: Know the path your data takes

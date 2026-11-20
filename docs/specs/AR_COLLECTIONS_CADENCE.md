@@ -6,13 +6,13 @@
 
 ## 1. What the cadence does
 
-| Days past due | Reminder |
+| Days past due | Reminder (generic text, link to MyOrthoChart) |
 |---|---|
-| 30 | Friendly: a payment is past due, pay in MyOrthoChart |
-| 60 | Over 60 days, pay or call to set up a plan |
-| 90 | Over 90 days, pay or call so we can help |
-| 120 | Still a past-due balance, pay or talk through options |
-| 180 | Final automatic reminder |
+| 30 | Billing notice, review in MyOrthoChart |
+| 60 | Second notice |
+| 90 | Important, review or call the office |
+| 120 | Still open, review or call to talk through options |
+| 180 | Final reminder |
 
 After 180 days (`AR_OUTREACH_CAP_DAYS`) OrthoFlow stops. The account needs a practice decision. The cap can be raised in config if it proves worthwhile. Days 120 to the cap are the "long tail".
 
@@ -43,7 +43,7 @@ Before this change the two used different clocks. The Ledger roster aged the old
 - SMS consent (TCPA) required; opt-outs and the patient's quiet hours honored. No consent: nothing is sent or recorded, so it sends later if the patient opts in.
 - Sent only 10:00 to 17:00 practice time (`AR_OUTREACH_TZ`, default America/New_York), once per day.
 - Each milestone sent at most once per delinquency cycle (unique per patient, milestone and oldest uncovered due date). First seen at day 130: only the 120-day message goes; 30, 60 and 90 are recorded as superseded.
-- Text includes first name, practice name and the MyOrthoChart link. No balance amount.
+- The text is generic: no patient name, practice name, balance or day count. It only points to the signed-in MyOrthoChart page (SMS is not encrypted).
 - A failed send is not recorded, so it retries on the next run.
 - Every send is written to the message log and `ar_outreach_events`.
 

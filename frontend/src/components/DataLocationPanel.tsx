@@ -11,10 +11,10 @@ export default function DataLocationPanel() {
         <div>
           <h3 className="text-sm font-semibold text-gray-800">Where your patient data lives</h3>
           <ul className="text-xs text-gray-600 mt-2 space-y-1.5 list-disc pl-4 max-w-xl">
-            <li><b>Hosted by OrthoFlow.</b> Your data is stored on servers operated by Melanin Technologies in the United States, not in your office and not on a shared public cloud.</li>
+            <li><b>Hosted by OrthoFlow.</b> Your data is stored on Melanin Technologies Inc. local infrastructure in the United States, not in your office and not on a shared public cloud.</li>
             <li><b>Kept separate.</b> Your practice's records are isolated from every other practice, encrypted, and every access is logged.</li>
             <li><b>Yours to export.</b> Ask us for a full export at any time.</li>
-            <li><b>In-office device.</b> No equipment is installed in your office today. An optional on-site device for imaging capture is not yet available.</li>
+            <li><b>Edge device / practice local server.</b> Nothing is installed in your office today. An optional on-site device for imaging capture is not yet available.</li>
           </ul>
         </div>
       </div>
